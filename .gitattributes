@@ -1,0 +1,20 @@
+# Normalize line endings: store LF in the repo, check out as-is locally.
+# Keeps .sh/.ps1/.md portable across Windows/Linux/macOS without CRLF churn.
+* text=auto eol=lf
+
+# Force LF for scripts that must run on Unix shells.
+*.sh   text eol=lf
+*.ps1  text eol=crlf
+
+# Binary assets — never normalize.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.wav  binary
+*.mp3  binary
+*.mp4  binary
