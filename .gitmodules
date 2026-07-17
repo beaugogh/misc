@@ -6,3 +6,7 @@
 	path = superpowers
 	url = https://github.com/obra/superpowers.git
 	branch = main
+[submodule "mattpocock-skills"]
+	path = mattpocock-skills
+	url = https://github.com/mattpocock/skills.git
+	branch = main
