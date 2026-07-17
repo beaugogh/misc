@@ -34,6 +34,7 @@ skills/
 | [`meeting-recording-analysis`](./skills/meeting-recording-analysis) | Analyze meeting recordings (video + audio) — transcribe speech to a timestamped transcript and extract key frames from screen-share video, then summarize / pull action items / answer questions. Built for WeLink recordings but works on any video. |
 | [`git-corporate-proxy-lfs`](./skills/git-corporate-proxy-lfs) | Fix `git clone`/`pull` failures behind a corporate proxy on Windows — the 443 timeout, the schannel revocation-check hang, LFS crawling at KB/s, and interrupted clones leaving files as LFS pointers. |
 | [`verify-model-endpoints`](./skills/verify-model-endpoints) | Smoke-test any OpenAI-compatible chat endpoint (DashScope, DeepSeek, Moonshot/Kimi, Zhipu/GLM, SiliconFlow, OpenRouter, OpenAI, local Ollama) — fire a prompt, print the reply. Per-provider credentials live in the skill's gitignored `.env`. |
+| [`karpathy-guidelines`](./skills/karpathy-guidelines) | Behavioral guidelines to reduce common LLM coding mistakes — think before coding, simplicity first, surgical changes, goal-driven execution. Vendored (MIT) from [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills), derived from Andrej Karpathy's observations on LLM coding pitfalls. |
 
 ## External skill collections (git submodules)
 
