@@ -8,8 +8,9 @@ future self) can pick up and re-run.
 
 **My own skills** each live in their own folder under `skills/` and follow the
 [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) format.
-Anthropic's official skills are mirrored separately as a git submodule under
-`anthropic-skills/` (see below).
+Two external collections are mirrored as git submodules —
+`anthropic-skills/` (Anthropic's official skills) and `superpowers/` (obra's
+methodology skills) — see [below](#external-skill-collections-git-submodules).
 
 ```
 skills/
@@ -33,28 +34,33 @@ skills/
 | [`git-corporate-proxy-lfs`](./skills/git-corporate-proxy-lfs) | Fix `git clone`/`pull` failures behind a corporate proxy on Windows — the 443 timeout, the schannel revocation-check hang, LFS crawling at KB/s, and interrupted clones leaving files as LFS pointers. |
 | [`verify-model-endpoints`](./skills/verify-model-endpoints) | Smoke-test any OpenAI-compatible chat endpoint (DashScope, DeepSeek, Moonshot/Kimi, Zhipu/GLM, SiliconFlow, OpenRouter, OpenAI, local Ollama) — fire a prompt, print the reply. Per-provider credentials live in the skill's gitignored `.env`. |
 
-## Anthropic skills (git submodule)
+## External skill collections (git submodules)
 
-[`anthropic-skills/`](./anthropic-skills) is a git submodule tracking Anthropic's
-official [skills repo](https://github.com/anthropics/skills). It provides
-reference skills (artifacts, document formats, design, MCP building, etc.) that I
-reuse rather than reinvent. The actual skills live under
-`anthropic-skills/skills/`.
+Two upstream skill collections are tracked as git submodules, kept separate from
+my own `skills/` (read-only; pull updates from upstream, don't edit in place):
 
-This keeps the two concerns separate: **my own skills** in `skills/`, **Anthropic's
-upstream skills** in `anthropic-skills/` (read-only; pull updates from upstream,
-don't edit in place).
+| Submodule | Upstream | Pins | What's in it |
+|---|---|---|---|
+| [`anthropic-skills/`](./anthropic-skills) | [anthropics/skills](https://github.com/anthropics/skills) | `main` | Anthropic's official reference skills — artifacts & document formats (`pdf`, `docx`, `pptx`, `xlsx`), design (`brand-guidelines`, `canvas-design`, `frontend-design`, `theme-factory`), `mcp-builder`, `skill-creator`, and more. Skills live under `anthropic-skills/skills/`. |
+| [`superpowers/`](./superpowers) | [obra/superpowers](https://github.com/obra/superpowers) | `v6.1.1` | A software-development *methodology* for coding agents — process skills like `brainstorming`, `writing-plans`, `executing-plans`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `requesting-code-review`, `subagent-driven-development`. Skills live under `superpowers/skills/`. Also ships hooks/plugin manifests for several agent harnesses. |
 
-### Updating the submodule to the latest upstream
+> **Note on superpowers:** as a submodule checked out at a subdirectory, its
+> hooks/plugin manifests stay inert. To actually *activate* the methodology in
+> Claude Code, install it as a plugin separately (`/plugin install superpowers@…`,
+> see the [superpowers README](./superpowers/README.md#installation)). The
+> submodule here is for reference and keeping the source on hand.
+
+### Updating a submodule to the latest upstream
 
 ```bash
-git -C anthropic-skills checkout main
-git -C anthropic-skills pull            # fetch latest upstream
-git add anthropic-skills                # record the new pinned commit
-git commit -m "Bump anthropic-skills submodule"
+# e.g. for anthropic-skills (tracks main); for superpowers, checkout the release tag or main
+git -C <submodule-dir> checkout main
+git -C <submodule-dir> pull            # fetch latest upstream
+git add <submodule-dir>                # record the new pinned commit
+git commit -m "Bump <submodule-dir> submodule"
 ```
 
-### Cloning this repo with the submodule
+### Cloning this repo with submodules
 
 ```bash
 git clone --recurse-submodules <repo-url>
