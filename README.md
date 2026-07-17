@@ -39,10 +39,10 @@ skills/
 Two upstream skill collections are tracked as git submodules, kept separate from
 my own `skills/` (read-only; pull updates from upstream, don't edit in place):
 
-| Submodule | Upstream | Pins | What's in it |
+| Submodule | Upstream | Tracks | What's in it |
 |---|---|---|---|
 | [`anthropic-skills/`](./anthropic-skills) | [anthropics/skills](https://github.com/anthropics/skills) | `main` | Anthropic's official reference skills — artifacts & document formats (`pdf`, `docx`, `pptx`, `xlsx`), design (`brand-guidelines`, `canvas-design`, `frontend-design`, `theme-factory`), `mcp-builder`, `skill-creator`, and more. Skills live under `anthropic-skills/skills/`. |
-| [`superpowers/`](./superpowers) | [obra/superpowers](https://github.com/obra/superpowers) | `v6.1.1` | A software-development *methodology* for coding agents — process skills like `brainstorming`, `writing-plans`, `executing-plans`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `requesting-code-review`, `subagent-driven-development`. Skills live under `superpowers/skills/`. Also ships hooks/plugin manifests for several agent harnesses. |
+| [`superpowers/`](./superpowers) | [obra/superpowers](https://github.com/obra/superpowers) | `main` | A software-development *methodology* for coding agents — process skills like `brainstorming`, `writing-plans`, `executing-plans`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `requesting-code-review`, `subagent-driven-development`. Skills live under `superpowers/skills/`. Also ships hooks/plugin manifests for several agent harnesses. |
 
 > **Note on superpowers:** as a submodule checked out at a subdirectory, its
 > hooks/plugin manifests stay inert. To actually *activate* the methodology in
@@ -50,15 +50,21 @@ my own `skills/` (read-only; pull updates from upstream, don't edit in place):
 > see the [superpowers README](./superpowers/README.md#installation)). The
 > submodule here is for reference and keeping the source on hand.
 
-### Updating a submodule to the latest upstream
+### Updating the submodules (both track upstream `main`)
+
+Both submodules are configured to track their upstream `main`, so a single
+command updates both:
 
 ```bash
-# e.g. for anthropic-skills (tracks main); for superpowers, checkout the release tag or main
-git -C <submodule-dir> checkout main
-git -C <submodule-dir> pull            # fetch latest upstream
-git add <submodule-dir>                # record the new pinned commit
-git commit -m "Bump <submodule-dir> submodule"
+git submodule update --remote       # fetch + move each checkout to main's tip
+git add anthropic-skills superpowers
+git commit -m "Bump submodules to latest upstream main"
+git push
 ```
+
+To update just one, name it: `git submodule update --remote anthropic-skills`.
+To only *check* for updates without moving anything, `git -C <submodule-dir> fetch origin`
+then compare `git rev-list --count HEAD..origin/main`.
 
 ### Cloning this repo with submodules
 
