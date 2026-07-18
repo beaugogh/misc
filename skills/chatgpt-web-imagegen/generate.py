@@ -250,21 +250,27 @@ def _normalize_link(link: str) -> str:
 
 
 def _parse_json_from_blob(blob: str):
-    """Find and parse the first JSON object/array in a blob of text."""
+    """Find and parse the first VALID JSON object/array in a blob of text.
+
+    Scans for brace/bracket-balanced substrings and tries json.loads on each;
+    on failure, KEEPS SCANNING for a later valid candidate (a leading stray
+    '{' in an error/progress line must not poison the whole parse).
+    """
     for i, ch in enumerate(blob):
-        if ch in "{[":
-            depth = 0
-            for j in range(i, len(blob)):
-                if blob[j] in "{[":
-                    depth += 1
-                elif blob[j] in "}]":
-                    depth -= 1
-                    if depth == 0:
-                        try:
-                            return json.loads(blob[i:j + 1])
-                        except json.JSONDecodeError:
-                            return None
-            break
+        if ch not in "{[":
+            continue
+        depth = 0
+        for j in range(i, len(blob)):
+            if blob[j] in "{[":
+                depth += 1
+            elif blob[j] in "}]":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(blob[i:j + 1])
+                    except json.JSONDecodeError:
+                        break   # this candidate invalid; scan for next '{'/'['
+    return None
     return None
 
 
@@ -353,8 +359,17 @@ STATE_JS = r"""
 
 
 def generate_one(opencli: str, prompt: str, retries: int,
-                 timeout: int, log) -> tuple[bool, str | None, str | None]:
+                 timeout: int, capture_timeout: int, log
+                 ) -> tuple[bool, str | None, str | None]:
     """Generate one real image, with delayed-capture + moderation rephrase.
+
+    `timeout` is the per-attempt generation budget (passed to opencli's
+    --timeout). `capture_timeout` is the per-attempt DOM-capture budget —
+    deliberately smaller, so a genuine refusal (no image will ever appear)
+    fails fast (~capture_timeout) per attempt instead of burning the full
+    generation budget on each of retries+1 attempts. A real slow generation
+    that genuinely needs >capture_timeout seconds to render after opencli
+    bails can be given more headroom by raising --capture-timeout.
 
     Per attempt (fresh chat each time):
       1. `opencli chatgpt image` — if it saves a real image, done.
@@ -363,8 +378,9 @@ def generate_one(opencli: str, prompt: str, retries: int,
          opencli's internal poll gave up (EMPTY_RESULT). Delayed-capture:
          navigate to that conversation and fetch the large <img> via
          `opencli browser eval`. Rescues slow generations without re-running.
-      3. If delayed-capture finds no <img> → genuine moderation refusal →
-         rephrase on the next attempt (up to `retries` rephrasings).
+      3. If no image within the capture budget → genuine moderation refusal
+         OR a stuck/failed load (we don't distinguish) → rephrase on the
+         next attempt (up to `retries` rephrasings).
 
     Attempt 1 uses the original prompt; attempts 2..retries+1 wrap the
     original in REPHRASE_PROMPT (ChatGPT rephrases to dodge IP signals and
@@ -389,15 +405,21 @@ def generate_one(opencli: str, prompt: str, retries: int,
 
             # The conversation DOM is the source of truth for "did a real
             # image get generated" — NOT opencli's saved file (which can be
-            # a snapshot of the grey-dots placeholder). opencli's file is
-            # just a fast-path candidate; always re-verify via the DOM.
+            # a snapshot of the grey-dots placeholder, a structurally-valid
+            # PNG that is_real_image() cannot distinguish from a real one).
+            # So we ONLY accept an image that capture_from_conversation
+            # fetched from a generated-img src URL. If opencli didn't capture
+            # a /c/<id> link (e.g. link:/new, cold-session early-exit), we
+            # can't verify — treat as failed and rephrase. Do NOT fall back
+            # to trusting opencli's saved file; that's how placeholders got
+            # accepted as success.
             conv_norm = _normalize_link(conv)
             if conv_norm and "/c/" in conv_norm:
                 log(f"  attempt {attempt}: verifying via conversation "
                     f"DOM at {conv_norm}")
                 cap_path = os.path.join(scratch_root, f"cap_{attempt}.png")
                 status, cap_saved = capture_from_conversation(
-                    opencli, conv_norm, cap_path)
+                    opencli, conv_norm, cap_path, timeout=capture_timeout)
                 if status == "image" and cap_saved and is_real_image(cap_saved):
                     final = tempfile.NamedTemporaryFile(
                         prefix="realimg_", suffix=".png", delete=False).name
@@ -405,14 +427,9 @@ def generate_one(opencli: str, prompt: str, retries: int,
                     return True, final, conv_norm
                 log(f"  attempt {attempt}: capture → {status}; "
                     f"{'rephrasing' if attempt <= retries else 'giving up'}")
-            elif ok and saved:
-                final = tempfile.NamedTemporaryFile(
-                    prefix="realimg_", suffix=".png", delete=False).name
-                shutil.move(saved, final)
-                return True, final, conv
             else:
-                log(f"  attempt {attempt}: no image and no conversation "
-                    f"link (cold-session/early-exit) → "
+                log(f"  attempt {attempt}: no conversation link to verify "
+                    f"against (cold-session/early-exit) → "
                     f"{'rephrase' if attempt <= retries else 'give up'}")
 
             if attempt > retries:
@@ -434,8 +451,8 @@ def main() -> int:
     ap.add_argument("file", nargs="?", default=None,
                     help="path to a prompts file (alias for --prompts-file)")
     ap.add_argument("--prompt", default=None,
-                    help="a single prompt (repeatable? no — use the file/json "
-                         "sources for multiple)")
+                    help="a single prompt (for multiple prompts, use "
+                         "--prompts-file or --prompts-json)")
     ap.add_argument("--prompts-file", default=None,
                     help="file with one prompt per line (blank-line-separated "
                          "blocks = multi-line prompts); '#' lines ignored")
@@ -447,9 +464,17 @@ def main() -> int:
     ap.add_argument("--prefix", default="image",
                     help="output filename prefix (default: image → image_1.png)")
     ap.add_argument("--timeout", type=int, default=300,
-                    help="per-image wall seconds passed to opencli (default 300)")
+                    help="per-attempt generation budget in seconds (passed to "
+                         "opencli --timeout). For slow multi-character prompts.")
+    ap.add_argument("--capture-timeout", type=int, default=90,
+                    help="per-attempt DOM-capture budget in seconds. Deliberately "
+                         "smaller than --timeout so a genuine refusal (no image "
+                         "will ever appear) fails fast per attempt instead of "
+                         "burning the full generation budget on every retry. Raise "
+                         "if a real slow generation is being cut off mid-render.")
     ap.add_argument("--retries", type=int, default=3,
-                    help="moderation rephrase attempts (total attempts = +1)")
+                    help="moderation rephrase attempts; total attempts per "
+                         "prompt = retries + 1 (default 4)")
     ap.add_argument("--force", action="store_true",
                     help="regenerate even if the output PNG already exists")
     args = ap.parse_args()
@@ -463,14 +488,15 @@ def main() -> int:
 
     print(f"{len(prompts)} prompt(s) → {args.out}")
     print(f"via: {opencli} chatgpt image (timeout {args.timeout}s, "
-          f"retries {args.retries}, prefix '{args.prefix}_<n>.png')")
+          f"capture-timeout {args.capture_timeout}s, retries {args.retries}, "
+          f"prefix '{args.prefix}_<n>.png')")
     print()
 
     ok = fail = skipped = 0
     failed_idx: list[int] = []
     for idx, prompt in enumerate(prompts, 1):
         target = os.path.join(args.out, f"{args.prefix}_{idx}.png")
-        prefix = f"[{idx}/{len(prompts)}] {os.path.basename(target)[:-4]}"
+        prefix = f"[{idx}/{len(prompts)}] {os.path.splitext(os.path.basename(target))[0]}"
         if not args.force and os.path.exists(target):
             print(f"{prefix}: already exists, skipping")
             skipped += 1
@@ -479,7 +505,8 @@ def main() -> int:
         print(f"{prefix}: generating ({len(prompt)} chars)…")
         t0 = time.time()
         success, saved, conv = generate_one(opencli, prompt, args.retries,
-                                            args.timeout, log)
+                                            args.timeout, args.capture_timeout,
+                                            log)
         if success and saved:
             shutil.copy(saved, target)
             try:

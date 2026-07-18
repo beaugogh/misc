@@ -92,7 +92,14 @@ python3 skills/chatgpt-web-imagegen/generate.py --prompts-json prompts.json
 
 # Tune retries and per-image timeout
 python3 skills/chatgpt-web-imagegen/generate.py prompts.txt \
-    --out ./out --retries 3 --timeout 300
+    --out ./out --retries 3 --timeout 300 --capture-timeout 90
+
+# --timeout = per-attempt generation budget (slow multi-character prompts).
+# --capture-timeout = per-attempt DOM-capture budget, deliberately smaller so
+#   a genuine refusal fails fast instead of burning the full --timeout on
+#   every retry. Raise it only if a real slow generation is being cut off
+#   mid-render (i.e. you see "capture → timeout" on prompts that you can
+#   confirm generated a real image on the chatgpt.com website).
 
 # Regenerate even if the output PNG already exists
 python3 skills/chatgpt-web-imagegen/generate.py prompts.txt --force
@@ -192,13 +199,18 @@ printed for manual review).
 - This skill drives a **real browser**, so it can't run headless on a server
   without a display and an authenticated Chrome profile. It's a
   workstation/local tool, not a CI service.
-- Each generation opens a fresh chat in Chrome (`--window background` keeps
-  it from stealing focus). Many prompts = many chats; chatgpt.com may
-  rate-limit aggressive sequential generation — space prompts if you hit
-  limits.
-- The `gpt-image-2` model behind chatgpt.com generates at **1254×1254, RGB**.
-  If you need other sizes/aspect ratios, bake them into the prompt ("aspect
-  ratio 16:9") — the model honors textual aspect hints.
+- Capture (verifying the generated image via the conversation DOM) uses
+  `--window foreground` because background tabs are browser-throttled and
+  often don't hydrate the conversation DOM at all. This means each capture
+  steals focus briefly — don't run a batch while you need the foreground.
+  (`opencli chatgpt image` itself uses `--window background` for the
+  generation send.)
+- Many prompts = many chats; chatgpt.com may rate-limit aggressive
+  sequential generation — space prompts if you hit limits.
+- chatgpt.com's image model honors textual aspect-ratio hints ("aspect
+  ratio 16:9") — bake size/framing into the prompt rather than expecting a
+  fixed output dimension. (We don't hard-code expected dimensions anywhere;
+  detection is by the generated-image URL pattern, not pixel size.)
 - Output files are named by **position** (`<prefix>_<n>.png`), so if you
   remove a prompt from the middle of your input file, the indices of later
   prompts shift. Use `--force` to regenerate only the ones you want, or keep
