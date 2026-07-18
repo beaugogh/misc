@@ -211,70 +211,169 @@ def opencli_image(opencli: str, prompt: str, out_dir: str,
            "--op", out_dir, "--timeout", str(timeout),
            "-f", "json", "--window", "background"]
     code, out, err = run(cmd, timeout)
-    blob = out + err
     saved = latest_file(out_dir)
+    conv = extract_json_field((out or "") + (err or ""), "link") or ""
     if code == 0 and saved and is_real_image(saved):
-        return True, saved, extract_json_field(blob, "link") or ""
-    return False, saved, extract_json_field(blob, "link") or ""
+        return True, saved, conv
+    return False, saved, conv
+
+
+# JS used by capture_from_conversation: find the large generated <img> and
+# fetch it as a data URL. Matches chatgpt.com's estuary/content image src.
+CAPTURE_JS = r"""
+(async () => {
+  const large = Array.from(document.querySelectorAll('img')).filter(i => {
+    const r = i.getBoundingClientRect();
+    return r.width > 32 && r.height > 32 && (i.naturalWidth || i.width || 0) >= 1024;
+  });
+  if (!large.length) return { error: 'no_large_img' };
+  const img = large[0];
+  const src = img.currentSrc || img.src;
+  try {
+    const res = await fetch(src, { credentials: 'include' });
+    if (!res.ok) return { error: 'fetch_' + res.status };
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const r = new FileReader();
+      r.onloadend = () => resolve({ dataUrl: String(r.result || ''),
+                                    mime: blob.type,
+                                    w: img.naturalWidth, h: img.naturalHeight });
+      r.readAsDataURL(blob);
+    });
+  } catch (e) { return { error: String(e) }; }
+})()
+"""
+
+
+def _normalize_link(link: str) -> str:
+    """Strip opencli's emoji prefix from a 'link' field value."""
+    return (link or "").replace("\U0001f517", "").strip()
+
+
+def _parse_json_from_blob(blob: str):
+    """Find and parse the first JSON object/array in a blob of text."""
+    for i, ch in enumerate(blob):
+        if ch in "{[":
+            depth = 0
+            for j in range(i, len(blob)):
+                if blob[j] in "{[":
+                    depth += 1
+                elif blob[j] in "}]":
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(blob[i:j + 1])
+                        except json.JSONDecodeError:
+                            return None
+            break
+    return None
+
+
+def capture_from_conversation(opencli: str, conv_url: str, out_path: str,
+                               timeout: int = 180) -> tuple[bool, str | None]:
+    """Delayed capture: navigate to a chatgpt.com/c/<id> conversation and
+    extract the generated image via `opencli browser eval`, saving the PNG.
+
+    Used when `opencli chatgpt image` returns EMPTY_RESULT (its internal
+    poll was too short) but the conversation actually has the finished image.
+    Polls up to ~3.5 min for the large <img> to appear (slow renders).
+
+    Returns (success, saved_path).
+    """
+    conv_url = _normalize_link(conv_url)
+    if not conv_url or "/c/" not in conv_url:
+        return False, None
+    run([opencli, "browser", "chatgpt", "open", conv_url,
+         "--window", "background"], 60)
+    for _ in range(40):
+        code, out, err = run([opencli, "browser", "chatgpt", "eval",
+                              CAPTURE_JS, "--window", "background"], 30)
+        res = _parse_json_from_blob((out or "") + (err or ""))
+        if isinstance(res, dict) and res.get("dataUrl"):
+            b64 = res["dataUrl"].split(",", 1)[1]
+            data = base64.b64decode(b64)
+            with open(out_path, "wb") as fh:
+                fh.write(data)
+            return True, out_path
+        if isinstance(res, dict) and res.get("error") == "no_large_img":
+            time.sleep(5)
+            continue
+        time.sleep(5)
+    return False, None
 
 
 def generate_one(opencli: str, prompt: str, retries: int,
-                 timeout: int, log) -> tuple[bool, str | None]:
-    """Generate one real image, rephrasing on moderation.
+                 timeout: int, log) -> tuple[bool, str | None, str | None]:
+    """Generate one real image, with delayed-capture + moderation rephrase.
 
-    Two-phase retry (fresh chat each attempt):
-      Phase 1 — the ORIGINAL prompt, retried up to `same_retries` times. This
-      defeats a timing race where OpenCLI's adapter grabs the "generating…"
-      placeholder before the real image swaps in (a 2nd shot at the same
-      prompt on a warm session usually succeeds).
-      Phase 2 — REPHRASE_PROMPT wrapped around the *original* prompt, for
-      genuine moderation blocks (third-party-content-similarity). ChatGPT
-      rephrases to dodge the IP signal and generates in one turn. Up to
-      `retries` rephrase attempts.
+    Per attempt (fresh chat each time):
+      1. `opencli chatgpt image` — if it saves a real image, done.
+      2. If opencli returns no/placeholder image BUT captured a real
+         `/c/<id>` conversation link → the generation likely finished after
+         opencli's internal poll gave up (EMPTY_RESULT). Delayed-capture:
+         navigate to that conversation and fetch the large <img> via
+         `opencli browser eval`. Rescues slow generations without re-running.
+      3. If delayed-capture finds no <img> → genuine moderation refusal →
+         rephrase on the next attempt (up to `retries` rephrasings).
 
-    Total attempts = same_retries + retries + 1.
+    Attempt 1 uses the original prompt; attempts 2..retries+1 wrap the
+    original in REPHRASE_PROMPT (ChatGPT rephrases to dodge IP signals and
+    generates in one turn).
 
-    Returns (success, temp_png_path) — caller copies then unlinks the temp.
+    Returns (success, temp_png_path, conv_url) — caller copies then unlinks
+    the temp; conv_url is the chatgpt.com/c/<id> for the successful attempt
+    (None if not captured), so the caller can write a .url sidecar for
+    recovery.
     """
-    same_retries = 2                      # phase-1 shots at the original prompt
-    total = same_retries + retries + 1
     scratch_root = tempfile.mkdtemp(prefix="opencli_out_")
     try:
         current_prompt = prompt
         phase = "original"
-        for attempt in range(1, total + 1):
-            # Fresh scratch subdir PER attempt so latest_file() can't pick a
-            # stale placeholder from an earlier attempt of this prompt.
+        for attempt in range(1, retries + 2):
             scratch = os.path.join(scratch_root, f"a{attempt}")
             os.makedirs(scratch, exist_ok=True)
-            log(f"  attempt {attempt}/{total} ({phase}): image gen "
+            log(f"  attempt {attempt}/{retries+1} ({phase}): image gen "
                 f"({len(current_prompt)} chars)")
-            ok, saved, _conv = opencli_image(opencli, current_prompt,
-                                            scratch, timeout)
+            ok, saved, conv = opencli_image(opencli, current_prompt,
+                                           scratch, timeout)
             if ok and saved:
                 final = tempfile.NamedTemporaryFile(
                     prefix="realimg_", suffix=".png", delete=False).name
                 shutil.move(saved, final)
-                return True, final
-            if attempt == total:
-                log(f"  attempt {attempt}: no real image after "
-                    f"{total} attempts; giving up")
-                return False, None
-            # Next attempt's prompt: phase-1 keeps the original (timing race);
-            # once phase-1 is exhausted, switch to rephrase (genuine mod).
-            if attempt < same_retries + 1:
-                phase = "original-retry"
-                current_prompt = prompt
-                log(f"  attempt {attempt}: blocked (placeholder/empty) "
-                    f"— retrying the original prompt")
+                return True, final, conv
+
+            # No real image from opencli. Try delayed-capture from the
+            # conversation if opencli got a real /c/<id> link (the image may
+            # have finished rendering after opencli's poll timed out).
+            conv_norm = _normalize_link(conv)
+            if conv_norm and "/c/" in conv_norm:
+                log(f"  attempt {attempt}: opencli returned no image but "
+                    f"got a conversation link — delayed-capture from "
+                    f"{conv_norm}")
+                cap_path = os.path.join(scratch_root, f"cap_{attempt}.png")
+                cap_ok, cap_saved = capture_from_conversation(
+                    opencli, conv_norm, cap_path)
+                if cap_ok and cap_saved and is_real_image(cap_saved):
+                    final = tempfile.NamedTemporaryFile(
+                        prefix="realimg_", suffix=".png", delete=False).name
+                    shutil.move(cap_saved, final)
+                    return True, final, conv_norm
+                log(f"  attempt {attempt}: delayed-capture found no real "
+                    f"image (likely moderation refusal) → "
+                    f"{'rephrase' if attempt <= retries else 'give up'}")
             else:
-                phase = "rephrase"
-                current_prompt = REPHRASE_PROMPT.format(prompt=prompt)
-                log(f"  attempt {attempt}: blocked (placeholder/empty) "
-                    f"— next attempt will rephrase-and-generate")
-            # Settle the persistent Chrome session before the next /new nav.
+                log(f"  attempt {attempt}: no image and no conversation "
+                    f"link (cold-session/early-exit) → "
+                    f"{'rephrase' if attempt <= retries else 'give up'}")
+
+            if attempt > retries:
+                log(f"  attempt {attempt}: no real image after "
+                    f"{retries+1} attempts; giving up")
+                return False, None, None
+            phase = "rephrase"
+            current_prompt = REPHRASE_PROMPT.format(prompt=prompt)
             time.sleep(5)
-        return False, None
+        return False, None, None
     finally:
         shutil.rmtree(scratch_root, ignore_errors=True)
 
@@ -330,16 +429,25 @@ def main() -> int:
 
         print(f"{prefix}: generating ({len(prompt)} chars)…")
         t0 = time.time()
-        success, saved = generate_one(opencli, prompt, args.retries,
-                                      args.timeout, log)
+        success, saved, conv = generate_one(opencli, prompt, args.retries,
+                                            args.timeout, log)
         if success and saved:
             shutil.copy(saved, target)
             try:
                 os.unlink(saved)
             except OSError:
                 pass
-            size = os.path.getsize(target)
-            print(f"{prefix}: ok {size // 1024}KB in {time.time()-t0:.1f}s\n")
+            # Write a .url sidecar so the chatgpt.com conversation (and its
+            # image) is recoverable if the PNG is ever lost.
+            if conv:
+                sidecar = target[:-4] + ".url"
+                with open(sidecar, "w") as fh:
+                    fh.write(conv + "\n")
+                print(f"{prefix}: ok {os.path.getsize(target)//1024}KB "
+                      f"in {time.time()-t0:.1f}s  ({conv})\n")
+            else:
+                size = os.path.getsize(target)
+                print(f"{prefix}: ok {size // 1024}KB in {time.time()-t0:.1f}s\n")
             ok += 1
         else:
             print(f"{prefix}: FAILED in {time.time()-t0:.1f}s "
