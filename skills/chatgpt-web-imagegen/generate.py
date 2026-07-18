@@ -222,36 +222,61 @@ def generate_one(opencli: str, prompt: str, retries: int,
                  timeout: int, log) -> tuple[bool, str | None]:
     """Generate one real image, rephrasing on moderation.
 
-    Fresh chat each attempt (total = retries+1):
-      attempt 1: the original prompt.
-      attempt 2..: REPHRASE_PROMPT wrapped around the *original* prompt.
+    Two-phase retry (fresh chat each attempt):
+      Phase 1 — the ORIGINAL prompt, retried up to `same_retries` times. This
+      defeats a timing race where OpenCLI's adapter grabs the "generating…"
+      placeholder before the real image swaps in (a 2nd shot at the same
+      prompt on a warm session usually succeeds).
+      Phase 2 — REPHRASE_PROMPT wrapped around the *original* prompt, for
+      genuine moderation blocks (third-party-content-similarity). ChatGPT
+      rephrases to dodge the IP signal and generates in one turn. Up to
+      `retries` rephrase attempts.
+
+    Total attempts = same_retries + retries + 1.
+
     Returns (success, temp_png_path) — caller copies then unlinks the temp.
     """
-    scratch = tempfile.mkdtemp(prefix="opencli_out_")
+    same_retries = 2                      # phase-1 shots at the original prompt
+    total = same_retries + retries + 1
+    scratch_root = tempfile.mkdtemp(prefix="opencli_out_")
     try:
         current_prompt = prompt
-        for attempt in range(1, retries + 2):
-            log(f"  attempt {attempt}/{retries+1}: image gen "
+        phase = "original"
+        for attempt in range(1, total + 1):
+            # Fresh scratch subdir PER attempt so latest_file() can't pick a
+            # stale placeholder from an earlier attempt of this prompt.
+            scratch = os.path.join(scratch_root, f"a{attempt}")
+            os.makedirs(scratch, exist_ok=True)
+            log(f"  attempt {attempt}/{total} ({phase}): image gen "
                 f"({len(current_prompt)} chars)")
             ok, saved, _conv = opencli_image(opencli, current_prompt,
                                             scratch, timeout)
             if ok and saved:
-                # Move out of scratch so the `finally` rmtree can't delete it.
                 final = tempfile.NamedTemporaryFile(
                     prefix="realimg_", suffix=".png", delete=False).name
                 shutil.move(saved, final)
                 return True, final
-            if attempt > retries:
+            if attempt == total:
                 log(f"  attempt {attempt}: no real image after "
-                    f"{retries+1} attempts; giving up")
+                    f"{total} attempts; giving up")
                 return False, None
-            log(f"  attempt {attempt}: blocked (placeholder/empty) — "
-                f"next attempt will rephrase-and-generate")
-            # Each retry wraps the ORIGINAL prompt (clean start, no drift).
-            current_prompt = REPHRASE_PROMPT.format(prompt=prompt)
+            # Next attempt's prompt: phase-1 keeps the original (timing race);
+            # once phase-1 is exhausted, switch to rephrase (genuine mod).
+            if attempt < same_retries + 1:
+                phase = "original-retry"
+                current_prompt = prompt
+                log(f"  attempt {attempt}: blocked (placeholder/empty) "
+                    f"— retrying the original prompt")
+            else:
+                phase = "rephrase"
+                current_prompt = REPHRASE_PROMPT.format(prompt=prompt)
+                log(f"  attempt {attempt}: blocked (placeholder/empty) "
+                    f"— next attempt will rephrase-and-generate")
+            # Settle the persistent Chrome session before the next /new nav.
+            time.sleep(5)
         return False, None
     finally:
-        shutil.rmtree(scratch, ignore_errors=True)
+        shutil.rmtree(scratch_root, ignore_errors=True)
 
 
 def main() -> int:
