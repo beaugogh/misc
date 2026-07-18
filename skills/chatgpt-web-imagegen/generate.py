@@ -438,17 +438,8 @@ def main() -> int:
                 os.unlink(saved)
             except OSError:
                 pass
-            # Write a .url sidecar so the chatgpt.com conversation (and its
-            # image) is recoverable if the PNG is ever lost.
-            if conv:
-                sidecar = target[:-4] + ".url"
-                with open(sidecar, "w") as fh:
-                    fh.write(conv + "\n")
-                print(f"{prefix}: ok {os.path.getsize(target)//1024}KB "
-                      f"in {time.time()-t0:.1f}s  ({conv})\n")
-            else:
-                size = os.path.getsize(target)
-                print(f"{prefix}: ok {size // 1024}KB in {time.time()-t0:.1f}s\n")
+            size = os.path.getsize(target)
+            print(f"{prefix}: ok {size // 1024}KB in {time.time()-t0:.1f}s\n")
             ok += 1
         else:
             print(f"{prefix}: FAILED in {time.time()-t0:.1f}s "
