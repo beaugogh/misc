@@ -271,36 +271,74 @@ def _parse_json_from_blob(blob: str):
 
 
 def capture_from_conversation(opencli: str, conv_url: str, out_path: str,
-                               timeout: int = 180) -> tuple[bool, str | None]:
-    """Delayed capture: navigate to a chatgpt.com/c/<id> conversation and
-    extract the generated image via `opencli browser eval`, saving the PNG.
+                               timeout: int = 240) -> tuple[str, str | None]:
+    """Capture the generated image from a chatgpt.com/c/<id> conversation,
+    waiting out ChatGPT's "generating…" grey-dots placeholder.
 
-    Used when `opencli chatgpt image` returns EMPTY_RESULT (its internal
-    poll was too short) but the conversation actually has the finished image.
-    Polls up to ~3.5 min for the large <img> to appear (slow renders).
+    ChatGPT shows an animated grey-dots placeholder while the image generates
+    — which can persist arbitrarily long, AND (a website quirk) can stay
+    animating even after the backend has finished, until the page is refreshed.
+    So this polls the conversation state and refreshes periodically to unstick
+    the placeholder. Only once the real <img> replaces the placeholder does it
+    fetch+save the image.
 
-    Returns (success, saved_path).
+    Returns (status, saved_path) where status is one of:
+      - "image"   : a real image was captured and saved to out_path.
+      - "refused" : the assistant's turn is a moderation-refusal text (no
+                    image will ever appear here) — caller should rephrase.
+      - "timeout" : neither resolved within the budget — unknown state.
     """
     conv_url = _normalize_link(conv_url)
     if not conv_url or "/c/" not in conv_url:
-        return False, None
+        return "timeout", None
     run([opencli, "browser", "chatgpt", "open", conv_url,
          "--window", "background"], 60)
-    for _ in range(40):
+
+    deadline = time.time() + timeout
+    last_refresh = time.time()
+    refresh_every = 45   # defeat the stuck-placeholder quirk
+    while time.time() < deadline:
         code, out, err = run([opencli, "browser", "chatgpt", "eval",
-                              CAPTURE_JS, "--window", "background"], 30)
+                              STATE_JS, "--window", "background"], 30)
         res = _parse_json_from_blob((out or "") + (err or ""))
-        if isinstance(res, dict) and res.get("dataUrl"):
-            b64 = res["dataUrl"].split(",", 1)[1]
-            data = base64.b64decode(b64)
-            with open(out_path, "wb") as fh:
-                fh.write(data)
-            return True, out_path
-        if isinstance(res, dict) and res.get("error") == "no_large_img":
+        if not isinstance(res, dict):
             time.sleep(5)
             continue
+        if res.get("largeImgs", 0) >= 1:
+            code, out, err = run([opencli, "browser", "chatgpt", "eval",
+                                  CAPTURE_JS, "--window", "background"], 30)
+            fres = _parse_json_from_blob((out or "") + (err or ""))
+            if isinstance(fres, dict) and fres.get("dataUrl"):
+                b64 = fres["dataUrl"].split(",", 1)[1]
+                data = base64.b64decode(b64)
+                with open(out_path, "wb") as fh:
+                    fh.write(data)
+                return "image", out_path
+            # fetch failed; keep polling
+        elif res.get("refused"):
+            return "refused", None
+        # else: still generating (grey-dots) OR page not hydrated. Wait, and
+        # periodically refresh to unstick the stuck-placeholder quirk.
+        if time.time() - last_refresh >= refresh_every:
+            run([opencli, "browser", "chatgpt", "open", conv_url,
+                 "--window", "background"], 60)
+            last_refresh = time.time()
         time.sleep(5)
-    return False, None
+    return "timeout", None
+
+
+# State probe: classifies the conversation DOM into image-present / refused /
+# still-generating. (No fetch — cheap to poll.)
+STATE_JS = r"""
+(() => {
+  const turns = document.querySelectorAll('[data-message-author-role], article[data-testid*="conversation-turn"]').length;
+  const large = Array.from(document.querySelectorAll('img')).filter(i => (i.naturalWidth || i.width || 0) >= 1024);
+  const asst = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
+  const asstText = asst.map(n => (n.innerText||'')).join('\n').slice(0, 400);
+  const refused = /违反|限制|moderation|violate|may have|抱歉|无法|policy|sorry, i can|content policy/i.test(asstText);
+  return { turns, largeImgs: large.length, refused, asstText: asstText.slice(0,80) };
+})()
+"""
 
 
 def generate_one(opencli: str, prompt: str, retries: int,
@@ -343,25 +381,25 @@ def generate_one(opencli: str, prompt: str, retries: int,
                 shutil.move(saved, final)
                 return True, final, conv
 
-            # No real image from opencli. Try delayed-capture from the
-            # conversation if opencli got a real /c/<id> link (the image may
-            # have finished rendering after opencli's poll timed out).
+            # opencli didn't save a real image. If it captured a real
+            # /c/<id> conversation link, the generation is likely still
+            # running (or finished-but-placeholder-stuck). Wait it out:
+            # poll the conversation, refreshing to unstick the placeholder,
+            # until the real image appears or the assistant refuses.
             conv_norm = _normalize_link(conv)
             if conv_norm and "/c/" in conv_norm:
-                log(f"  attempt {attempt}: opencli returned no image but "
-                    f"got a conversation link — delayed-capture from "
-                    f"{conv_norm}")
+                log(f"  attempt {attempt}: opencli returned no image — "
+                    f"waiting out the generation at {conv_norm}")
                 cap_path = os.path.join(scratch_root, f"cap_{attempt}.png")
-                cap_ok, cap_saved = capture_from_conversation(
+                status, cap_saved = capture_from_conversation(
                     opencli, conv_norm, cap_path)
-                if cap_ok and cap_saved and is_real_image(cap_saved):
+                if status == "image" and cap_saved and is_real_image(cap_saved):
                     final = tempfile.NamedTemporaryFile(
                         prefix="realimg_", suffix=".png", delete=False).name
                     shutil.move(cap_saved, final)
                     return True, final, conv_norm
-                log(f"  attempt {attempt}: delayed-capture found no real "
-                    f"image (likely moderation refusal) → "
-                    f"{'rephrase' if attempt <= retries else 'give up'}")
+                log(f"  attempt {attempt}: capture → {status}; "
+                    f"{'rephrasing' if attempt <= retries else 'giving up'}")
             else:
                 log(f"  attempt {attempt}: no image and no conversation "
                     f"link (cold-session/early-exit) → "
