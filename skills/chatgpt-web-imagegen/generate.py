@@ -270,102 +270,84 @@ def _parse_json_from_blob(blob: str):
 
 def capture_from_conversation(opencli: str, conv_url: str, out_path: str,
                                timeout: int = 240) -> tuple[str, str | None]:
-    """Capture the generated image from a chatgpt.com/c/<id> conversation,
-    waiting out ChatGPT's "generating…" grey-dots placeholder.
+    """Capture the generated image from a chatgpt.com/c/<id> conversation.
 
-    ChatGPT shows an animated grey-dots placeholder while the image generates
-    — which can persist arbitrarily long, AND (a website quirk) can stay
-    animating even after the backend has finished, until the page is refreshed.
-    So this polls the conversation state and refreshes periodically to unstick
-    the placeholder. Only once the real <img> replaces the placeholder does it
-    fetch+save the image.
+    Returns (status, saved_path): "image" | "timeout".
 
-    Refusal detection (no magic strings): a refusal is terminal. After a full
-    page refresh + re-hydration, the page shows the final state — a generated
-    <img> (success) or a text turn with no image (refused). So "refused" is
-    decided only post-refresh-once-settled: turns>=1 AND genImgs==0. During
-    the initial load (pre-refresh) we never call it refused, because the image
-    may still be rendering.
+    Decisions driven by DOM STATE, not fixed wall-clock budgets (generation
+    duration varies drastically). The one hard signal we trust: a generated
+    <img> is present whose src matches the estuary/content URL pattern. While
+    no such image is present, the page is either still generating or in the
+    stuck-placeholder quirk (grey-dots frozen, backend done but image not
+    rendered until refresh). So we keep polling and periodically REFRESH to
+    unstick the quirk, until either a generated image appears (-> fetch +
+    return "image") or the caller's --timeout elapses with no image (-> return
+    "timeout"; the caller treats timeout like a refusal and rephrases).
 
-    Returns (status, saved_path) where status is one of:
-      - "image"   : a real image was captured and saved to out_path.
-      - "refused" : the conversation has hydrated with no generated image after
-                    a refresh — no image will ever appear here; caller should
-                    rephrase.
-      - "timeout" : neither resolved within the budget — unknown state.
+    We do NOT attempt to detect "refused" structurally — the DOM markers for
+    a refusal turn (data-message-author-role, conversation-turn, etc.) are
+    unreliable: they're present on success conversations sometimes, absent on
+    refusals other times, and matching the refusal text is a brittle
+    magic-string list. So "refused" isn't a distinct return; "no image within
+    budget" => "timeout", and the caller's rephrase logic handles it.
+
+    Uses --window foreground: background tabs are throttled and often don't
+    hydrate the conversation DOM at all, which would make every poll return
+    empty.
     """
     conv_url = _normalize_link(conv_url)
     if not conv_url or "/c/" not in conv_url:
         return "timeout", None
     run([opencli, "browser", "chatgpt", "open", conv_url,
-         "--window", "background"], 60)
+         "--window", "foreground"], 60)
 
     deadline = time.time() + timeout
-    last_refresh = time.time()   # so the first refresh fires after refresh_every,
-                                 # not immediately on poll 1
-    refresh_every = 30           # defeat the stuck-placeholder quirk
-    settled_since_refresh = 0    # polls with turns>=1 and no genImg since refresh
-    have_refreshed = False       # refuse only after a refresh + settle
+    last_refresh = time.time()
+    refresh_every = 20   # only to unstick the frozen-placeholder quirk, not
+                         # to drive any decision
     while time.time() < deadline:
         code, out, err = run([opencli, "browser", "chatgpt", "eval",
-                              STATE_JS, "--window", "background"], 30)
+                              STATE_JS, "--window", "foreground"], 30)
         res = _parse_json_from_blob((out or "") + (err or ""))
         if not isinstance(res, dict):
-            time.sleep(5)
+            time.sleep(3)
             continue
         if res.get("genImgs", 0) >= 1:
             code, out, err = run([opencli, "browser", "chatgpt", "eval",
-                                  CAPTURE_JS, "--window", "background"], 30)
+                                  CAPTURE_JS, "--window", "foreground"], 30)
             fres = _parse_json_from_blob((out or "") + (err or ""))
             if isinstance(fres, dict) and fres.get("dataUrl"):
                 b64 = fres["dataUrl"].split(",", 1)[1]
-                data = base64.b64decode(b64)
                 with open(out_path, "wb") as fh:
-                    fh.write(data)
+                    fh.write(base64.b64decode(b64))
                 return "image", out_path
             # fetch failed; keep polling
-        elif res.get("turns", 0) >= 1:
-            # Page hydrated but no generated image. Before any refresh, the
-            # image may still be rendering (lazy) — never call it refused yet.
-            # Only after a refresh + settle is "no image" terminal = refused.
-            settled_since_refresh += 1
-            if have_refreshed and settled_since_refresh >= 2:
-                return "refused", None
-        # else: turns==0, page not hydrated yet — keep waiting.
-        # Periodically refresh to unstick the stuck-placeholder quirk AND to
-        # surface the terminal (refused) state.
+        # No image yet (still generating, or stuck-placeholder quirk, or page
+        # not hydrated, or genuinely refused — we don't distinguish). Refresh
+        # periodically to unstick the quirk; otherwise keep waiting.
         if time.time() - last_refresh >= refresh_every:
             run([opencli, "browser", "chatgpt", "open", conv_url,
-                 "--window", "background"], 60)
+                 "--window", "foreground"], 60)
             last_refresh = time.time()
-            settled_since_refresh = 0
-            have_refreshed = True
-        time.sleep(5)
+        time.sleep(3)
     return "timeout", None
 
 
-# State probe: classifies the conversation DOM into image-present / refused /
-# still-generating. (No fetch — cheap to poll.)
-# Detection uses only structural signals, not hard-coded values:
-#   - generated image present  => <img> whose src matches the estuary/content
-#     URL pattern (chatgpt.com/backend-api/estuary/content | oaidalleapiprodcs
-#     | files.oai/). NOT naturalWidth — ChatGPT keeps generated <img> with
-#     naturalWidth=0/complete=false long after the image is visible.
-#   - page hydrated             => >=1 conversation-turn element exists.
-#   - refused (terminal)       => hydrated but NO generated <img>. A refusal
-#     conversation has text turns but never produces a generated image. Only
-#     treated as terminal post-refresh-settle (see capture_from_conversation),
-#     not on first hydration — the image may still be rendering.
-#     (We don't parse the refusal text — the assistant role element isn't
-#     reliably present, and matching keywords is a brittle magic-string list.)
+# State probe: cheap structural snapshot of the conversation DOM. The ONE
+# signal we act on is genImgs: count of <img> whose src matches the
+# generated-image URL pattern (chatgpt.com/backend-api/estuary/content |
+# oaidalleapiprodcs | files.oai/). NOT naturalWidth — ChatGPT keeps generated
+# <img> with naturalWidth=0/complete=false long after visible.
+# (turns is returned for diagnostics only; capture_from_conversation no
+# longer keys off it — the refusal-detector attempts on it were all brittle,
+# so "no image within budget" is just "timeout", handled by the caller's
+# rephrase path.)
 STATE_JS = r"""
 (() => {
   const turns = document.querySelectorAll('[data-message-author-role], article[data-testid*="conversation-turn"]').length;
   const genRe = /chatgpt\.com\/backend-api\/estuary\/content|oaidalleapiprodcs|files\.oai\//;
-  const genImgs = Array.from(document.querySelectorAll('img')).filter(i => genRe.test(i.currentSrc || i.src || ''));
-  const genCount = genImgs.length;
-  const refused = turns >= 1 && genCount === 0;
-  return { turns, genImgs: genCount, refused };
+  const genCount = Array.from(document.querySelectorAll('img')).filter(i => genRe.test(i.currentSrc || i.src || '')).length;
+  return { turns, genImgs: genCount };
 })()
 """
 
