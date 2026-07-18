@@ -280,10 +280,18 @@ def capture_from_conversation(opencli: str, conv_url: str, out_path: str,
     the placeholder. Only once the real <img> replaces the placeholder does it
     fetch+save the image.
 
+    Refusal detection (no magic strings): a refusal is terminal. After a full
+    page refresh + re-hydration, the page shows the final state — a generated
+    <img> (success) or a text turn with no image (refused). So "refused" is
+    decided only post-refresh-once-settled: turns>=1 AND genImgs==0. During
+    the initial load (pre-refresh) we never call it refused, because the image
+    may still be rendering.
+
     Returns (status, saved_path) where status is one of:
       - "image"   : a real image was captured and saved to out_path.
-      - "refused" : the assistant's turn is a moderation-refusal text (no
-                    image will ever appear here) — caller should rephrase.
+      - "refused" : the conversation has hydrated with no generated image after
+                    a refresh — no image will ever appear here; caller should
+                    rephrase.
       - "timeout" : neither resolved within the budget — unknown state.
     """
     conv_url = _normalize_link(conv_url)
@@ -293,8 +301,11 @@ def capture_from_conversation(opencli: str, conv_url: str, out_path: str,
          "--window", "background"], 60)
 
     deadline = time.time() + timeout
-    last_refresh = time.time()
-    refresh_every = 45   # defeat the stuck-placeholder quirk
+    last_refresh = time.time()   # so the first refresh fires after refresh_every,
+                                 # not immediately on poll 1
+    refresh_every = 30           # defeat the stuck-placeholder quirk
+    settled_since_refresh = 0    # polls with turns>=1 and no genImg since refresh
+    have_refreshed = False       # refuse only after a refresh + settle
     while time.time() < deadline:
         code, out, err = run([opencli, "browser", "chatgpt", "eval",
                               STATE_JS, "--window", "background"], 30)
@@ -313,35 +324,48 @@ def capture_from_conversation(opencli: str, conv_url: str, out_path: str,
                     fh.write(data)
                 return "image", out_path
             # fetch failed; keep polling
-        elif res.get("refused"):
-            return "refused", None
-        # else: still generating (grey-dots) OR page not hydrated. Wait, and
-        # periodically refresh to unstick the stuck-placeholder quirk.
+        elif res.get("turns", 0) >= 1:
+            # Page hydrated but no generated image. Before any refresh, the
+            # image may still be rendering (lazy) — never call it refused yet.
+            # Only after a refresh + settle is "no image" terminal = refused.
+            settled_since_refresh += 1
+            if have_refreshed and settled_since_refresh >= 2:
+                return "refused", None
+        # else: turns==0, page not hydrated yet — keep waiting.
+        # Periodically refresh to unstick the stuck-placeholder quirk AND to
+        # surface the terminal (refused) state.
         if time.time() - last_refresh >= refresh_every:
             run([opencli, "browser", "chatgpt", "open", conv_url,
                  "--window", "background"], 60)
             last_refresh = time.time()
+            settled_since_refresh = 0
+            have_refreshed = True
         time.sleep(5)
     return "timeout", None
 
 
 # State probe: classifies the conversation DOM into image-present / refused /
 # still-generating. (No fetch — cheap to poll.)
-# NOTE: identify generated images by their src URL pattern
-# (chatgpt.com/backend-api/estuary/content) — NOT by naturalWidth. ChatGPT
-# keeps generated <img> elements with naturalWidth=0 / complete=false for a
-# long time (lazy decode), so a size threshold misses images that are
-# visually present. The estuary URL is unambiguous: only generated images
-# are served from it.
+# Detection uses only structural signals, not hard-coded values:
+#   - generated image present  => <img> whose src matches the estuary/content
+#     URL pattern (chatgpt.com/backend-api/estuary/content | oaidalleapiprodcs
+#     | files.oai/). NOT naturalWidth — ChatGPT keeps generated <img> with
+#     naturalWidth=0/complete=false long after the image is visible.
+#   - page hydrated             => >=1 conversation-turn element exists.
+#   - refused (terminal)       => hydrated but NO generated <img>. A refusal
+#     conversation has text turns but never produces a generated image. Only
+#     treated as terminal post-refresh-settle (see capture_from_conversation),
+#     not on first hydration — the image may still be rendering.
+#     (We don't parse the refusal text — the assistant role element isn't
+#     reliably present, and matching keywords is a brittle magic-string list.)
 STATE_JS = r"""
 (() => {
   const turns = document.querySelectorAll('[data-message-author-role], article[data-testid*="conversation-turn"]').length;
   const genRe = /chatgpt\.com\/backend-api\/estuary\/content|oaidalleapiprodcs|files\.oai\//;
   const genImgs = Array.from(document.querySelectorAll('img')).filter(i => genRe.test(i.currentSrc || i.src || ''));
-  const asst = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
-  const asstText = asst.map(n => (n.innerText||'')).join('\n').slice(0, 400);
-  const refused = /违反|限制|moderation|violate|may have|抱歉|无法|policy|sorry, i can|content policy/i.test(asstText);
-  return { turns, genImgs: genImgs.length, refused, asstText: asstText.slice(0,80) };
+  const genCount = genImgs.length;
+  const refused = turns >= 1 && genCount === 0;
+  return { turns, genImgs: genCount, refused };
 })()
 """
 
