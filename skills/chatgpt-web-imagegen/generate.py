@@ -219,16 +219,18 @@ def opencli_image(opencli: str, prompt: str, out_dir: str,
     return False, saved, conv
 
 
-# JS used by capture_from_conversation: find the large generated <img> and
-# fetch it as a data URL. Matches chatgpt.com's estuary/content image src.
+# JS used by capture_from_conversation: find a generated <img> (by its
+# chatgpt.com/backend-api/estuary/content src URL) and fetch it as a data URL.
+# NOTE: identify by src URL pattern, NOT naturalWidth. ChatGPT keeps generated
+# <img> elements with naturalWidth=0 / complete=false for a long time (lazy
+# decode), so a size threshold misses images that are visually present.
 CAPTURE_JS = r"""
 (async () => {
-  const large = Array.from(document.querySelectorAll('img')).filter(i => {
-    const r = i.getBoundingClientRect();
-    return r.width > 32 && r.height > 32 && (i.naturalWidth || i.width || 0) >= 1024;
-  });
-  if (!large.length) return { error: 'no_large_img' };
-  const img = large[0];
+  const genRe = /chatgpt\.com\/backend-api\/estuary\/content|oaidalleapiprodcs|files\.oai\//;
+  const gen = Array.from(document.querySelectorAll('img')).filter(i =>
+    genRe.test(i.currentSrc || i.src || ''));
+  if (!gen.length) return { error: 'no_gen_img' };
+  const img = gen[0];
   const src = img.currentSrc || img.src;
   try {
     const res = await fetch(src, { credentials: 'include' });
@@ -237,8 +239,7 @@ CAPTURE_JS = r"""
     return await new Promise(resolve => {
       const r = new FileReader();
       r.onloadend = () => resolve({ dataUrl: String(r.result || ''),
-                                    mime: blob.type,
-                                    w: img.naturalWidth, h: img.naturalHeight });
+                                    mime: blob.type });
       r.readAsDataURL(blob);
     });
   } catch (e) { return { error: String(e) }; }
@@ -304,7 +305,7 @@ def capture_from_conversation(opencli: str, conv_url: str, out_path: str,
         if not isinstance(res, dict):
             time.sleep(5)
             continue
-        if res.get("largeImgs", 0) >= 1:
+        if res.get("genImgs", 0) >= 1:
             code, out, err = run([opencli, "browser", "chatgpt", "eval",
                                   CAPTURE_JS, "--window", "background"], 30)
             fres = _parse_json_from_blob((out or "") + (err or ""))
@@ -329,14 +330,21 @@ def capture_from_conversation(opencli: str, conv_url: str, out_path: str,
 
 # State probe: classifies the conversation DOM into image-present / refused /
 # still-generating. (No fetch — cheap to poll.)
+# NOTE: identify generated images by their src URL pattern
+# (chatgpt.com/backend-api/estuary/content) — NOT by naturalWidth. ChatGPT
+# keeps generated <img> elements with naturalWidth=0 / complete=false for a
+# long time (lazy decode), so a size threshold misses images that are
+# visually present. The estuary URL is unambiguous: only generated images
+# are served from it.
 STATE_JS = r"""
 (() => {
   const turns = document.querySelectorAll('[data-message-author-role], article[data-testid*="conversation-turn"]').length;
-  const large = Array.from(document.querySelectorAll('img')).filter(i => (i.naturalWidth || i.width || 0) >= 1024);
+  const genRe = /chatgpt\.com\/backend-api\/estuary\/content|oaidalleapiprodcs|files\.oai\//;
+  const genImgs = Array.from(document.querySelectorAll('img')).filter(i => genRe.test(i.currentSrc || i.src || ''));
   const asst = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
   const asstText = asst.map(n => (n.innerText||'')).join('\n').slice(0, 400);
   const refused = /违反|限制|moderation|violate|may have|抱歉|无法|policy|sorry, i can|content policy/i.test(asstText);
-  return { turns, largeImgs: large.length, refused, asstText: asstText.slice(0,80) };
+  return { turns, genImgs: genImgs.length, refused, asstText: asstText.slice(0,80) };
 })()
 """
 
