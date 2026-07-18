@@ -45,7 +45,6 @@ import json
 import os
 import re
 import shutil
-import struct
 import subprocess
 import sys
 import tempfile
@@ -84,28 +83,26 @@ def find_opencli() -> str:
 
 
 def is_real_image(path: str) -> bool:
-    """True if the saved PNG is a genuine generated image, not ChatGPT's
-    'generating…' placeholder or a blank.
+    """True if the saved file is a structurally-valid PNG (has the PNG
+    signature and an IHDR chunk).
 
-    ChatGPT real outputs: color_type 2 (RGB, no alpha), >=1254x1254, >2MB.
-    Placeholder seen: color_type 6 (RGBA), 960x960, ~40KB.
-    Discriminate on structural PNG-header fields, not pixel content, so it
-    survives changes to the placeholder's exact bytes.
+    A minimal sanity check that rejects zero-byte files, HTML error pages,
+    truncated saves, etc. Deliberately does NOT gate on color_type /
+    dimensions / file size — those are hard-coded magic numbers that break
+    the moment ChatGPT changes output encoding or aspect ratio (we were
+    burned by `naturalWidth >= 1024` and `color_type == 2` earlier). The
+    source-of-truth for "real generated image vs. placeholder snapshot" is
+    the capture path's URL pattern (estuary/content), not the bytes here.
     """
     try:
-        data = open(path, "rb").read(33)
+        data = open(path, "rb").read(16)  # PNG sig (8) + first chunk hdr (8)
     except OSError:
         return False
     if data[:8] != b"\x89PNG\r\n\x1a\n":
         return False
-    if len(data) < 33 or data[12:16] != b"IHDR":
+    if len(data) < 16 or data[12:16] != b"IHDR":
         return False
-    width, height, _bd, color_type = struct.unpack(">IIBB", data[16:26])
-    size = os.path.getsize(path)
-    return (color_type == 2           # RGB, no alpha (placeholder is RGBA=6)
-            and width >= 1024
-            and height >= 1024
-            and size > 500_000)
+    return os.path.getsize(path) > 0
 
 
 def load_prompts(args) -> list[str]:
@@ -383,21 +380,15 @@ def generate_one(opencli: str, prompt: str, retries: int,
                 f"({len(current_prompt)} chars)")
             ok, saved, conv = opencli_image(opencli, current_prompt,
                                            scratch, timeout)
-            if ok and saved:
-                final = tempfile.NamedTemporaryFile(
-                    prefix="realimg_", suffix=".png", delete=False).name
-                shutil.move(saved, final)
-                return True, final, conv
 
-            # opencli didn't save a real image. If it captured a real
-            # /c/<id> conversation link, the generation is likely still
-            # running (or finished-but-placeholder-stuck). Wait it out:
-            # poll the conversation, refreshing to unstick the placeholder,
-            # until the real image appears or the assistant refuses.
+            # The conversation DOM is the source of truth for "did a real
+            # image get generated" — NOT opencli's saved file (which can be
+            # a snapshot of the grey-dots placeholder). opencli's file is
+            # just a fast-path candidate; always re-verify via the DOM.
             conv_norm = _normalize_link(conv)
             if conv_norm and "/c/" in conv_norm:
-                log(f"  attempt {attempt}: opencli returned no image — "
-                    f"waiting out the generation at {conv_norm}")
+                log(f"  attempt {attempt}: verifying via conversation "
+                    f"DOM at {conv_norm}")
                 cap_path = os.path.join(scratch_root, f"cap_{attempt}.png")
                 status, cap_saved = capture_from_conversation(
                     opencli, conv_norm, cap_path)
@@ -408,6 +399,11 @@ def generate_one(opencli: str, prompt: str, retries: int,
                     return True, final, conv_norm
                 log(f"  attempt {attempt}: capture → {status}; "
                     f"{'rephrasing' if attempt <= retries else 'giving up'}")
+            elif ok and saved:
+                final = tempfile.NamedTemporaryFile(
+                    prefix="realimg_", suffix=".png", delete=False).name
+                shutil.move(saved, final)
+                return True, final, conv
             else:
                 log(f"  attempt {attempt}: no image and no conversation "
                     f"link (cold-session/early-exit) → "

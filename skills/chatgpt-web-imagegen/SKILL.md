@@ -19,17 +19,22 @@ generates them fine, and this skill drives the website.
 
 When ChatGPT's **third-party-content-similarity moderation** blocks a prompt
 (fan content, named characters, franchise signals), ChatGPT returns a
-refusal message and a placeholder image instead of the real one. This skill
-detects the placeholder (it's RGBA/960×960/~40KB vs real outputs which are
-RGB/1254×1254/>2MB). When OpenCLI returns no image but did capture a real
-`/c/<id>` conversation, it **waits out the generation** — ChatGPT shows an
-animated grey-dots placeholder while the image generates (arbitrarily long,
-and sometimes stuck until a page refresh), so the skill navigates to the
-conversation, polls the assistant's turn state via `opencli browser eval`, and
-refreshes periodically until the real `<img>` appears or the assistant
-returns a moderation-refusal text. This rescues slow generations without
-re-running anything. On a genuine refusal (text, no image), it falls to a
-rephrase-and-generate wrapper that asks ChatGPT to rephrase to dodge the IP
+refusal message and a placeholder image instead of the real one. OpenCLI's
+own `chatgpt image` command can't tell the placeholder from a real image
+(it saves the grey-dots snapshot and reports `✅ saved`), so this skill
+treats OpenCLI's saved file as **untrusted** and uses the **conversation
+DOM as the source of truth**: it navigates to the `/c/<id>` conversation
+OpenCLI reports and verifies a generated image is present by its **`src`
+URL pattern** (`chatgpt.com/backend-api/estuary/content`) — not by pixel
+dimensions or file size, which are hard-coded magic numbers that break when
+ChatGPT changes output encoding. ChatGPT shows an animated grey-dots
+placeholder while the image generates (arbitrarily long, and sometimes
+stuck until a page refresh), so the skill polls the assistant's turn state
+via `opencli browser eval`, refreshing periodically until the real `<img>`
+appears or the assistant returns a moderation-refusal text. This rescues
+slow generations without re-running anything. On a genuine refusal (text,
+no image), it falls to a rephrase-and-generate wrapper that asks ChatGPT
+to rephrase to dodge the IP
 signal and generate the image in one turn. Up to `--retries`+1 attempts by
 default (1 original +
 3 rephrase = 4).
@@ -108,26 +113,32 @@ the input.
 
 ## The moderation retry (the non-obvious part)
 When ChatGPT blocks a prompt, it returns a refusal message and a
-"generating…" placeholder image (RGBA, 960×960, ~40KB). OpenCLI's own
-`chatgpt image` command grabs that placeholder and reports `✅ saved` — it
-can't tell the placeholder from a real image. So this skill:
+"generating…" placeholder image. OpenCLI's own `chatgpt image` command
+grabs that placeholder and reports `✅ saved` — it can't tell the
+placeholder from a real image. So this skill:
 
 1. Runs `opencli chatgpt image "<prompt>"` in a fresh chat.
-2. Inspects the saved PNG's header: a **real** image is `color_type=2` (RGB,
-   no alpha), ≥1024×1024, >500KB. The placeholder fails all three
-   (`color_type=6` RGBA, 960×960, ~40KB). This is robust to the exact
-   placeholder bytes changing.
-3. If OpenCLI returned no real image **but did capture a `/c/<id>`
-   conversation link**, the generation is likely still running. ChatGPT shows
-   an **animated grey-dots placeholder** while the image generates — this can
-   persist arbitrarily long, and (a website quirk) can stay animating even
-   after the backend has finished, until the page is refreshed. So this skill
-   **waits it out**: navigate to the conversation via `opencli browser open`,
-   poll the assistant's turn state with `opencli browser eval`, and refresh
-   every ~45 s to unstick the placeholder. Three terminal states:
-   - A large `<img>` (≥1024px) appears → the real image. Fetch its `src` (a
-     `chatgpt.com/backend-api/estuary/content` URL) with credentials and save
-     the bytes. Done — **no re-generation needed**.
+2. Treats OpenCLI's saved file as **untrusted** (it may be a placeholder
+   snapshot) and verifies against the conversation DOM instead (see step 3).
+   `is_real_image()` is just a structural PNG-validity check (has the PNG
+   signature + IHDR chunk) — it does NOT gate on color type, dimensions, or
+   file size, which are hard-coded magic numbers that break when ChatGPT
+   changes output encoding or aspect ratio.
+3. If OpenCLI captured a `/c/<id>` conversation link, the generation is
+   likely still running. ChatGPT shows an **animated grey-dots placeholder**
+   while the image generates — this can persist arbitrarily long, and (a
+   website quirk) can stay animating even after the backend has finished,
+   until the page is refreshed. So this skill **waits it out**: navigate to
+   the conversation via `opencli browser open`, poll the assistant's turn
+   state with `opencli browser eval`, and refresh every ~45 s to unstick the
+   placeholder. A generated image is identified by its **`src` URL pattern**
+   (`chatgpt.com/backend-api/estuary/content`) — not by `naturalWidth`
+   (ChatGPT keeps generated `<img>` with `naturalWidth=0`/`complete=false`
+   long after the image is visible, so a size threshold misses real images).
+   Three terminal states:
+   - A generated-image `<img>` (estuary/content src) appears → the real
+     image. Fetch its `src` with credentials and save the bytes. Done —
+     **no re-generation needed**.
    - The assistant's turn is a moderation-refusal text (matches `违反`/`限制`/
      `moderation`/`policy`/etc.) → **genuine refusal**, no image will appear
      here → rephrase (step 4).
