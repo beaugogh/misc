@@ -35,7 +35,12 @@ The generated CSV is a broad accepted/proceedings workload estimate, not an oral
 
 The generated summary must reflect oral papers only. For NeurIPS, ICML, and ICLR, use the official virtual oral events pages. For AAAI oral counts, count **Main Track Oral Talks only** from the official Main Track Oral Talks PDF. Exclude AISI, AIA, ETA, workshops, and other special-track oral schedules unless the user explicitly asks for them.
 
-AAAI PDF counting requires `pypdf` to be importable by Python. If it is missing, install it into a temporary directory or the local environment before regenerating the summary.
+Practical oral-summary notes:
+
+- Count NeurIPS/ICML/ICLR oral papers from `https://<venue-host>/virtual/<year>/events/oral`, preferring explicit `Oral` labels and falling back to the page's `N Events` count when needed.
+- Count AAAI from the official Main Track oral PDF by extracting layout text with `pypdf` and counting unique `Paper ID` values.
+- AAAI's site may challenge-gate or block CLI fetches for some schedule URLs. The script keeps validated official-PDF fallbacks for known years: AAAI-25 Main Track Oral Talks = 457, AAAI-26 Main Track Oral Talks = 1051.
+- If `pypdf` is missing, install it into a temporary directory, for example `python3 -m pip install --target /private/tmp/pypdf-extract pypdf`, then run with `PYTHONPATH=/private/tmp/pypdf-extract`.
 
 ## Page Conversion Workflow
 
