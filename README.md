@@ -1,14 +1,21 @@
 # misc
 
-A personal collection of reusable **agentic skills** — workflows, setup recipes,
-and runbooks I encounter in daily tasks, captured in a form an AI agent (or my
-future self) can pick up and re-run.
+A personal collection of reusable **agentic artifacts** — workflows, setup
+recipes, runbooks, and OpenCLI plugins I encounter in daily tasks, captured in
+a form an AI agent (or my future self) can pick up and re-run.
 
 ## Structure
 
-**My own skills** each live in their own folder under `skills/` and follow the
-[Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) format.
-Three external collections are mirrored as git submodules —
+The repo holds two kinds of agent-usable artifacts:
+
+- **Skills** under `skills/` — instruction documents in the
+  [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) format
+  (portable; any agent with Bash can run them).
+- **OpenCLI plugins** under `opencli-plugins/` — OpenCLI-coupled adapters that
+  turn a website into a deterministic `opencli <site> <command>` call. Portable
+  as a *command* (any agent with Bash + `opencli` installed), not as pure code.
+
+Three external skill collections are mirrored as git submodules —
 `anthropic-skills/` (Anthropic's official skills), `superpowers/` (obra's
 methodology skills), and `mattpocock-skills/` (Matt Pocock's engineering
 practice skills) — see [below](#external-skill-collections-git-submodules).
@@ -23,6 +30,13 @@ skills/
   <skill-name>/
     SKILL.md        # YAML frontmatter (name + description) + agent instructions
     ...             # optional bundled scripts, templates, references
+
+opencli-plugins/
+  <plugin-name>/    # one OpenCLI plugin per folder — see opencli-plugins/README.md
+    opencli-plugin.json
+    package.json
+    <command>.ts    # source; compiled <command>.js is committed so it installs
+    ...             #   without a local esbuild
 ```
 
 - `SKILL.md` frontmatter:
@@ -43,6 +57,20 @@ skills/
 | [`caveman`](./skills/caveman) | Ultra-compressed communication mode — cut output tokens ~65% by speaking terse "caveman" while keeping all technical substance, code, and errors byte-for-byte exact. Intensity levels (lite/full/ultra/wenyan), with an auto-clarity carve-out that drops terse mode for security warnings and irreversible actions. Vendored (MIT) from [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman). |
 | [`caveman-compress`](./skills/caveman-compress) | Compress natural-language memory files (`CLAUDE.md`, todos, docs) into caveman format to save input tokens — preserves code blocks, URLs, paths, and frontmatter exactly; backs up the original as `FILE.original.md`. Bundles a `scripts/` package (`python3 -m scripts <file>`) that calls Claude via CLI or `ANTHROPIC_API_KEY`. Vendored (MIT) from [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman). |
 | [`chatgpt-web-imagegen`](./skills/chatgpt-web-imagegen) | Generate images via the chatgpt.com **web interface** (not the API) by driving your logged-in Chrome session through OpenCLI. Use when the codex `/images/generations` API endpoint times out (~190s cap) on long/multi-character prompts, when you have no API key but are logged into chatgpt.com, or when prompts hit third-party-content-similarity moderation (auto rephrase-and-retry). Accepts a prompt or an array of prompts; not bound to any file format. |
+
+## OpenCLI plugins
+
+[OpenCLI](https://github.com/jackwener/OpenCLI) plugins under `opencli-plugins/`
+turn a website into a deterministic `opencli <plugin> <command>` call an agent
+(or a human) can run. Unlike `skills/`, these are **OpenCLI-coupled** artifacts
+— they import OpenCLI's registry API and only run inside the OpenCLI runtime,
+so each consumer needs `opencli` + the Browser Bridge set up. They're portable
+as a *command*, not as pure code. See [`opencli-plugins/README.md`](./opencli-plugins/README.md)
+for prerequisites, install, and the full layout.
+
+| Plugin | Commands | Description |
+|---|---|---|
+| [`huawei-terminology`](./opencli-plugins/huawei-terminology) | `search` | Search the Huawei terminology database (3ms.huawei.com/terminology) — English/Chinese term, domain, confidence, definition. Requires a logged-in Huawei session via the Browser Bridge. |
 
 ## External skill collections (git submodules)
 
@@ -110,3 +138,15 @@ bundled scripts directly — no agent required.
    starts with **when to use it**.
 3. Bundle any scripts/templates alongside it and reference them by relative path.
 4. Add a row to the table above.
+
+## Adding a new OpenCLI plugin
+1. Scaffold with OpenCLI's generator, targeting `opencli-plugins/`:
+   `opencli plugin create <name> --dir opencli-plugins/<name>`
+2. Replace the sample commands with real adapters (model on
+   `opencli-plugins/huawei-terminology`).
+3. Compile the TypeScript: `esbuild <cmd>.ts --outfile=<cmd>.js --format=esm --platform=node`
+   (the `.js` is committed so the plugin installs without a local esbuild).
+4. Verify: `opencli plugin install file://$(pwd)/opencli-plugins/<name>` then
+   `opencli <name> <command>`.
+5. Add a row to the **OpenCLI plugins** table above, and to
+   [`opencli-plugins/README.md`](./opencli-plugins/README.md).
