@@ -42,15 +42,49 @@ Practical oral-summary notes:
 - AAAI's site may challenge-gate or block CLI fetches for some schedule URLs. The script keeps validated official-PDF fallbacks for known years: AAAI-25 Main Track Oral Talks = 457, AAAI-26 Main Track Oral Talks = 1051. Prefer the direct AAAI-26 PDF URL `https://aaai.org/wp-content/uploads/2026/01/Main-track-oral-talks.pdf`.
 - If `pypdf` is missing, install it into a temporary directory, for example `python3 -m pip install --target /private/tmp/pypdf-extract pypdf`, then run with `PYTHONPATH=/private/tmp/pypdf-extract`.
 
+## Oral Harvesting Workflow
+
+Harvesting must focus on oral papers only unless the user explicitly changes scope.
+
+First build the oral-only manifest:
+
+```bash
+python3 skills/harvest-ai-papers/scripts/build_oral_manifest.py --year <year>
+```
+
+This writes:
+
+- `skills/harvest-ai-papers/output/ai-venue-oral-papers-<year>.csv`
+
+Manifest sources:
+
+- NeurIPS, ICML, and ICLR: official virtual oral event pages, one row per oral event URL.
+- AAAI: official Main Track Oral Talks PDF, one row per unique Paper ID. These rows may be marked `needs_paper_url` when the PDF does not expose a stable paper page URL directly.
+
+Then harvest only rows marked `ready`:
+
+```bash
+python3 skills/harvest-ai-papers/scripts/harvest_manifest.py --year <year>
+```
+
+Useful pilot command:
+
+```bash
+python3 skills/harvest-ai-papers/scripts/harvest_manifest.py --year <year> --venue ICLR --limit 10
+```
+
+Do not harvest broad proceedings CSV rows for this workflow. Use the broad CSV only for workload planning or URL reconciliation.
+
 ## Page Conversion Workflow
 
 1. Read `config.yaml` for target venues and the output directory.
-2. Read `prompt.md` before converting a URL; it contains the preservation requirements.
-3. Fetch or open the source URL using the best available tool for the environment.
-4. Create a Markdown file in the configured output directory.
-5. Preserve page content in original order, including metadata, text, links, tables, citations, code blocks, images, captions, and footnotes.
-6. For meaningful images, include the original image URL and add a clearly labeled assistant-derived visual equivalent for text-only readers.
-7. Verify the resulting file exists, includes the source URL, includes all discovered image URLs, and has correctly fenced added diagrams.
+2. Build or read the oral-only manifest and select only rows whose `presentation_type` is `Oral`.
+3. Read `prompt.md` before converting a URL; it contains the preservation requirements.
+4. Fetch or open the source URL using the best available tool for the environment.
+5. Create a Markdown file in the configured output directory.
+6. Preserve page content in original order, including metadata, text, links, tables, citations, code blocks, images, captions, and footnotes.
+7. For meaningful images, include the original image URL and add a clearly labeled assistant-derived visual equivalent for text-only readers.
+8. Verify the resulting file exists, includes the source URL, includes all discovered image URLs, and has correctly fenced added diagrams.
 
 ## Output
 
