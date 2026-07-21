@@ -280,20 +280,20 @@ def count_pdf_ids(pdf_bytes, id_pattern):
 def aaai_main_oral_count(year):
     pdf_url, page_url = aaai_main_oral_pdf_url(year)
     try:
-        count = count_pdf_ids(fetch_bytes(pdf_url), r"\d+")
-        note = f"Official AAAI {year} Main Track Oral Talks PDF only; excludes AISI, AIA, ETA, workshops, and other special tracks."
+        schedule_count = count_pdf_ids(fetch_bytes(pdf_url), r"\d+")
     except Exception:
         if year not in KNOWN_AAAI_MAIN_ORAL_COUNTS:
             raise
-        count, pdf_url = KNOWN_AAAI_MAIN_ORAL_COUNTS[year]
-        note = (
-            f"Validated count from the official AAAI {year} Main Track Oral Talks PDF only; "
-            "excludes AISI, AIA, ETA, workshops, and other special tracks."
-        )
+        schedule_count, pdf_url = KNOWN_AAAI_MAIN_ORAL_COUNTS[year]
+    note = (
+        f"Official AAAI {year} Main Track Oral Talks schedule has {schedule_count} unique Paper IDs, "
+        "but this appears to be a broad main-track presentation schedule rather than a selective "
+        "oral-paper tier; excluded from the oral-only total."
+    )
     if page_url:
         note = f"{note} Schedule hub: {page_url}"
     return {
-        "count": count,
+        "count": "",
         "source_url": pdf_url,
         "note": note,
     }
@@ -426,7 +426,7 @@ def write_outputs(results, year, output_dir):
         "",
         f"# AI Venue Oral Paper Inventory {year}",
         "",
-        "Scope: oral-paper counts for the configured venues. AAAI counts Main Track Oral Talks only.",
+        "Scope: selective oral-paper counts for the configured venues. AAAI Main Track Oral Talks are audited but excluded because they appear to be a broad presentation schedule.",
         "",
         f"Oral papers counted: {known_oral_total}",
         "",
