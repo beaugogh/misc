@@ -75,23 +75,42 @@ python3 skills/harvest-ai-papers/scripts/harvest_manifest.py --year <year> --ven
 
 Do not harvest broad proceedings CSV rows for this workflow. Use the broad CSV only for workload planning or URL reconciliation.
 
+Harvested filenames must use this pattern:
+
+```text
+<YEAR>-<VENUE>-<paper-title-slug-capped>.md
+```
+
+The default cap for the paper-title slug is 80 characters; change it with `--name-chars` when needed.
+
+Harvesting should capture the whole paper, not just the conference detail page. Use the conference page to discover the actual paper PDF or canonical paper URL, then preserve the full paper from title, authors, abstract, all body sections, references, and appendices/supplemental material when available. If only the conference page was captured, mark it as a pilot or partial capture, not a completed harvest.
+
+For figures, images, and charts, include an AI-readable representation:
+
+- Prefer Mermaid when the figure is a reconstructible workflow, architecture, tree, timeline, or chart.
+- Otherwise convert extracted PDF images/figures into SVG assets and reference those SVGs from the Markdown.
+- Keep captions and nearby explanatory text with the figure whenever the source exposes them.
+
+The default harvester expects PyMuPDF for whole-paper PDF extraction and SVG figure assets. If it is missing, install it into a temporary directory, for example `python3 -m pip install --target /private/tmp/pymupdf pymupdf`, then run with `PYTHONPATH=/private/tmp/pymupdf`.
+
 ## Page Conversion Workflow
 
 1. Read `config.yaml` for target venues and the output directory.
 2. Build or read the oral-only manifest and select only rows whose `presentation_type` is `Oral`.
 3. Read `prompt.md` before converting a URL; it contains the preservation requirements.
 4. Fetch or open the source URL using the best available tool for the environment.
-5. Create a Markdown file in the configured output directory.
-6. Preserve page content in original order, including metadata, text, links, tables, citations, code blocks, images, captions, and footnotes.
-7. For meaningful images, include the original image URL and add a clearly labeled assistant-derived visual equivalent for text-only readers.
-8. Verify the resulting file exists, includes the source URL, includes all discovered image URLs, and has correctly fenced added diagrams.
+5. Create a Markdown file in the configured output directory using the `<YEAR>-<VENUE>-<paper-title-slug-capped>.md` filename pattern.
+6. Preserve the whole paper in original order: title, authors, abstract, every section, references, appendices, citations, equations, tables, code blocks, figures, captions, and footnotes.
+7. For meaningful images, figures, and charts, include SVG assets or Mermaid equivalents and add a clearly labeled assistant-derived visual equivalent for text-only readers.
+8. Verify the resulting file exists, includes the source URL and paper PDF URL when applicable, includes all extracted figure asset links, and has correctly fenced added diagrams.
 
 ## Output
 
-Derive the filename from the page title:
+Derive the filename from the data year, venue, and paper title:
 
-- lowercase
-- hyphen-separated
+- prefix with `<YEAR>-<VENUE>-`
+- lowercase hyphen-separated title slug
+- cap the title slug length, default 80 characters
 - no special characters
 - `.md` extension
 
