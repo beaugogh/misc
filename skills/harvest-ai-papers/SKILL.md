@@ -83,7 +83,9 @@ Harvested filenames must use this pattern:
 
 The default cap for the paper-title slug is 80 characters; change it with `--name-chars` when needed.
 
-Harvesting should capture the whole paper, not just the conference detail page. Use the conference page to discover the actual paper PDF or canonical paper URL, then preserve the full paper from title, authors, abstract, all body sections, references, and appendices/supplemental material when available. If only the conference page was captured, mark it as a pilot or partial capture, not a completed harvest.
+Harvesting must capture the whole paper, not just the conference detail page. Use the conference page to discover the actual paper PDF or canonical paper URL, then preserve the full paper from title, authors, abstract, all body sections, references, and appendices/supplemental material when available. Do not write a completed harvest file from a conference landing page, abstract page, schedule page, slide deck, or short metadata page.
+
+The harvester enforces a minimum word count before writing each file. The default is 3000 words; change it with `--min-words` only for unusually short papers after manual inspection. A completed harvest must include a references or bibliography section.
 
 For figures, images, and charts, include an AI-readable representation:
 

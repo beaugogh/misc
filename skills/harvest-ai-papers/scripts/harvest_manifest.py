@@ -3,84 +3,13 @@ import argparse
 import base64
 import csv
 import datetime as dt
-import html
 import mimetypes
 import re
 import time
 import urllib.parse
-from html.parser import HTMLParser
 from pathlib import Path
 
 from list_venue_papers import DEFAULT_YEAR, clean_text, configured_output_dir, fetch, fetch_bytes
-
-
-class MarkdownHTMLParser(HTMLParser):
-    def __init__(self, base_url):
-        super().__init__()
-        self.base_url = base_url
-        self.parts = []
-        self.images = []
-        self._skip = 0
-        self._link = None
-        self._heading = None
-        self._buffer = []
-
-    def handle_starttag(self, tag, attrs):
-        attrs = dict(attrs)
-        tag = tag.lower()
-        if tag in {"script", "style", "noscript"}:
-            self._skip += 1
-            return
-        if self._skip:
-            return
-        if tag in {"h1", "h2", "h3"}:
-            self._heading = tag
-            self._buffer = []
-        elif tag == "a":
-            self._link = attrs.get("href")
-            self._buffer = []
-        elif tag == "img":
-            src = attrs.get("src")
-            if src:
-                src = urllib.parse.urljoin(self.base_url, src)
-                alt = clean_text(attrs.get("alt", "Image"))
-                self.images.append(src)
-                self.parts.append(f"![{alt}]({src})\n\nAI-readable visual equivalent, added: Image from the original page. Detailed visual content was not available from HTML alone.")
-        elif tag in {"p", "div", "section", "article", "li", "br"}:
-            self.parts.append("\n")
-
-    def handle_data(self, data):
-        if self._skip:
-            return
-        data = clean_text(data)
-        if not data:
-            return
-        if self._heading or self._link:
-            self._buffer.append(data)
-        else:
-            self.parts.append(data)
-
-    def handle_endtag(self, tag):
-        tag = tag.lower()
-        if tag in {"script", "style", "noscript"} and self._skip:
-            self._skip -= 1
-            return
-        if self._skip:
-            return
-        if self._heading == tag:
-            level = {"h1": "#", "h2": "##", "h3": "###"}[tag]
-            text = clean_text(" ".join(self._buffer))
-            if text:
-                self.parts.append(f"\n\n{level} {text}\n")
-            self._heading = None
-            self._buffer = []
-        elif tag == "a" and self._link is not None:
-            text = clean_text(" ".join(self._buffer))
-            href = urllib.parse.urljoin(self.base_url, self._link)
-            if text:
-                self.parts.append(f"[{text}]({href})")
-            self._link = None
-            self._buffer = []
 
 
 def slugify(value, max_chars=80):
@@ -98,7 +27,7 @@ def prefixed_filename(row, name_chars):
 def links_from_html(source, base_url):
     links = []
     for href, text in re.findall(r'<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>', source, flags=re.I | re.S):
-        links.append((urllib.parse.urljoin(base_url, html.unescape(href)), clean_text(re.sub(r"<[^>]+>", " ", text))))
+        links.append((urllib.parse.urljoin(base_url, href), clean_text(re.sub(r"<[^>]+>", " ", text))))
     return links
 
 
@@ -158,17 +87,69 @@ def svg_wrap_image(image_bytes, extension, output_path):
     )
 
 
-def pdf_to_markdown(pdf_url, row, output_path):
+def normalize_pdf_text(text):
+    lines = []
+    for raw_line in text.splitlines():
+        line = re.sub(r"[ \t]+", " ", raw_line).strip()
+        if line:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+def markdownize_pdf_text(text, allow_numbered_headings=False):
+    section_re = re.compile(
+        r"^(abstract|introduction|related work|background|method|methods|approach|experiments?|results?|discussion|limitations?|conclusion|acknowledg(e)?ments?|references|bibliography|appendix|supplementary material)$",
+        re.I,
+    )
+    numbered_section_re = re.compile(r"^(\d+(\.\d+)*)\.?\s+[A-Z][A-Za-z0-9 ,:;()/-]{2,120}$")
+    out = []
+    current_paragraph = []
+    saw_abstract = allow_numbered_headings
+    for line in normalize_pdf_text(text).splitlines():
+        explicit_section = section_re.match(line)
+        if explicit_section and line.lower() == "abstract":
+            saw_abstract = True
+        numbered_match = numbered_section_re.match(line)
+        plausible_numbered_heading = False
+        if numbered_match:
+            first_number = int(numbered_match.group(1).split(".")[0])
+            plausible_numbered_heading = first_number <= 50
+        is_heading = explicit_section or (saw_abstract and plausible_numbered_heading)
+        if is_heading:
+            if current_paragraph:
+                out.append(" ".join(current_paragraph))
+                current_paragraph = []
+            out.extend(["", f"## {line}", ""])
+        else:
+            current_paragraph.append(line)
+    if current_paragraph:
+        out.append(" ".join(current_paragraph))
+    return "\n".join(out).strip(), saw_abstract
+
+
+def validate_whole_paper(markdown, min_words):
+    word_count = len(re.findall(r"\b\w+\b", markdown))
+    if word_count < min_words:
+        raise RuntimeError(f"harvested paper is too short: {word_count} words, expected at least {min_words}")
+    if not re.search(r"\b(references|bibliography)\b", markdown, flags=re.I):
+        raise RuntimeError("harvested paper is missing a references/bibliography section")
+
+
+def pdf_to_markdown(pdf_url, row, output_path, min_words):
     fitz = require_fitz()
     pdf_bytes = fetch_bytes(pdf_url)
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     figure_dir = output_path.with_suffix("")
     figure_dir.mkdir(parents=True, exist_ok=True)
     parts = []
+    allow_numbered_headings = False
     for page_index, page in enumerate(doc, start=1):
-        text = clean_text(page.get_text("text") or "")
+        text, allow_numbered_headings = markdownize_pdf_text(
+            page.get_text("text", sort=True) or "",
+            allow_numbered_headings=allow_numbered_headings,
+        )
         if text:
-            parts.append(f"\n\n## Page {page_index}\n\n{text}")
+            parts.append(f"\n\n<!-- Page {page_index} -->\n\n{text}")
         for image_index, image in enumerate(page.get_images(full=True), start=1):
             xref = image[0]
             extracted = doc.extract_image(xref)
@@ -197,27 +178,9 @@ def pdf_to_markdown(pdf_url, row, output_path):
         "---",
         "",
     ]
-    return "\n".join(frontmatter) + "\n".join(parts).strip() + "\n"
-
-
-def page_to_markdown(url, title, venue, year):
-    source = fetch(url)
-    parser = MarkdownHTMLParser(url)
-    parser.feed(source)
-    body = clean_text("\n".join(parser.parts))
-    body = re.sub(r"\n{3,}", "\n\n", body)
-    escaped_title = title.replace('"', '\\"')
-    frontmatter = [
-        "---",
-        f'title: "{escaped_title}"',
-        f"source_url: {url}",
-        f"venue: {venue}",
-        f"year: {year}",
-        f"retrieved_date: {dt.date.today().isoformat()}",
-        "---",
-        "",
-    ]
-    return "\n".join(frontmatter) + body + "\n"
+    markdown = "\n".join(frontmatter) + f"# {row.get('title') or 'Untitled paper'}\n\n" + "\n".join(parts).strip() + "\n"
+    validate_whole_paper(markdown, min_words)
+    return markdown
 
 
 def parse_args():
@@ -236,11 +199,7 @@ def parse_args():
         default=80,
         help="Maximum characters from the paper title to include after YEAR-VENUE- in filenames.",
     )
-    parser.add_argument(
-        "--page-only",
-        action="store_true",
-        help="Harvest the conference page only. Default is whole-paper PDF harvesting.",
-    )
+    parser.add_argument("--min-words", type=int, default=3000, help="Minimum words required before writing a harvested paper.")
     return parser.parse_args()
 
 
@@ -267,16 +226,13 @@ def main():
             skipped += 1
             continue
         try:
-            if args.page_only:
-                markdown = page_to_markdown(row["paper_page_url"], row["title"], row["venue"], row["data_year"])
-            else:
-                source = fetch(row["paper_page_url"])
-                pdf_url = row.get("pdf_url") or discover_paper_pdf(source, row["paper_page_url"])
-                if not pdf_url:
-                    skipped += 1
-                    print(f"skipped-no-paper-pdf: {row['paper_page_url']}")
-                    continue
-                markdown = pdf_to_markdown(pdf_url, row, path)
+            source = fetch(row["paper_page_url"])
+            pdf_url = row.get("pdf_url") or discover_paper_pdf(source, row["paper_page_url"])
+            if not pdf_url:
+                skipped += 1
+                print(f"skipped-no-paper-pdf: {row['paper_page_url']}")
+                continue
+            markdown = pdf_to_markdown(pdf_url, row, path, args.min_words)
         except Exception as exc:
             skipped += 1
             print(f"skipped-error: {row['paper_page_url']} ({exc})")
