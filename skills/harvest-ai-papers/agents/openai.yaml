@@ -1,0 +1,7 @@
+interface:
+  display_name: "Harvest AI Papers"
+  short_description: "Inventory and preserve AI venue papers"
+  default_prompt: "Use $harvest-ai-papers to list top AI venue papers, then convert selected research URLs into Markdown for another AI agent."
+
+policy:
+  allow_implicit_invocation: true

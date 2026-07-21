@@ -1,0 +1,31 @@
+top_ai_venues:
+  - name: NeurIPS
+    full_name: Conference on Neural Information Processing Systems
+    field: machine_learning_ai
+    website: https://neurips.cc/
+    proceedings_pattern: "conference year pages + papers/virtual pages"
+    paper_types_to_target: ["Oral", "Spotlight", "Outstanding Paper", "Best Paper"]
+
+  - name: ICML
+    full_name: International Conference on Machine Learning
+    field: machine_learning
+    website: https://icml.cc/
+    proceedings_pattern: "conference year pages + PMLR proceedings"
+    paper_types_to_target: ["Oral", "Spotlight", "Award", "Best Paper"]
+
+  - name: ICLR
+    full_name: International Conference on Learning Representations
+    field: deep_learning_representations
+    website: https://iclr.cc/
+    proceedings_pattern: "OpenReview + conference schedule"
+    paper_types_to_target: ["Oral", "Spotlight", "Notable", "Award"]
+
+  - name: AAAI
+    full_name: AAAI Conference on Artificial Intelligence
+    field: general_ai
+    website: https://aaai.org/
+    proceedings_pattern: "AAAI proceedings site"
+    paper_types_to_target: ["Oral", "Distinguished Paper", "Award"]
+    target_scope: "Main Track only for oral counts; exclude AISI, AIA, ETA, workshops, and other special tracks"
+
+output: output
