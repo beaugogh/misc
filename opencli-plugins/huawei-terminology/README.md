@@ -4,28 +4,50 @@ Search the Huawei terminology database ([3ms.huawei.com/terminology](https://3ms
 
 Requires a **logged-in Huawei session** via the OpenCLI Browser Bridge. The `searchWeb` endpoint is same-origin and authenticated by the browser's cookies, so the adapter issues the fetch from inside the page context (`page.evaluate`) rather than from Node.
 
-## Prerequisites
+## Prerequisites — human, one-time (an agent cannot do these)
 
-One-time per machine:
+This plugin drives your **logged-in Chrome** via the OpenCLI Browser Bridge, so two things must be set up by a human before any agent (or `setup.sh`) can use it:
+
+1. **Node.js ≥ 20** on the machine — https://nodejs.org
+2. **OpenCLI + the Browser Bridge extension** — install opencli (`npm i -g @jackwener/opencli`), then add the **OpenCLI** extension to Chrome from the [Chrome Web Store](https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk) (or load it unpacked from the [GitHub Releases](https://github.com/jackwener/opencli/releases) zip). Keep Chrome running.
+3. **Sign in to https://3ms.huawei.com/terminology** in Chrome with your Huawei account. The adapter reuses this session's cookies — if it's not signed in, every search fails with an auth error.
+
+`opencli doctor` (run by `setup.sh`) verifies step 2; the smoke test at the end of `setup.sh` verifies step 3.
+
+## Setup (automatable)
+
+From this directory, an agent (or you) runs:
 
 ```bash
-npm install -g @jackwener/opencli     # Node >= 20
-opencli doctor                          # Browser Bridge extension connected in Chrome
+./setup.sh
 ```
 
-Then sign in to https://3ms.huawei.com/terminology in Chrome so the session cookies are present. `opencli doctor` must be green before this plugin will work.
+It verifies Node/opencli, checks `opencli doctor` is green, installs the plugin, ensures the `@jackwener/opencli` peer-dep symlink (the step `opencli plugin install` sometimes skips on a fresh checkout), and runs a smoke-test search. If a human prerequisite is missing, it prints exactly what the human needs to do and exits. Safe to re-run.
 
-## Install
+<details>
+<summary>Manual setup (what <code>setup.sh</code> does, if you'd rather run the steps by hand)</summary>
 
 ```bash
-# From this repo (local development — symlinked, edits reflect immediately)
-opencli plugin install file://D:/workspace/misc/opencli-plugins/huawei-terminology
+npm install -g @jackwener/opencli          # Node >= 20
+opencli doctor                               # must be green — Browser Bridge connected
+opencli plugin install D:/workspace/misc/opencli-plugins/huawei-terminology
 
-# From GitHub (after pushing)
+# Ensure the peer-dep symlink (opencli plugin install usually makes this, but
+# not always on a fresh checkout — without it the plugin fails to load):
+mkdir -p node_modules/@jackwener
+ln -s "$(npm root -g)/@jackwener/opencli" node_modules/@jackwener/opencli
+
+opencli huawei-terminology search "5G" --limit 1   # smoke test
+```
+
+From GitHub (after pushing):
+```bash
 opencli plugin install github:<user>/misc/opencli-plugins/huawei-terminology
 ```
 
-> **Note on TypeScript:** the command is written in `search.ts` and transpiled to `search.js` with [esbuild](https://esbuild.github.io/). If `opencli plugin install` warns that no `.js` was compiled, install esbuild (`npm i -g esbuild`) and run, from this directory:
+</details>
+
+> **Note on TypeScript:** the command is written in `search.ts` and transpiled to `search.js` with [esbuild](https://esbuild.github.io/). The compiled `search.js` is committed so the plugin installs without a local esbuild. If you edit `search.ts`, recompile:
 >
 > ```bash
 > esbuild search.ts --outfile=search.js --format=esm --platform=node

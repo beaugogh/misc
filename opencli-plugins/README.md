@@ -14,25 +14,29 @@ skill already assumes. They live here, separately from `skills/`, because they
 are a different *kind* of artifact: coupled code + a native `opencli` command,
 versus portable instruction documents.
 
-## Prerequisites
+## Prerequisites — human, one-time (an agent cannot do these)
 
-One-time per machine:
+Each browser-based plugin drives your **logged-in Chrome** via the OpenCLI Browser Bridge, so a human must set these up before any agent can use the plugins:
 
-```bash
-# Node.js >= 20, then:
-npm install -g @jackwener/opencli
+1. **Node.js ≥ 20** — https://nodejs.org
+2. **OpenCLI + the Browser Bridge extension** — `npm i -g @jackwener/opencli`, then add the **OpenCLI** extension to Chrome from the [Chrome Web Store](https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk) (or load it unpacked from the [GitHub Releases](https://github.com/jackwener/opencli/releases) zip). Keep Chrome running.
+3. **Sign in to the target site** in Chrome (e.g. https://3ms.huawei.com/terminology) — adapters reuse this session's cookies.
 
-# Browser Bridge extension connected in Chrome:
-opencli doctor
-```
-
-`opencli doctor` must be green before any browser-based adapter will work.
+`opencli doctor` must be green before any browser-based adapter will work; it verifies step 2. Step 3 is verified by the plugin's own smoke test.
 
 ## Install a plugin from this repo
 
+The easiest path — each plugin ships a `setup.sh` that an agent can run directly. It verifies the prerequisites, installs the plugin, ensures the peer-dep symlink, and runs a smoke test, printing clear instructions if a human step is missing:
+
+```bash
+./<plugin>/setup.sh
+```
+
+Manual install (what `setup.sh` does under the hood):
+
 ```bash
 # Local development install (symlinks the folder into ~/.opencli/plugins/):
-opencli plugin install file://D:/workspace/misc/opencli-plugins/<plugin>
+opencli plugin install D:/workspace/misc/opencli-plugins/<plugin>
 
 # Or, after pushing the repo, install from GitHub:
 opencli plugin install github:<user>/misc/opencli-plugins/<plugin>
