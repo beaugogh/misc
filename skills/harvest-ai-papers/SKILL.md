@@ -33,13 +33,13 @@ The inventory script uses non-gated listing sources:
 
 The generated CSV is a broad accepted/proceedings workload estimate, not an oral-only list. Count only links with paper/poster semantics where the listing source includes workshops or other events, and preserve the presentation type when the source exposes it.
 
-The generated summary must reflect selective oral papers only. For NeurIPS, ICML, and ICLR, use the official virtual oral events pages. For AAAI, do not treat the Main Track Oral Talks schedule as a selective oral-paper tier; it appears to be a broad main-track presentation schedule. Audit it in the notes if useful, but exclude it from the oral-only total unless AAAI publishes a true selective oral category.
+The generated summary must reflect oral papers only. For NeurIPS, ICML, and ICLR, use the official virtual oral events pages. For AAAI, count **Main Track Oral Talks only** from the official Main Track Oral Talks PDF. Exclude AISI, AIA, ETA, workshops, and other special-track oral schedules unless the user explicitly asks for them.
 
 Practical oral-summary notes:
 
 - Count NeurIPS/ICML/ICLR oral papers from `https://<venue-host>/virtual/<year>/events/oral`, preferring explicit `Oral` labels and falling back to the page's `N Events` count when needed.
-- Audit AAAI Main Track oral schedules by extracting layout text with `pypdf` and counting unique `Paper ID` values, but report the result as a broad schedule count and leave the selective oral count blank.
-- AAAI's site may challenge-gate or block CLI fetches for some schedule URLs. The script keeps validated official-PDF schedule-count fallbacks for known years: AAAI-25 Main Track Oral Talks = 457, AAAI-26 Main Track Oral Talks = 1051.
+- Count AAAI Main Track oral schedules by extracting layout text with `pypdf` and counting unique `Paper ID` values.
+- AAAI's site may challenge-gate or block CLI fetches for some schedule URLs. The script keeps validated official-PDF fallbacks for known years: AAAI-25 Main Track Oral Talks = 457, AAAI-26 Main Track Oral Talks = 1051. Prefer the direct AAAI-26 PDF URL `https://aaai.org/wp-content/uploads/2026/01/Main-track-oral-talks.pdf`.
 - If `pypdf` is missing, install it into a temporary directory, for example `python3 -m pip install --target /private/tmp/pypdf-extract pypdf`, then run with `PYTHONPATH=/private/tmp/pypdf-extract`.
 
 ## Page Conversion Workflow
