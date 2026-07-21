@@ -82,8 +82,8 @@ def virtual_oral_rows(venue, year):
                 "paper_page_url": url,
                 "pdf_url": "",
                 "source_url": source_url,
-                "status": "ready",
-                "notes": "Official virtual oral event page.",
+                "status": "needs_pdf_url",
+                "notes": "Official virtual oral event page; paper PDF must be resolved before harvesting.",
             }
         )
     return rows

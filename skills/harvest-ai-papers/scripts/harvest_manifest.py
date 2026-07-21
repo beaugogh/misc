@@ -135,7 +135,7 @@ def validate_whole_paper(markdown, min_words):
         raise RuntimeError("harvested paper is missing a references/bibliography section")
 
 
-def pdf_to_markdown(pdf_url, row, output_path, min_words):
+def pdf_to_markdown(pdf_url, row, output_path, min_words, min_figure_pixels):
     fitz = require_fitz()
     pdf_bytes = fetch_bytes(pdf_url)
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -143,6 +143,7 @@ def pdf_to_markdown(pdf_url, row, output_path, min_words):
     figure_dir.mkdir(parents=True, exist_ok=True)
     parts = []
     allow_numbered_headings = False
+    seen_xrefs = set()
     for page_index, page in enumerate(doc, start=1):
         text, allow_numbered_headings = markdownize_pdf_text(
             page.get_text("text", sort=True) or "",
@@ -152,10 +153,15 @@ def pdf_to_markdown(pdf_url, row, output_path, min_words):
             parts.append(f"\n\n<!-- Page {page_index} -->\n\n{text}")
         for image_index, image in enumerate(page.get_images(full=True), start=1):
             xref = image[0]
+            if xref in seen_xrefs:
+                continue
+            seen_xrefs.add(xref)
             extracted = doc.extract_image(xref)
             image_bytes = extracted.get("image", b"")
             extension = extracted.get("ext", "png")
-            if not image_bytes:
+            width = int(extracted.get("width", 0) or 0)
+            height = int(extracted.get("height", 0) or 0)
+            if not image_bytes or width * height < min_figure_pixels:
                 continue
             figure_path = figure_dir / f"page-{page_index:03d}-figure-{image_index:02d}.svg"
             svg_wrap_image(image_bytes, extension, figure_path)
@@ -200,6 +206,12 @@ def parse_args():
         help="Maximum characters from the paper title to include after YEAR-VENUE- in filenames.",
     )
     parser.add_argument("--min-words", type=int, default=3000, help="Minimum words required before writing a harvested paper.")
+    parser.add_argument(
+        "--min-figure-pixels",
+        type=int,
+        default=40000,
+        help="Minimum extracted image area to keep as an SVG figure asset.",
+    )
     return parser.parse_args()
 
 
@@ -232,7 +244,7 @@ def main():
                 skipped += 1
                 print(f"skipped-no-paper-pdf: {row['paper_page_url']}")
                 continue
-            markdown = pdf_to_markdown(pdf_url, row, path, args.min_words)
+            markdown = pdf_to_markdown(pdf_url, row, path, args.min_words, args.min_figure_pixels)
         except Exception as exc:
             skipped += 1
             print(f"skipped-error: {row['paper_page_url']} ({exc})")

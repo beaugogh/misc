@@ -61,6 +61,16 @@ Manifest sources:
 - NeurIPS, ICML, and ICLR: official virtual oral event pages, one row per oral event URL.
 - AAAI: official Main Track Oral Talks PDF, one row per unique Paper ID. These rows may be marked `needs_paper_url` when the PDF does not expose a stable paper page URL directly.
 
+Then resolve the manifest to verified, non-gated whole-paper PDFs:
+
+```bash
+python3 skills/harvest-ai-papers/scripts/resolve_oral_manifest_pdfs.py --year <year> --in-place
+```
+
+Only rows with a reachable paper PDF should have `status=ready`. Rows whose only paper source is challenge-gated OpenReview, a schedule page, an abstract page, or slides must stay `needs_pdf_url` and must not be harvested.
+
+The resolver uses arXiv title search as a non-gated fallback and caches results in `output/arxiv-resolution-cache.json`. Keep `--arxiv-delay` at a polite value for full venue runs; lower it only for tiny smoke tests.
+
 Then harvest only rows marked `ready`:
 
 ```bash
@@ -92,6 +102,7 @@ For figures, images, and charts, include an AI-readable representation:
 - Prefer Mermaid when the figure is a reconstructible workflow, architecture, tree, timeline, or chart.
 - Otherwise convert extracted PDF images/figures into SVG assets and reference those SVGs from the Markdown.
 - Keep captions and nearby explanatory text with the figure whenever the source exposes them.
+- Filter tiny decorative image fragments and duplicated PDF image xrefs; harvested figures should be meaningful paper figures, not icon noise.
 
 The default harvester expects PyMuPDF for whole-paper PDF extraction and SVG figure assets. If it is missing, install it into a temporary directory, for example `python3 -m pip install --target /private/tmp/pymupdf pymupdf`, then run with `PYTHONPATH=/private/tmp/pymupdf`.
 
