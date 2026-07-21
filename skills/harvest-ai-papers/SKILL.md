@@ -108,6 +108,14 @@ For figures, images, and charts, include an AI-readable representation:
 
 The default harvester expects PyMuPDF for whole-paper PDF extraction and SVG figure assets. If it is missing, install it into a temporary directory, for example `python3 -m pip install --target /private/tmp/pymupdf pymupdf`, then run with `PYTHONPATH=/private/tmp/pymupdf`.
 
+Validate harvested Markdown before treating it as complete:
+
+```bash
+PYTHONPATH=/private/tmp/pymupdf python3 skills/harvest-ai-papers/scripts/validate_harvested_markdown.py skills/harvest-ai-papers/output/harvested/<year> --check-pdf-pages
+```
+
+The validator checks that outputs are plain text Markdown, have frontmatter and one H1, include paper PDF metadata, preserve page coverage against the source PDF, include references/bibliography, keep section headings and paragraph breaks, and do not reference missing local figure assets.
+
 ## Page Conversion Workflow
 
 1. Read `config.yaml` for target venues and the output directory.
@@ -118,6 +126,7 @@ The default harvester expects PyMuPDF for whole-paper PDF extraction and SVG fig
 6. Preserve the whole paper in original order: title, authors, abstract, every section, references, appendices, citations, equations, tables, code blocks, figures, captions, and footnotes. Keep the Markdown readable with paragraph breaks and headings; completeness is not enough if the result is hostile to human review.
 7. For meaningful images, figures, and charts, include SVG assets or Mermaid equivalents and add a clearly labeled assistant-derived visual equivalent for text-only readers.
 8. Verify the resulting file exists, includes the source URL and paper PDF URL when applicable, includes all extracted figure asset links, and has correctly fenced added diagrams.
+9. Run `validate_harvested_markdown.py` on harvested outputs. Use `--check-pdf-pages` when network access and PyMuPDF are available so page markers are compared against the source PDF page count.
 
 ## Output
 

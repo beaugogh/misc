@@ -753,9 +753,7 @@ Alignknn(K, L) =
 
 X i,j α(i, j) ·
 
-  ¯Kij · ¯Lij
-
-
+¯Kij · ¯Lij
 
 , (12)
 

@@ -41,11 +41,9 @@ Classical methods that generate samples from ν(x) rely on Markov Chain Monte Ca
 
 To improve sampling efficiency, modern samplers focus on learning better proposal distributions (Noé et al., 2019; Midgley et al., 2023). Among those, recent advances in diffusion-based generative models (Song et al., 2021; Ho et al., 2020) have given rise to a family of Diffusion Samplers, which consider stochastic differential equations (SDEs) of the following form:
 
-dXt =
+dXt = ft(Xt) + σtuθ t (Xt)
 
- ft(Xt) + σtuθ t (Xt)
-
- dt + σtdWt, X0 ∼µ(X0), (2)
+dt + σtdWt, X0 ∼µ(X0), (2)
 
 arXiv:2506.22565v2 [stat.ML] 24 Nov 2025
 
@@ -76,21 +74,17 @@ In this work, we propose Adjoint Schrödinger Bridge Sampler (ASBS), a new adjoi
 
 min u DKL(pu||pbase) = EX∼pu
 
-Z 1
+Z 1
 
 0
 
 1 2∥uθ t (Xt)∥2dt
 
-
-
 , (3a)
 
-s.t. dXt =
+s.t. dXt = ft(Xt) + σtuθ t(Xt)
 
- ft(Xt) + σtuθ t(Xt)
-
- dt + σtdWt, X0 ∼µ(X0), X1 ∼ν(X1). (3b)
+dt + σtdWt, X0 ∼µ(X0), X1 ∼ν(X1). (3b)
 
 Here, pu denotes the path distribution induced by the SDE in (3b), whereas pbase:= pu:=0 denotes the path distribution induced by the “base” SDE when ut:= 0. By minimizing their KL divergence, the SB problem (3) seeks the kinetic-optimal drift u⋆ t —an optimality structure well correlated with sampling efficiency in
 
@@ -109,7 +103,7 @@ In summary, we present the following contributions:
 
 • We show ASBS’s superior performance over prior methods on sampling Boltzmann distributions of classical energy functions, alanine dipeptide molecule and amortized conformer generation.
 
-2 Preliminary
+## 2 Preliminary
 
 We revisit the memoryless condition introduced by Domingo-Enrich et al. (2025) and examine its impact on the constructions of SOC-based diffusion samplers (Zhang and Chen, 2022; Havens et al., 2025), which are closely related to our ASBS. Additional review can be found in Section A.
 
@@ -117,11 +111,13 @@ Stochastic Optimal Control (SOC) The SOC problem (4) studies an optimization pro
 
 min u EX∼pu
 
-Z 1
+Z 1
 
 0
 
-1 2∥ut(Xt)∥2dt + g(X1)  s.t. (2), (4)
+1 2∥ut(Xt)∥2dt + g(X1)
+
+s.t. (2), (4)
 
 which, unlike the SB problem (3), includes an additional terminal cost g(x): X →R at the terminal time t = 1 and considers the SDE without the terminal constraint X1 ∼ν. The primary reason for studying this specific optimization problem is that the optimal distribution is known analytically by2 p⋆(X0, X1) = pbase(X0, X1)e−g(X1)+V0(X0), where V0(x) = −log
 
@@ -160,13 +156,13 @@ where the last equality is due to setting the terminal cost to g(x):= log pbase
 
 min u EX∼pu
 
-Z 1
+Z 1
 
 0
 
 1 2∥ut(Xt)∥2dt + log pbase 1 (X1) ν(X1)
 
- s.t. dXt = σtut(Xt)dt + σtdWt, X0=0. (7)
+s.t. dXt = σtut(Xt)dt + σtdWt, X0=0. (7)
 
 Based on the aforementioned reasoning, solving (7) results in a diffusion sampler that transports samples to the target distribution at t=1, with Adjoint Sampling (Havens et al., 2025) as the only scalable method of this class. Despite encouraging, the SOC problem in (7) is nevertheless limited by its trivial source, precluding potentially more effective options for sampling Boltzmann distributions.
 
@@ -174,7 +170,7 @@ Based on the aforementioned reasoning, solving (7) results in a diffusion sample
 
 We introduce a new diffusion sampler by solving the SB problem (3), where the target distribution ν(x) is given by its energy function E(x) rather than explicit samples. All proofs are left in Section B.
 
-3.1 SOC Characteristics of the SB Problem
+## 3.1 SOC Characteristics of the SB Problem
 
 The SB problem (3)—as an optimization problem with distribution constraints—is widely explored in optimal transport, stochastic control, and recently machine learning (Léonard, 2012; Chen et al., 2021; De Bortoli et al., 2021). Its kinetic-optimal drift u⋆satisfies the following optimality equations:
 
@@ -205,13 +201,13 @@ Equation (8) are computationally challenging to solve—even when pbase t|s has 
 
 Theorem 3.1 (SOC characteristics of SB). The kinetic-optimal drift u⋆ t in (8) solves an SOC problem min u EX∼pu
 
-Z 1
+Z 1
 
 0
 
 1 2∥ut(Xt)∥2dt + log ˆφ1(X1) ν(X1)
 
- s.t. (2). (9)
+s.t. (2). (9)
 
 Theorem 3.1 suggests that every SB problem (3) can be solved like an SOC problem (4) with the terminal cost g(x):= log ˆ φ1(x)
 
@@ -221,13 +217,9 @@ Theorem 3.1 suggests that every SB problem (3) can be solved like an SOC problem
 
 How ˆφ1(·) debiases non-memoryless SOC problems Taking a closer look at the effect of ˆφ1, notice that the optimal distribution of the SB problem—according to Theorem 3.1 and (5)—follows p⋆(X0, X1) = pbase(X0, X1) exp
 
-
-
 −log ˆφ1(X1)
 
 ν(X1) −log φ0(X0)
-
-
 
 , (10)
 
@@ -249,15 +241,15 @@ Z pbase(X1|X0) ˆφ0(X0)dX0
 
 That is, the optimality equations in (8), in their essence, construct a specific function ˆφ1(·) that eliminates the initial value function bias associated with any non-memoryless processes, thereby ensuring that the optimal distribution satisfies the target ν at t = 1.
 
-3.2 Adjoint Sampling with General Source Distribution
+## 3.2 Adjoint Sampling with General Source Distribution
 
 We now specialize Theorem 3.1 to sampling Boltzmann distributions (1), where ν(x) ∝e−E(x), and hence the terminal cost of the new SOC problem in (9) becomes log ˆ φ1(x)
 
 ν(x) = E(x) + log ˆφ1(x). To encourage minimal transportation cost (Chen and Georgiou, 2015; Peyré and Cuturi, 2019), we consider the Brownian-motion base process with a degenerate base drift ft:= 0. Applying Adjoint Matching (AM; Domingo-Enrich et al., 2025) to the resulting SOC problem leads to u⋆= arg min u Epbase t|0,1p¯u
 
-0,1 
+0,1
 
-∥ut(Xt) + σt (∇E + ∇log ˆφ1) (X1)∥2
+∥ut(Xt) + σt (∇E + ∇log ˆφ1) (X1)∥2
 
 , ¯u = stopgrad(u). (12)
 
@@ -269,9 +261,9 @@ Computing the AM objective in (12) requires knowing ∇log ˆφ1(x), which, as w
 
 Epu⋆
 
-0,1 
+0,1
 
-∥h(X1) −∇x1 log pbase(X1|X0)∥2
+∥h(X1) −∇x1 log pbase(X1|X0)∥2
 
 . (13)
 
@@ -312,7 +304,7 @@ AM
 
 θ to the energy gradient ∇E.
 
-3.3 Alternating Optimization with Adjoint and Corrector Matching
+## 3.3 Alternating Optimization with Adjoint and Corrector Matching
 
 Building upon the theoretical characterization in Section 3.2, we aim to design a learning algorithm that finds a diffusion sampler satisfying (12) and (13), which correspond to two simple matching-based objectives. However, these matching objectives cannot be naively implemented due to their interdependency: Solving (12) for the kinetic-optimal drift u⋆requires knowing ∇log ˆφ1. Likewise, solving (13) for the corrector function ∇log ˆφ1 requires samples from u⋆. We relax the interdependency with an alternating optimization scheme. Specifically, given an approximation of ∇log ˆφ1 ≈h(k−1) from the previous stage k −1, we first update the drift u(k) with the AM objective:
 
@@ -330,9 +322,9 @@ h(k):= arg min h
 
 Epu(k)
 
-0,1 
+0,1
 
-∥h(X1) −∇x1 log pbase(X1|X0)∥2
+∥h(X1) −∇x1 log pbase(X1|X0)∥2
 
 . (15)
 
@@ -349,7 +341,7 @@ We summarize our method, Adjoint Schrödinger Bridge Sampler (ASBS), in Algorith
 
 Theorem 3.2 (Global convergence of ASBS). Algorithm 1 converges to the Schrödinger bridge solution of (3), provided all matching stages achieve their critical points, i.e., lim k→∞u(k) = u⋆.
 
-4 Theoretical Analysis
+## 4 Theoretical Analysis
 
 We provide the proof of Theorem 3.2 and highlight theoretical insights throughout. While ASBS is specialized to a degenerate base drift ft:= 0, all theoretical results here apply to general ft. To simplify notation, we omit the parameters θ, ϕ and reparametrize the corrector by h(k) = ∇log ¯h(k). All proofs are left in Section B.
 
@@ -358,8 +350,6 @@ Our first result presents a variational characteristic to the solution of the AM
 Theorem 4.1 (Adjoint Matching solves a forward half bridge). Let pu(k) be the path distribution induced by the drift u(k) in (14) at stage k. Then, pu(k) solves the following variational problem:
 
 pu(k) = arg min p
-
-
 
 DKL(p||q
 
@@ -371,11 +361,9 @@ where q¯h(k−1) is the path distribution induced by a “backward” SDE on th
 
 dYs =
 
-
-
 −fs(Ys) + σ2 s∇log ϕs(Ys)
 
- ds + σsdWs, ϕs(y) =
+ds + σsdWs, ϕs(y) =
 
 Z pbase
 
@@ -397,15 +385,13 @@ q
 
 ¯h(k) = arg min q
 
-
-
 DKL(pu(k)||q): q1 = ν
 
 (18)
 
 Unlike (16), the objective in (18) disregards the source boundary constraint µ instead, thereby solving a backward half bridge. Theorems 4.1 and 4.2 imply that our ASBS in Algorithm 1 implicitly employs an optimization scheme that alternates between solving forward and backward half bridges, thereby instantiating the celebrated Iterative Proportional Fitting algorithm (IPF; Fortet, 1940; Kullback, 1968). Combining with the analysis by (De Bortoli et al., 2021) leads to our final result in Theorem 3.2.
 
-5 Related Works
+## 5 Related Works
 
 Data-driven Schrödinger Bridges The SB problem has attracted notable interests in machine learning due to its connection to diffusion-based generative models (Wang et al., 2021). Earlier methods implemented classical IPF algorithms (De Bortoli et al., 2021; Vargas et al., 2021; Chen et al., 2022), with scalability later enhanced by bridge matching-based methods (Shi et al., 2023; Liu et al., 2024). Unlike ASBS, all of them
 
@@ -420,7 +406,7 @@ Learning-augmented MCMC This class of methods can be thought of as extension of 
 
 MCMC-augmented Diffusion Samplers Alternatively, methods of this class adopt modern generative models to sampling Boltzmann distributions and incorporate MCMC techniques to mitigate the lack of explicit target samples. For example, Phillips et al. (2024), (De Bortoli et al., 2024) and (Akhound-Sadegh et al., 2024) employ score matching objective from score-based diffusion models (Song et al., 2021; Ho et al., 2020). In contrast, Albergo and Vanden-Eijnden (2025) base their method on action matching objectives (Neklyudov et al., 2023). However, estimating target samples requires computing importance weights, which makes these methods computationally expensive in terms of energy function evaluations.
 
-6 Experiments
+## 6 Experiments
 
 Benchmarks We evaluate our ASBS on three classes of multi-particle energy functions E(x).
 
@@ -626,7 +612,7 @@ RDKit AS ASBS gauss ASBS harmonic
 
 samples, and include results with relaxation for post-generation optimization. Since AS is a specific instance of ASBS with a Dirac delta prior—as discussed in Section 3.2—any performance improvements from AS to ASBS highlight the added capability to handle arbitrary priors and, consequently, non-memoryless processes. Remarkably, without any warm-start, ASBS with the harmonic prior (19) already matches and, in many cases, surpasses the RDKit-warm-up AS. With warm-start, ASBS achieves best performance across most metrics. This highlights the significance of domain-specific priors, aiding exploration as effectively as warm-start with additional data, which may not always be available. Finally, we visualize the generation process of ASBS with harmonic prior (19) in Figure 6 and report the recall curves in Figure 7. In practice, we observe that ASBS achieves slightly better results with a harmonic prior compared to a Gaussian prior, with both significantly outperforming AS (Havens et al., 2025). See Section D.4 for further ablation studies.
 
-7 Conclusion and Limitation
+## 7 Conclusion and Limitation
 
 We introduced Adjoint Schrödinger Bridge Sampler (ASBS), a new diffusion sampler for Boltzmann distributions that solves general SB problems given only target energy functions. ASBS is based on a scalable matching framework, converges theoretically to the global solution, and performs superiorly across various benchmarks. Despite these encouraging results, further enhancement with importance sampling techniques is worth investigating to mitigate the mode collapse inherent in SOC-inspired diffusion samplers. Exploring its effectiveness in sampling amortized Boltzmann distributions would also be valuable.
 
@@ -911,9 +897,9 @@ In this subsection, we expand Section 2 with details. Recall the SOC problem in 
 
 min u EX∼pu
 
-Z
+Z
 
-1 2∥ut(Xt)∥2dt + g(X1) 
+1 2∥ut(Xt)∥2dt + g(X1)
 
 (20a)
 
@@ -933,39 +919,25 @@ Optimal distribution The optimization problem in (20) is known analytically. Spe
 
 DKL(p(X)||pbase(X)) + Ep(X) [g(X1)]
 
-= DKL
-
-  p(X0)||pbase(X0)
-
-
+= DKL p(X0)||pbase(X0)
 
 + Ep(X0)
 
 h
 
-DKL
-
-  p(X|X0)||pbase(X|X0)
-
-
+DKL p(X|X0)||pbase(X|X0)
 
 + Ep(X|X0) [g(X1)]
 
 i
 
-= DKL
-
-  p(X0)||pbase(X0)
-
-
+= DKL p(X0)||pbase(X0)
 
 + Ep(X0)
 
 h
 
-DKL
-
-  p(X|X0)||pbase(X|X0)e−g(X1)i
+DKL p(X|X0)||pbase(X|X0)e−g(X1) i
 
 (22)
 
@@ -988,9 +960,9 @@ p⋆(X) = pbase(X)e−g(X1)+V0(X0) =⇒p⋆(X0, X1) = pbase(X0, X1)e−g(X1)+V0(
 
 Adjoint Matching (AM) Scalable computational methods for solving (20) have been challenging, as naively back-propagating through (20) induces prohibitively high computational cost. Instead, Adjoint Matching (Domingo-Enrich et al., 2025) employs a matching-based objective, named Adjoint Matching (AM):
 
-u⋆= arg min u EX∼p¯u 
+u⋆= arg min u EX∼p¯u
 
-∥ut(Xt) + σtat∥2
+∥ut(Xt) + σtat∥2
 
 , ¯u = stopgrad(u), (26a)
 
@@ -1010,13 +982,13 @@ That is, AS considers the following SOC problem with a degenerate base drift, a 
 
 min u EX∼pu
 
-Z 1
+Z 1
 
 0
 
 1 2∥ut(Xt)∥2dt + log pbase 1 (X1) ν(X1)
 
- s.t. dXt = σtut(Xt)dt + σtdWt, X0=0. (29)
+s.t. dXt = σtut(Xt)dt + σtdWt, X0=0. (29)
 
 Notably, this SOC problem (29) admits a simplified adjoint state at and a degenerate initial value function V0(x):
 
@@ -1050,17 +1022,15 @@ Combining the adjoint characteristics of the optimal control (27) with the simpl
 
 u⋆= arg min u Epbase t|1 p¯u
 
-1 
+1
 
 ∥ut(Xt) + σt
 
- 
-
 ∇E + ∇log pbase
 
-1 
+1
 
-(X1)∥2
+(X1)∥2
 
 , ¯u = stopgrad(u). (33)
 
@@ -1091,23 +1061,23 @@ at
 
 1 (X1) + ∇E(X1)), κt:= e−1
 
-2 R 1 t βτ dτ (36) = e−1
+## 2 R 1
+
+t βτ dτ (36) = e−1
 
 4 (1−t)(βt+β1) (37)
 
 and the RAM objective becomes u⋆= arg min u Epbase t|0,1p¯u
 
-0,1 
+0,1
 
 ∥ut(Xt) + σtκt
 
- 
-
 ∇E + ∇log pbase
 
-1 
+1
 
-(X1)∥2
+(X1)∥2
 
 , ¯u = stopgrad(u). (38)
 
@@ -1119,7 +1089,7 @@ pbase t|0,1(Xt|X0, X1)
 
 where κt is defined in (37) and ¯κt:= e−1
 
-2 R t
+## 2 R t
 
 0 βτ dτ (36) = e−1
 
@@ -1165,11 +1135,9 @@ Z Z pbase(X1|Xt = x)pbase(Xt = x|X0)φ1(X1) ˆφ0(X0)dX0dX1
 
 =
 
-Z pbase(Xt = x|X0) ˆφ0(X0)dX0
+Z pbase(Xt = x|X0) ˆφ0(X0)dX0
 
- Z pbase(X1|Xt = x)φ1(X1)dX1
-
-
+Z pbase(X1|Xt = x)φ1(X1)dX1
 
 = ˆφt(x)φt(x), (42)
 
@@ -1218,9 +1186,9 @@ Equation (44) implies a matching-based variational formulation of ∇log ˆφt(�
 
 Ep⋆
 
-0,t 
+0,t
 
-∥ht(Xt) −∇xt log pbase(Xt|X0)∥2
+∥ht(Xt) −∇xt log pbase(Xt|X0)∥2
 
 . (45)
 
@@ -1238,13 +1206,11 @@ Then, the stochastic process vt(Xt), where v ∈C1,2([0, 1], Rd), is also an It�
 
 dvt(Xt) =
 
-
-
 ∂tvt(Xt) + ∇vt(Xt) · f + 1
 
 2σ2 t ∆vt(Xt)
 
- dt + σt∇vt(Xt) · dWt. (46)
+dt + σt∇vt(Xt) · dWt. (46)
 
 Lemma B.2 (Laplacian trick). For any twice-differentiable function π such that π(x)̸ = 0, it holds that
 
@@ -1260,17 +1226,11 @@ Proof.
 
 = π(x)
 
- 
-
 ∥∇log π(x)∥2 + ∆log π(x)
-
-
 
 Theorem B.3 (SB characteristics of SOC). The optimal distribution p⋆of the SOC problem in (20) is also the solution to the following SB problem:
 
 arg min p
-
-
 
 DKL(p||pbase): p0 = µ, p1 = p⋆
 
@@ -1347,11 +1307,7 @@ That is, the kinetic-optimal drift of SB solves an SOC problem (4) with a termin
 
 Proof of Theorem 4.1 For notational simplicity, we will denote q ≡q¯h(k−1) throughout the proof. We first rewrite the backward SDE (17) in the forward direction (Nelson, 2020):
 
-dXt =
-
- ft −σ2 t ∇log ϕt + σ2 t ∇log qt
-
- dt + σtdWt, X1 ∼ν, where we rewrite ϕt(x) w.r.t. the forward time coordiante:
+dXt = ft −σ2 t ∇log ϕt + σ2 t ∇log qt dt + σtdWt, X1 ∼ν, where we rewrite ϕt(x) w.r.t. the forward time coordiante:
 
 ϕt(x) =
 
@@ -1363,25 +1319,13 @@ Note that (52) admits an equivalent PDE form by invoking Feynman-Kac formula (Le
 
 On the other hand, the dynamics of ∂tq follows the Fokker Plank equation (Øksendal, 2003):
 
-∂tqt = −∇·
-
-   ft −σ2 t ∇log ϕt + σ2 t ∇log qt
-
- qt
-
-
+∂tqt = −∇· ft −σ2 t ∇log ϕt + σ2 t ∇log qt qt
 
 + 1
 
 2σ2 t ∆qt
 
-= ∇·
-
-   σ2 t ∇log ϕt −ft
-
- qt
-
-
+= ∇· σ2 t ∇log ϕt −ft qt
 
 −1
 
@@ -1392,11 +1336,7 @@ On the other hand, the dynamics of ∂tq follows the Fokker Plank equation (Øks
 
 and straightforward calculation yields
 
-∂t log qt = σ2 t ∆log ϕt −∇· ft +
-
-  σ2 t ∇log ϕt −ft
-
-
+∂t log qt = σ2 t ∆log ϕt −∇· ft + σ2 t ∇log ϕt −ft
 
 · ∇log qt −1 2σ2 t ∥∇log qt∥2 −1
 
@@ -1412,21 +1352,15 @@ Invoke Ito Lemma (46) to log qt(Xt), where Xt follows (55):
 
 d log qt =
 
-
-
 ∂tlog qt + ∇log qt · (ft + σtut) + 1
 
-2σ2 t ∆log qt
+2σ2 t ∆log qt dt + σt∇log qt · dWt
 
- dt + σt∇log qt · dWt
-
-(54) =
-
- σ2 t ∆log ϕt −∇· ft + σ2 t ∇log ϕt · ∇log qt −1
+(54) = σ2 t ∆log ϕt −∇· ft + σ2 t ∇log ϕt · ∇log qt −1
 
 2σ2 t ∥∇log qt∥2 + ∇log qt · (σtut)
 
- dt
+dt
 
 + σt∇log qt · dWt (56)
 
@@ -1436,55 +1370,37 @@ d log ϕt
 
 =
 
-
-
 ∂tlog ϕt + ∇log ϕt · (ft + σtut) + 1
 
-2σ2 t ∆log ϕt
-
- dt + σt∇log ϕt · dWt
+2σ2 t ∆log ϕt dt + σt∇log ϕt · dWt
 
 (53) =
-
-
 
 −∇· ft + σ2 t 2 ∆ϕt ϕt
 
 + ∇log ϕt · (σtut) + 1
 
-2σ2 t ∆log ϕt
-
- dt + σt∇log ϕt · dWt
+2σ2 t ∆log ϕt dt + σt∇log ϕt · dWt
 
 (47) =
 
-
-
-−∇·ft + σ2 t 2  
+−∇·ft + σ2 t 2
 
 ∥∇log ϕt∥2 + ∆log ϕt
 
-
-
 + ∇log ϕt·(σtut) + 1
 
-2σ2 t ∆log ϕt
-
- dt + σt∇log ϕt·dWt
+2σ2 t ∆log ϕt dt + σt∇log ϕt·dWt
 
 =
 
-
-
-−∇· ft + σ2 t 2 ∥∇log ϕt∥2 + ∇log ϕt · (σtut) + σ2 t ∆log ϕt
-
- dt + σt∇log ϕt · dWt (57)
+−∇· ft + σ2 t 2 ∥∇log ϕt∥2 + ∇log ϕt · (σtut) + σ2 t ∆log ϕt dt + σt∇log ϕt · dWt (57)
 
 Subtracting (57) from (56) leads to d log ϕt −d log qt =
 
- 1
+1
 
-2∥ut + σt∇log ϕt −σt∇log qt∥2 −1 2∥ut∥2 dt + σt∇log ϕt qt
+2∥ut + σt∇log ϕt −σt∇log qt∥2 −1 2∥ut∥2 dt + σt∇log ϕt qt
 
 · dWt. (58)
 
@@ -1494,27 +1410,27 @@ DKL(p||q
 
 ¯h(k−1)) = EX∼pu
 
-Z 1
+Z 1
 
 0
 
-1 2∥ut(Xt) + σt∇log ϕt(Xt) −σt∇log qt(Xt)∥2dt 
+1 2∥ut(Xt) + σt∇log ϕt(Xt) −σt∇log qt(Xt)∥2dt
 
 (58) = EX∼pu
 
-Z 1
+Z 1
 
 0
 
-  1
+1
 
-2∥ut(Xt)∥2 + d log ϕt(Xt) −d log qt(Xt)  dt
+2∥ut(Xt)∥2 + d log ϕt(Xt) −d log qt(Xt)
 
-
+dt
 
 =EX∼pu
 
-Z 1
+Z 1
 
 0
 
@@ -1522,21 +1438,17 @@ DKL(p||q
 
 q0(X0)
 
-
-
 (59)
 
 ∝EX∼pu
 
-Z 1
+Z 1
 
 0
 
 1 2∥ut(Xt)∥2dt + log ¯h(k−1)(X1)
 
 ν(X1)
-
-
 
 . (60)
 
@@ -1595,13 +1507,11 @@ Now, expanding the variational objective with Girsanov Theorem yields (Särkkä 
 
 DKL(p(k)||q) = EY ∼p(k)
 
-Z 1
+Z 1
 
 0
 
 1 2∥−σs∇log φs(Ys) + σs∇log p(k) s (Ys) −vs(Ys)∥2ds
-
-
 
 , (63)
 
@@ -1613,15 +1523,11 @@ s (y) φs(y)
 
 In other words, the backward SDE that minimizes (63) must obey dYs =
 
-
-
 −fs(Ys) + σ2 s∇log ϕs(Ys)
 
- ds + σsdWs, Y0 ∼ν, with ϕs defined in (62). That is, we have concluded so far that q p(k)
+ds + σsdWs, Y0 ∼ν, with ϕs defined in (62). That is, we have concluded so far that q p(k)
 
 1 /φ1 = arg min q
-
-
 
 DKL(p(k)||q): q1 = ν
 
@@ -1637,9 +1543,9 @@ Hence, it remains to be shown that the minimizer ¯h(k)
 
 Ep(k)
 
-0,1 
+0,1
 
-∥h(X1) −∇x1 log pbase(X1|X0)∥2 (45) = ∇log ˆφ1
+∥h(X1) −∇x1 log pbase(X1|X0)∥2 (45) = ∇log ˆφ1
 
 (42) = ∇log p(k)
 
@@ -1706,21 +1612,17 @@ Require: Sample-able source X0 ∼µ, differentiable energy E(x), parametrized d
 
 5: Compute adjoint target a(i)
 
-t:= stopgrad
-
- clip
-
- 
+t:= stopgrad clip
 
 ∇E(X(i)
 
-1), αmax 
+1), αmax
 
 + h(k)
 
 ϕ (X(i)
 
-1) 
+1)
 
 6: Update replay buffer Badj ←Badj ∪{(X(i)
 
@@ -1764,27 +1666,21 @@ Noise schedule σt We consider two types of noise schedule.
 
 • The geometric noise schedule (Song et al., 2021; Karras et al., 2022) monotonically decays from t = 0 to 1 according to some prescribed βmin and βmax:
 
-σt geometric:= βmin
+σt geometric:= βmin βmax βmin
 
- βmax βmin
-
-1−t q
+1−t q
 
 2 log βmax βmin. (67)
 
 It is convenience to further define κt|s:=
 
-Z t s σ2 τdτ geometric = β2 max ·
+Z t s σ2 τdτ geometric = β2 max · βmin βmax
 
- βmin βmax
+2s
 
-2s
+− βmin βmax
 
-−
-
- βmin βmax
-
-2t
+2t
 
 , ¯β2:= β2 max −β2 min, γt:= κt|0
 
@@ -1833,11 +1729,7 @@ Formally, the adaption is equivalent to augmenting the SDE with a projection mat
 
 dXt = σtAut(Xt)dt + σtAdWt, X0 = AY0, Y0 ∼µ, A =
 
-
-
 In −1 n1n1⊤ n
-
-
 
 ⊗Ik, (72)
 
@@ -1892,17 +1784,15 @@ u⋆ t = σt∇log φt
 
 Ep⋆ t,1
 
-
-
-∥ut(Xt) −σt∇xt log pbase(X1|Xt)∥2
+∥ut(Xt) −σt∇xt log pbase(X1|Xt)∥2
 
 = arg min ut
 
 E(X0,X1)∼p⋆
 
-0,1,Xt∼pbase(·|X0,X1) 
+0,1,Xt∼pbase(·|X0,X1)
 
-∥ut(Xt) −σt∇xt log pbase(X1|Xt)∥2
+∥ut(Xt) −σt∇xt log pbase(X1|Xt)∥2
 
 . (74)
 
@@ -1928,13 +1818,9 @@ h
 
 (69a) = Et∼U[0,1],X0∼µ,X1∼qRDKit,Xt∼pbase(·|X0,X1)
 
-
-
 ˜λt∥ut(Xt) −σt κ1|t
 
 (X1 −Xt)∥2
-
-
 
 , (76)
 
@@ -1989,9 +1875,7 @@ E(x) = exp
 
 2τ
 
-X i<j
-
-  a(dij −d0) + b(dij −d0)2 + c(dij −d0)4
+X i<j a(dij −d0) + b(dij −d0)2 + c(dij −d0)4
 
 
 
@@ -2007,15 +1891,13 @@ E(x) = ϵ
 
 X i<j
 
-"rm dij
+" rm dij
 
-6
+6
 
-−
+− rm dij
 
-rm dij
-
-12#
+12#
 
 + c
 
@@ -2243,7 +2125,7 @@ Ability of ASBS in finding modes We conduct additional experiments on the 40-mod
 
 20
 
-40 Target
+## 40 Target
 
 40 20 0 20 40
 
@@ -2265,7 +2147,7 @@ w(X):= dp⋆(X)
 
 dpu(X) = exp
 
-Z 1
+Z 1
 
 0 −1
 
@@ -2276,8 +2158,6 @@ dpu(X) = exp
 ν(X1) + log ˆφ0(X0)
 
 µ(X0)
-
-
 
 , (86)
 
@@ -2297,9 +2177,11 @@ Z 1
 
 0
 
- 1
+1
 
-2∥vt(Xt)∥2 + (ut · vt)(Xt) + ∇· (σtvt(Xt) −ft(Xt))  dt +
+2∥vt(Xt)∥2 + (ut · vt)(Xt) + ∇· (σtvt(Xt) −ft(Xt))
+
+dt +
 
 Z 1
 

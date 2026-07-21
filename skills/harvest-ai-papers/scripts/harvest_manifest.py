@@ -87,7 +87,15 @@ def svg_wrap_image(image_bytes, extension, output_path):
     )
 
 
+def strip_pdf_control_chars(text):
+    return "".join(
+        char if char in "\n\t" or (ord(char) >= 32 and not 0x7F <= ord(char) <= 0x9F) else " "
+        for char in text
+    )
+
+
 def normalize_pdf_line(text):
+    text = strip_pdf_control_chars(text)
     return re.sub(r"[ \t]+", " ", text).strip()
 
 
@@ -168,7 +176,7 @@ def markdownize_pdf_blocks(page, page_index, allow_numbered_headings=False):
         if numbered_match:
             first_number = int(numbered_match.group(1).split(".")[0])
             plausible_numbered_heading = first_number <= 50
-        is_heading = explicit_section or (saw_abstract and plausible_numbered_heading)
+        is_heading = explicit_section or plausible_numbered_heading
         if is_heading:
             out.append(f"## {paragraph}")
         elif re.match(r"^(figure|fig\.|table)\s+\d+[:.]?\s+", paragraph, re.I):
