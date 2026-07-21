@@ -87,44 +87,96 @@ def svg_wrap_image(image_bytes, extension, output_path):
     )
 
 
-def normalize_pdf_text(text):
-    lines = []
-    for raw_line in text.splitlines():
-        line = re.sub(r"[ \t]+", " ", raw_line).strip()
-        if line:
-            lines.append(line)
-    return "\n".join(lines)
+def normalize_pdf_line(text):
+    return re.sub(r"[ \t]+", " ", text).strip()
 
 
-def markdownize_pdf_text(text, allow_numbered_headings=False):
+def join_pdf_lines(lines):
+    paragraph = ""
+    for raw_line in lines:
+        line = normalize_pdf_line(raw_line)
+        if not line:
+            continue
+        if paragraph.endswith("-") and re.match(r"^[a-z]", line):
+            paragraph = paragraph[:-1] + line
+        elif paragraph:
+            paragraph += " " + line
+        else:
+            paragraph = line
+    paragraph = re.sub(r"\s+([,.;:!?])", r"\1", paragraph)
+    paragraph = re.sub(r"\(\s+", "(", paragraph)
+    paragraph = re.sub(r"\s+\)", ")", paragraph)
+    return paragraph.strip()
+
+
+def should_skip_block(text, page_index):
+    compact = normalize_pdf_line(text)
+    if not compact:
+        return True
+    if compact == str(page_index):
+        return True
+    if re.match(r"^(arXiv:\d{4}\.\d+v\d+|\[\w+\.[A-Z]{2}\])$", compact):
+        return True
+    if re.match(r"^\d{4}$", compact):
+        return True
+    return False
+
+
+def append_readable_block(out, paragraph):
+    if (
+        out
+        and paragraph[:1].islower()
+        and not out[-1].startswith("## ")
+        and not out[-1].startswith("**Figure ")
+        and not out[-1].startswith("**Fig. ")
+        and not out[-1].startswith("**Table ")
+        and not re.search(r"[.!?:;)\]}]$", out[-1])
+    ):
+        out[-1] = f"{out[-1]} {paragraph}"
+    else:
+        out.append(paragraph)
+
+
+def markdownize_pdf_blocks(page, page_index, allow_numbered_headings=False):
     section_re = re.compile(
         r"^(abstract|introduction|related work|background|method|methods|approach|experiments?|results?|discussion|limitations?|conclusion|acknowledg(e)?ments?|references|bibliography|appendix|supplementary material)$",
         re.I,
     )
     numbered_section_re = re.compile(r"^(\d+(\.\d+)*)\.?\s+[A-Z][A-Za-z0-9 ,:;()/-]{2,120}$")
     out = []
-    current_paragraph = []
     saw_abstract = allow_numbered_headings
-    for line in normalize_pdf_text(text).splitlines():
-        explicit_section = section_re.match(line)
-        if explicit_section and line.lower() == "abstract":
+    blocks = page.get_text("blocks", sort=False) or []
+    for block in blocks:
+        if len(block) < 7 or block[6] != 0:
+            continue
+        raw_text = block[4]
+        if should_skip_block(raw_text, page_index):
+            continue
+        lines = [normalize_pdf_line(line) for line in raw_text.splitlines()]
+        lines = [line for line in lines if line and not should_skip_block(line, page_index)]
+        if not lines:
+            continue
+        paragraph = join_pdf_lines(lines)
+        if not paragraph:
+            continue
+
+        explicit_section = section_re.match(paragraph)
+        if explicit_section and paragraph.lower() == "abstract":
             saw_abstract = True
-        numbered_match = numbered_section_re.match(line)
+        numbered_match = numbered_section_re.match(paragraph)
         plausible_numbered_heading = False
         if numbered_match:
             first_number = int(numbered_match.group(1).split(".")[0])
             plausible_numbered_heading = first_number <= 50
         is_heading = explicit_section or (saw_abstract and plausible_numbered_heading)
         if is_heading:
-            if current_paragraph:
-                out.append(" ".join(current_paragraph))
-                current_paragraph = []
-            out.extend(["", f"## {line}", ""])
+            out.append(f"## {paragraph}")
+        elif re.match(r"^(figure|fig\.|table)\s+\d+[:.]?\s+", paragraph, re.I):
+            caption = re.sub(r"^(figure|fig\.|table)\s+(\d+)\s*[:.]?\s*", lambda m: f"**{m.group(1).title()} {m.group(2)}.** ", paragraph, flags=re.I)
+            out.append(caption)
         else:
-            current_paragraph.append(line)
-    if current_paragraph:
-        out.append(" ".join(current_paragraph))
-    return "\n".join(out).strip(), saw_abstract
+            append_readable_block(out, paragraph)
+    return "\n\n".join(out).strip(), saw_abstract
 
 
 def validate_whole_paper(markdown, min_words):
@@ -145,8 +197,9 @@ def pdf_to_markdown(pdf_url, row, output_path, min_words, min_figure_pixels):
     allow_numbered_headings = False
     seen_xrefs = set()
     for page_index, page in enumerate(doc, start=1):
-        text, allow_numbered_headings = markdownize_pdf_text(
-            page.get_text("text", sort=True) or "",
+        text, allow_numbered_headings = markdownize_pdf_blocks(
+            page,
+            page_index,
             allow_numbered_headings=allow_numbered_headings,
         )
         if text:
@@ -238,8 +291,10 @@ def main():
             skipped += 1
             continue
         try:
-            source = fetch(row["paper_page_url"])
-            pdf_url = row.get("pdf_url") or discover_paper_pdf(source, row["paper_page_url"])
+            pdf_url = row.get("pdf_url")
+            if not pdf_url:
+                source = fetch(row["paper_page_url"])
+                pdf_url = discover_paper_pdf(source, row["paper_page_url"])
             if not pdf_url:
                 skipped += 1
                 print(f"skipped-no-paper-pdf: {row['paper_page_url']}")

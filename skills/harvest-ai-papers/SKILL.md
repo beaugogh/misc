@@ -97,6 +97,8 @@ Harvesting must capture the whole paper, not just the conference detail page. Us
 
 The harvester enforces a minimum word count before writing each file. The default is 3000 words; change it with `--min-words` only for unusually short papers after manual inspection. A completed harvest must include a references or bibliography section.
 
+The Markdown must be readable by humans, not only complete. Prefer block-aware PDF extraction over a globally sorted text stream, keep natural paragraph breaks, format section headings as Markdown headings, keep figure/table captions near their figures, and repair common PDF artifacts such as line-break hyphenation and isolated page numbers. Do not collapse an entire page into one giant paragraph.
+
 For figures, images, and charts, include an AI-readable representation:
 
 - Prefer Mermaid when the figure is a reconstructible workflow, architecture, tree, timeline, or chart.
@@ -113,7 +115,7 @@ The default harvester expects PyMuPDF for whole-paper PDF extraction and SVG fig
 3. Read `prompt.md` before converting a URL; it contains the preservation requirements.
 4. Fetch or open the source URL using the best available tool for the environment.
 5. Create a Markdown file in the configured output directory using the `<YEAR>-<VENUE>-<paper-title-slug-capped>.md` filename pattern.
-6. Preserve the whole paper in original order: title, authors, abstract, every section, references, appendices, citations, equations, tables, code blocks, figures, captions, and footnotes.
+6. Preserve the whole paper in original order: title, authors, abstract, every section, references, appendices, citations, equations, tables, code blocks, figures, captions, and footnotes. Keep the Markdown readable with paragraph breaks and headings; completeness is not enough if the result is hostile to human review.
 7. For meaningful images, figures, and charts, include SVG assets or Mermaid equivalents and add a clearly labeled assistant-derived visual equivalent for text-only readers.
 8. Verify the resulting file exists, includes the source URL and paper PDF URL when applicable, includes all extracted figure asset links, and has correctly fenced added diagrams.
 
