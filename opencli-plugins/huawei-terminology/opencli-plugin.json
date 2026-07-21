@@ -1,0 +1,6 @@
+{
+  "name": "huawei-terminology",
+  "version": "0.1.0",
+  "description": "Search the Huawei terminology database (3ms.huawei.com/terminology) — returns English term, Chinese term, domain, and definition. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+  "opencli": ">=1.8.6"
+}

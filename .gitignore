@@ -223,3 +223,16 @@ __marimo__/
 # chatgpt-web-imagegen: generated image output dir (default --out)
 skills/chatgpt-web-imagegen/out/
 
+# Node / OpenCLI plugins
+#   opencli plugins declare @jackwener/opencli as a peerDependency and resolve
+#   it from the global install — no per-plugin node_modules should be committed.
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+#   plugins have no real runtime deps (only peerDeps), so their lockfiles are
+#   resolved-transitive noise; the committed search.js is the installable build.
+opencli-plugins/**/package-lock.json
+
+
