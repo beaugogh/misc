@@ -29,22 +29,37 @@ KNOWN_AAAI_MAIN_ORAL_COUNTS = {
 
 def fetch(url):
     last_error = None
-    for _ in range(3):
+    for _ in range(5):
         try:
             completed = subprocess.run(
-                ["curl", "-fsSL", "--http1.1", "--compressed", "-A", USER_AGENT, url],
+                [
+                    "curl",
+                    "-fsSL",
+                    "--http1.1",
+                    "--compressed",
+                    "--retry",
+                    "3",
+                    "--retry-delay",
+                    "2",
+                    "--retry-connrefused",
+                    "--max-time",
+                    "180",
+                    "-A",
+                    USER_AGENT,
+                    url,
+                ],
                 check=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                timeout=25,
+                timeout=210,
             )
             return completed.stdout.decode("utf-8", errors="replace")
         except Exception as exc:
             last_error = exc
-            time.sleep(0.5)
+            time.sleep(2)
     try:
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-        with urllib.request.urlopen(req, timeout=45) as response:
+        with urllib.request.urlopen(req, timeout=180) as response:
             charset = response.headers.get_content_charset() or "utf-8"
             return response.read().decode(charset, errors="replace")
     except Exception:
@@ -53,22 +68,37 @@ def fetch(url):
 
 def fetch_bytes(url):
     last_error = None
-    for _ in range(3):
+    for _ in range(5):
         try:
             completed = subprocess.run(
-                ["curl", "-fsSL", "--http1.1", "--compressed", "-A", USER_AGENT, url],
+                [
+                    "curl",
+                    "-fsSL",
+                    "--http1.1",
+                    "--compressed",
+                    "--retry",
+                    "3",
+                    "--retry-delay",
+                    "2",
+                    "--retry-connrefused",
+                    "--max-time",
+                    "240",
+                    "-A",
+                    USER_AGENT,
+                    url,
+                ],
                 check=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                timeout=45,
+                timeout=270,
             )
             return completed.stdout
         except Exception as exc:
             last_error = exc
-            time.sleep(0.5)
+            time.sleep(2)
     try:
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-        with urllib.request.urlopen(req, timeout=60) as response:
+        with urllib.request.urlopen(req, timeout=240) as response:
             return response.read()
     except Exception:
         raise last_error

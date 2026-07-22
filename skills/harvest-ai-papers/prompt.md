@@ -22,12 +22,13 @@ Requirements:
    - Keep nearby captions.
    - If the page uses relative image URLs, resolve them to absolute URLs.
 
-4. Make the page understandable to a non-multimodal AI agent.
+4. Make the page understandable to a non-multimodal AI agent or LLM.
    For every meaningful image, add an “AI-readable visual equivalent” immediately after the image.
    Use one or more of the following:
    - Mermaid diagrams for workflows, architectures, loops, timelines, causal chains, plots, or comparisons.
    - SVG diagrams if layout or geometry matters.
    - Plain-text descriptions for photos, screenshots, charts, equations, or decorative images.
+   - For complex equations from PDFs, include a rendered SVG crop for fidelity and a fenced text transcription labeled as lossy for text-only agents.
 
 5. Clearly label added visual equivalents.
    Example:
@@ -45,8 +46,13 @@ Requirements:
    ```
    ```
 
+   Avoid generic placeholders. Each visual equivalent should use stable, structured fields such as Asset, Type, Extracted size, Caption/context, Nearby paper text, and Transcription status. Include an honest note about whether exact labels/data were extracted or only preserved visually.
+
 6. Do not pretend the generated diagrams are part of the original page.
    Mark them as assistant-derived annotations.
+
+6a. Do not silently flatten equations into prose when PDF extraction loses math structure.
+    If LaTeX/source math is unavailable, preserve the visual equation as an SVG asset and label the adjacent extracted text as a potentially lossy transcription.
 
 7. If a chart or figure contains data:
    - Extract visible labels, axes, legends, values, and trends where possible.
@@ -69,7 +75,7 @@ Requirements:
    - The source URL is included.
    - All image URLs found in the page are included.
    - Added diagrams are syntactically fenced correctly.
-   - The document is readable by a text-only AI agent.
+   - The document is readable by a text-only AI agent or LLM, with added accessibility notes clearly separated from original paper text.
 
 Important:
 - Do not only summarize the webpage.

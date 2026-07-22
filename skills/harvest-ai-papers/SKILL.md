@@ -96,6 +96,14 @@ Useful pilot command:
 python3 skills/harvest-ai-papers/scripts/harvest_manifest.py --year <year> --venue ICLR --limit 10
 ```
 
+Useful resumable batch command:
+
+```bash
+python3 skills/harvest-ai-papers/scripts/harvest_manifest.py --year <year> --venue AAAI --overwrite --row-offset <eligible-ready-row-offset> --row-count <batch-size>
+```
+
+Use `--row-offset` and `--row-count` for long full-corpus refreshes, especially AAAI. Offsets are counted after venue filtering and after excluding non-ready manifest rows.
+
 Do not harvest broad proceedings CSV rows for this workflow. Use the broad CSV only for workload planning or URL reconciliation.
 
 Harvested filenames must use this pattern:
@@ -112,14 +120,18 @@ The harvester enforces a minimum word count before writing each file. The defaul
 
 The Markdown must be readable by humans, not only complete. Prefer block-aware PDF extraction over a globally sorted text stream, keep natural paragraph breaks, format section headings as Markdown headings, keep figure/table captions near their figures, and repair common PDF artifacts such as line-break hyphenation and isolated page numbers. Do not collapse an entire page into one giant paragraph.
 
-For figures, images, and charts, include an AI-readable representation:
+For equations, do not trust plain PDF text extraction when the math layout is non-trivial. Superscripts, subscripts, fractions, matrices, sums, and some Unicode math glyphs often flatten into misleading text. When a block looks like display math or a mangled equation, render that PDF region into an SVG asset and include an immediately adjacent fenced text transcription labeled as lossy. This preserves the visually faithful equation for humans while still giving text-only agents something to inspect. Do not present a lossy transcription as canonical LaTeX unless it came from a LaTeX/source-backed page.
+
+For figures, images, charts, and rendered equation regions, include an AI-readable representation:
 
 - Prefer Mermaid when the figure is a reconstructible workflow, architecture, tree, timeline, or chart.
-- Otherwise convert extracted PDF images/figures into SVG assets and reference those SVGs from the Markdown.
+- Otherwise convert extracted PDF images/figures/equation crops into SVG assets and reference those SVGs from the Markdown.
 - Keep captions and nearby explanatory text with the figure whenever the source exposes them.
+- Do not leave generic visual placeholders. Each figure/image asset must have an adjacent structured AI-readable note with `Asset`, `Type`, `Extracted size`, caption/context or nearby paper text, and an honest `Transcription status`.
+- Treat these notes as accessibility metadata for downstream agents/LLMs. They must be machine-scannable, clearly assistant-derived, and separate from the original paper text.
 - Filter tiny decorative image fragments and duplicated PDF image xrefs; harvested figures should be meaningful paper figures, not icon noise.
 
-The default harvester expects PyMuPDF for whole-paper PDF extraction and SVG figure assets. If it is missing, install it into a temporary directory, for example `python3 -m pip install --target /private/tmp/pymupdf pymupdf`, then run with `PYTHONPATH=/private/tmp/pymupdf`.
+The default harvester expects PyMuPDF for whole-paper PDF extraction plus SVG figure and equation assets. If it is missing, install it into a temporary directory, for example `python3 -m pip install --target /private/tmp/pymupdf pymupdf`, then run with `PYTHONPATH=/private/tmp/pymupdf`.
 
 Validate harvested Markdown before treating it as complete:
 
@@ -139,7 +151,7 @@ For very large runs, first run the non-network validation path over the complete
 4. Fetch or open the source URL using the best available tool for the environment.
 5. Create a Markdown file in the configured output directory using the `<YEAR>-<VENUE>-<paper-title-slug-capped>.md` filename pattern.
 6. Preserve the whole paper in original order: title, authors, abstract, every section, references, appendices, citations, equations, tables, code blocks, figures, captions, and footnotes. Keep the Markdown readable with paragraph breaks and headings; completeness is not enough if the result is hostile to human review.
-7. For meaningful images, figures, and charts, include SVG assets or Mermaid equivalents and add a clearly labeled assistant-derived visual equivalent for text-only readers.
+7. For meaningful images, figures, charts, and complex equations, include SVG assets or Mermaid equivalents and add a clearly labeled assistant-derived visual equivalent for text-only readers and agents. For equations rendered from PDFs, keep a fenced lossy transcription next to the SVG rather than silently flattening math into prose.
 8. Verify the resulting file exists, includes the source URL and paper PDF URL when applicable, includes all extracted figure asset links, and has correctly fenced added diagrams.
 9. Run `validate_harvested_markdown.py` on harvested outputs. Use `--check-pdf-pages` when network access and PyMuPDF are available so page markers are compared against the source PDF page count.
 

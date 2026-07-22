@@ -39,6 +39,10 @@ def validate_file(path, min_words, check_pdf_pages):
         errors.append("missing source_url or paper_pdf_url metadata")
     if "content_scope: whole paper PDF text" not in text:
         errors.append("missing whole-paper content_scope metadata")
+    if "AI-readable visual equivalent, added:" in text and "Transcription status:" not in text:
+        errors.append("visual equivalents are missing explicit transcription status")
+    if "Use the surrounding page text and caption for interpretation." in text:
+        errors.append("contains generic visual-equivalent placeholder")
     if text.count("```") % 2:
         errors.append("has unbalanced fenced code blocks")
     word_count = len(re.findall(r"\b\w+\b", text))
@@ -49,7 +53,7 @@ def validate_file(path, min_words, check_pdf_pages):
     heading_count = len(re.findall(r"^## ", text, flags=re.M))
     if heading_count < 4:
         errors.append(f"too few Markdown section headings: {heading_count}")
-    page_markers = [int(value) for value in re.findall(r"<!-- Page (\d+) -->", text)]
+    page_markers = [int(value) for value in re.findall(r"^<!-- Page (\d+) -->$", text, flags=re.M)]
     if not page_markers:
         errors.append("missing page markers")
     elif page_markers != list(range(1, max(page_markers) + 1)):
@@ -62,6 +66,19 @@ def validate_file(path, min_words, check_pdf_pages):
             continue
         if not (path.parent / target).exists():
             errors.append(f"missing local figure asset: {target}")
+        if "/equations/" in target:
+            window = text[match.end() : match.end() + 500]
+            if "AI-readable equation transcription" not in window or "```text" not in window:
+                errors.append(f"equation asset missing adjacent lossy transcription: {target}")
+        else:
+            window = text[match.end() : match.end() + 4000]
+            if "AI-readable visual equivalent, added:" not in window:
+                errors.append(f"visual asset missing adjacent AI-readable equivalent: {target}")
+            for required in ("Asset:", "Type:", "Extracted size:", "Transcription status:"):
+                if required not in window:
+                    errors.append(f"visual asset missing {required} field: {target}")
+            if "Caption/context:" not in window and "Nearby paper text:" not in window:
+                errors.append(f"visual asset missing caption or nearby text context: {target}")
     if check_pdf_pages:
         pdf_url = frontmatter_value(text, "paper_pdf_url")
         if not pdf_url:
