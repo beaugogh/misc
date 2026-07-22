@@ -10,7 +10,7 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from list_venue_papers import DEFAULT_YEAR, USER_AGENT, configured_output_dir, fetch
+from list_venue_papers import DEFAULT_YEAR, USER_AGENT, clean_text, configured_output_dir, fetch
 from harvest_manifest import discover_paper_pdf, links_from_html
 
 
@@ -204,6 +204,77 @@ def best_arxiv_match(url, title):
     return best
 
 
+def aaai_ojs_issue_urls(year):
+    marker = f"AAAI-{str(year)[-2:]} Technical Tracks"
+    urls = []
+    for page in range(1, 20):
+        archive_url = "https://ojs.aaai.org/index.php/AAAI/issue/archive" if page == 1 else f"https://ojs.aaai.org/index.php/AAAI/issue/archive/{page}"
+        source = fetch(archive_url)
+        before = len(urls)
+        for href, text in re.findall(r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', source, flags=re.I | re.S):
+            label = clean_text(re.sub(r"<[^>]+>", " ", text))
+            if marker in label and href not in urls:
+                urls.append(href)
+        if len(urls) == before:
+            break
+    return urls
+
+
+def parse_aaai_ojs_issue(issue_url):
+    source = fetch(issue_url)
+    articles = []
+    for block in re.findall(r'<div class="obj_article_summary">(.*?)</div>\s*</li>', source, flags=re.I | re.S):
+        title_match = re.search(r'<h3 class="title">\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', block, flags=re.I | re.S)
+        pdf_match = re.search(r'<a class="obj_galley_link pdf" href="([^"]+)"', block, flags=re.I)
+        authors_match = re.search(r'<div class="authors">\s*(.*?)\s*</div>', block, flags=re.I | re.S)
+        if not title_match or not pdf_match:
+            continue
+        articles.append(
+            {
+                "title": clean_text(re.sub(r"<[^>]+>", " ", title_match.group(2))),
+                "paper_page_url": title_match.group(1),
+                "pdf_url": pdf_match.group(1),
+                "authors": clean_text(re.sub(r"<[^>]+>", " ", authors_match.group(1))) if authors_match else "",
+                "issue_url": issue_url,
+            }
+        )
+    return articles
+
+
+def aaai_ojs_index(year, cache_path=None):
+    if cache_path and cache_path.exists():
+        return json.loads(cache_path.read_text(encoding="utf-8"))
+    articles = []
+    for issue_url in aaai_ojs_issue_urls(year):
+        articles.extend(parse_aaai_ojs_issue(issue_url))
+        time.sleep(0.2)
+    if cache_path:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(articles, indent=2, sort_keys=True), encoding="utf-8")
+    return articles
+
+
+def resolve_aaai_ojs(row, ojs_articles, verify=True):
+    if row.get("venue") != "AAAI" or not row.get("title"):
+        return None
+    best = None
+    best_score = 0.0
+    for article in ojs_articles:
+        score = title_match_score(row["title"], article["title"])
+        if score > best_score:
+            best = article
+            best_score = score
+    if best and best_score >= 0.86 and (not verify or verified_pdf(best["pdf_url"])):
+        row["title"] = best["title"]
+        row["authors"] = best.get("authors", "")
+        row["paper_page_url"] = best["paper_page_url"]
+        row["pdf_url"] = best["pdf_url"]
+        row["status"] = "ready"
+        row["notes"] = append_note(row.get("notes", ""), f"Resolved paper PDF from official AAAI OJS proceedings title match score={best_score:.2f}.")
+        return row
+    return None
+
+
 def candidate_pdfs_from_page(row):
     page_url = row.get("paper_page_url", "")
     if not page_url:
@@ -224,7 +295,12 @@ def candidate_pdfs_from_page(row):
     return candidates
 
 
-def resolve_row(row, use_arxiv, max_arxiv_queries, arxiv_cache, arxiv_delay):
+def resolve_row(row, use_arxiv, max_arxiv_queries, arxiv_cache, arxiv_delay, aaai_articles=None, trust_aaai_ojs=False):
+    if row.get("venue") == "AAAI" and aaai_articles is not None:
+        resolved = resolve_aaai_ojs(row, aaai_articles, verify=not trust_aaai_ojs)
+        if resolved:
+            return resolved
+
     if row.get("pdf_url") and verified_pdf(row["pdf_url"]):
         row["status"] = "ready"
         row["notes"] = append_note(row.get("notes", ""), "Verified existing paper PDF.")
@@ -277,6 +353,12 @@ def parse_args():
     parser.add_argument("--max-arxiv-queries", type=int, default=2)
     parser.add_argument("--arxiv-delay", type=float, default=3.0)
     parser.add_argument("--arxiv-cache", type=Path, default=output_dir / "arxiv-resolution-cache.json")
+    parser.add_argument("--aaai-ojs-cache", type=Path, default=output_dir / "aaai-ojs-index.json")
+    parser.add_argument(
+        "--trust-aaai-ojs",
+        action="store_true",
+        help="Trust official AAAI OJS proceedings PDF links during resolution; final harvesting still fetches and validates the PDF.",
+    )
     parser.add_argument("--in-place", action="store_true", help="Overwrite the input manifest.")
     parser.set_defaults(
         manifest=output_dir / f"ai-venue-oral-papers-{DEFAULT_YEAR}.csv",
@@ -302,8 +384,12 @@ def main():
     attempted = 0
     resolved = 0
     output_rows = []
+    aaai_articles = None
+    selected_venues = set(args.venue or [])
+    if not selected_venues or "AAAI" in selected_venues:
+        aaai_articles = aaai_ojs_index(args.year, args.aaai_ojs_cache)
     for row in rows:
-        has_resolvable_target = bool(row.get("paper_page_url") or row.get("pdf_url"))
+        has_resolvable_target = bool(row.get("paper_page_url") or row.get("pdf_url") or row.get("venue") == "AAAI")
         should_attempt = has_resolvable_target and (not args.venue or row.get("venue") in args.venue)
         if should_attempt and (args.limit is None or attempted < args.limit):
             attempted += 1
@@ -313,6 +399,8 @@ def main():
                 max_arxiv_queries=args.max_arxiv_queries,
                 arxiv_cache=arxiv_cache,
                 arxiv_delay=args.arxiv_delay,
+                aaai_articles=aaai_articles,
+                trust_aaai_ojs=args.trust_aaai_ojs,
             )
             if row.get("status") == "ready":
                 resolved += 1

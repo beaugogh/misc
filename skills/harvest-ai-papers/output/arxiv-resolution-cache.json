@@ -1,0 +1,1906 @@
+{
+  "1000 layer networks for self supervised rl scaling depth can enable new goal reaching capabilities": {
+    "pdf_url": "https://arxiv.org/pdf/2503.14858v4",
+    "reason": "arXiv title match score=0.92: 1000Layer Networksfor Self-Supervised RL:Scaling Depth Can Enable New Goal-Reaching Capabilities"
+  },
+  "3 view sense spatial and mental perspective reasoning from orthographic views in vision language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "a clean slate for offline reinforcement learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "a is for absorption studying feature splitting and absorption in sparse autoencoders": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "a multiscale analysis of mean field transformers in the moderate interaction regime": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "a random matrix perspective on the consistency of diffusion models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "a recursive decomposition framework for causal structure learning in the presence of latent variables": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "a representer theorem for hawkes processes via penalized least squares minimization": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "a scalable distributed framework for multimodal giga voxel image registration": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "a snapshot of influence a local data attribution framework for online reinforcement learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "a systematic study of behavioral cloning for scientific data annotation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "actions speak louder than prompts a large scale study of llm s for graph inference": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "activation oracles training and evaluating llm s as general purpose activation explainers": {
+    "pdf_url": "https://arxiv.org/pdf/2512.15674v2",
+    "reason": "arXiv title match score=0.88: Activation Oracles:Trainingand Evaluating LLMsas General-Purpose Activation Explainers"
+  },
+  "ad aem an adaptively and automated extensible measurement of llm s value difference": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "adaptive surrogate gradients for sequential reinforcement learning in spiking neural networks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "addressing divergent representations from causal interventions on neural networks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "adjoint schr dinger bridge sampler": {
+    "pdf_url": "https://arxiv.org/pdf/2506.22565v2",
+    "reason": "arXiv title match score=1.00: Adjoint Schr\u00f6dinger Bridge Sampler"
+  },
+  "advancing expert specialization for better mo e": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "agent 0 vl exploring self evolving agent for tool integrated vision language reasoning": {
+    "pdf_url": "https://arxiv.org/pdf/2511.19900v2",
+    "reason": "arXiv title match score=1.00: Agent0-VL:Exploring Self-Evolving Agentfor Tool-Integrated Vision-Language Reasoning"
+  },
+  "agent data protocol unifying datasets for diverse effective fine tuning of llm agents": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "agent gym rl an open source framework to train llm agents for long horizon decision making via multi turn rl": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "agnostic active learning is always better than passive learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "ai engram in search of memory traces in artificial intelligence": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "an optimized franz parisi criterion and its equivalence with sq lower bounds": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "analog in memory training on general non ideal resistive elements the impact of response functions": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "any order gpt as masked diffusion model decoupling formulation and architecture": {
+    "pdf_url": "https://arxiv.org/pdf/2506.19935v1",
+    "reason": "arXiv title match score=0.89: Any-Order GPTas Masked Diffusion Model:Decoupling Formulationand Architecture"
+  },
+  "any up universal feature upsampling": {
+    "pdf_url": "https://arxiv.org/pdf/2510.12764v2",
+    "reason": "arXiv title match score=1.00: Any Up:Universal Feature Upsampling"
+  },
+  "are vlm s seeing or just saying uncovering the illusion of visual re examination": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "artificial hivemind the open ended homogeneity of language models and beyond": {
+    "pdf_url": "https://arxiv.org/pdf/2510.22954v1",
+    "reason": "arXiv title match score=0.88: Artificial Hivemind:The Open-Ended Homogeneityof Language Models(and Beyond)"
+  },
+  "asta bench rigorous benchmarking of ai agents with a scientific research suite": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "asymmetric perturbation in solving bilinear saddle point optimization": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "auto compressing networks": {
+    "pdf_url": "https://arxiv.org/pdf/2506.09714v3",
+    "reason": "arXiv title match score=1.00: Auto-Compressing Networks"
+  },
+  "auto ep llm s driven automation of hyperparameter evolution for metaheuristic algorithms": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "bad seeing or bad thinking rewarding perception for multimodal reasoning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "bedlam 2 0 synthetic humans and cameras in motion": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "benchmarking at the edge of comprehension": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "benchmarking empirical privacy protection for adaptations of large language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "beyond prompt induced lies investigating llm deception on benign prompts": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "bio x bridge model bridging for unsupervised cross modal knowledge transfer across biosignals": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "bird interact re imagining text to sql evaluation via lens of dynamic interactions": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "boosting knowledge utilization in multimodal large language models via adaptive logits fusion and attention reallocation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "breaking the performance ceiling in reinforcement learning requires inference strategies": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "cat q cost efficient and accurate ternary quantization for llm s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "cau ker classification time series foundation models can be pretrained on synthetic data": {
+    "pdf_url": "https://arxiv.org/pdf/2508.02879v3",
+    "reason": "arXiv title match score=0.91: Cau Ker:Classification Time Series Foundation Models Can Be Pretrainedon Synthetic Data"
+  },
+  "causal game benchmarking causal thinking of llm agents in games": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "causal structure learning in hawkes processes with complex latent confounder networks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "characterizing agents in production": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "characterizing evaluating and optimizing complex reasoning": {
+    "pdf_url": "https://arxiv.org/pdf/2602.08498v2",
+    "reason": "arXiv title match score=1.00: Characterizing,Evaluating,and Optimizing Complex Reasoning"
+  },
+  "characterizing the discrete geometry of re lu networks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "chebyshev policies and the mountain car problem reinforcement learning for low dimensional control tasks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "class wise balancing data replay for federated class incremental learning": {
+    "pdf_url": "https://arxiv.org/pdf/2507.07712v4",
+    "reason": "arXiv title match score=0.88: Class-wise Balancing Data Replayfor Federated Class-Incremental Learning"
+  },
+  "clear context aware learning with end to end mask free inference for adaptive subtitle removal": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "co evol no state and coordinate co evolution with an error driven predictor corrector paradigm for neural operator transformer": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "common corpus the largest collection of ethical data for llm pre training": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "compactness and consistency a conjoint framework for deep graph clustering": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "compositional diffusion with guided search for long horizon planning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "con flux multivariate time series in flux one unified forecast in confluence": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "conformal robustness control a new strategy for robust decision": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "control fusion a controllable image fusion network with language vision degradation prompts": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "controlled llm training on spectral sphere": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "coral vqa a large scale visual question answering dataset for coral reef image understanding": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "counsel bench a large scale expert evaluation and adversarial benchmarking of large language models in mental health question answering": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "coupling experts and routers in mixture of experts via an auxiliary loss": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "cross domain lossy compression via rate and classification constrained optimal transport": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "cve factory scaling expert level agentic tasks for code security vulnerability": {
+    "pdf_url": "https://arxiv.org/pdf/2602.03012v3",
+    "reason": "arXiv title match score=0.90: CVE-Factory:Scaling Expert-Level Agentic Tasksfor Code Security Vulnerability"
+  },
+  "cyber gym evaluating ai agents real world cybersecurity capabilities at scale": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "da vinci dev agent native mid training for software engineering": {
+    "pdf_url": "https://arxiv.org/pdf/2601.18418v2",
+    "reason": "arXiv title match score=0.88: da Vinci-Dev:Agent-native Mid-trainingfor Software Engineering"
+  },
+  "dcf old efficient protein structure generation with single forward pass": {
+    "pdf_url": "https://arxiv.org/pdf/2605.17899v1",
+    "reason": "arXiv title match score=0.89: DCFold:Efficient Protein Structure Generationwith Single Forward Pass"
+  },
+  "decentralized attention fails centralized signals rethinking transformers for medical time series": {
+    "pdf_url": "https://arxiv.org/pdf/2602.18473v2",
+    "reason": "arXiv title match score=0.90: Decentralized Attention Fails Centralized Signals:Rethinking Transformersfor Medical Time Series"
+  },
+  "deep compositional phase diffusion for long motion sequence generation": {
+    "pdf_url": "https://arxiv.org/pdf/2510.14427v1",
+    "reason": "arXiv title match score=0.88: Deep Compositional Phase Diffusionfor Long Motion Sequence Generation"
+  },
+  "depth anything 3 recovering the visual space from any views": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "depth bounds for neural networks via the braid arrangement": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "depth lm metric depth from vision language models": {
+    "pdf_url": "https://arxiv.org/pdf/2509.25413v2",
+    "reason": "arXiv title match score=1.00: Depth LM:Metric Depth From Vision Language Models"
+  },
+  "detecting the semantic fixed point a geometric framework for efficient inference": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "di sco former plug in density and score estimation with transformers": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "differentiable model predictive control on the gpu": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "differentially private domain discovery": {
+    "pdf_url": "https://arxiv.org/pdf/2603.14016v1",
+    "reason": "arXiv title match score=1.00: Missing Massfor Differentially Private Domain Discovery"
+  },
+  "difficult examples hurt unsupervised contrastive learning a theoretical perspective": {
+    "pdf_url": "https://arxiv.org/pdf/2501.01317v2",
+    "reason": "arXiv title match score=0.88: Difficult Examples Hurt Unsupervised Contrastive Learning:ATheoretical Perspective"
+  },
+  "diffract spectral view of llm domain adaptation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "diffusion language model knows the answer before it decodes": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "diffusion nft online diffusion reinforcement with forward process": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "disco mitigating bias in deep learning with conditional distance correlation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "discount model search for quality diversity optimization in high dimensional measure spaces": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "discovering opinion intervals from conflicts in signed graphs": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "disentangling latent risk pathways via bayesian hypergraph inference": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "distributional equivalence in linear non gaussian latent variable cyclic causal models characterization and learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "distributional inverse reinforcement learning": {
+    "pdf_url": "https://arxiv.org/pdf/2510.03013v4",
+    "reason": "arXiv title match score=1.00: Distributional Inverse Reinforcement Learning"
+  },
+  "dna hn et a scalable and hierarchical foundation model for genomic sequence learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "do we need adam surprisingly strong and sparse reinforcement learning with sgd in llm s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "does reinforcement learning really incentivize reasoning capacity in llm s beyond the base model": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "does stochastic gradient really succeed for bandits": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "don t force the fit bounded log likelihood loss for enhanced reasoning in large language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "doubt decoupled object level understanding and bridging via v mf based trustworthiness for hallucination detection in mllm s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "dpo unchained your training algorithm is secretly disentangled in human choice theory and its loss convexity is dispensable": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "drone dino towards heterogeneous routed mixture of experts for drone based unified object detection": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "dto kd dynamic trade off optimization for effective knowledge distillation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "dynam 3 d dynamic layered 3 d tokens empower vlm for vision and language navigation": {
+    "pdf_url": "https://arxiv.org/pdf/2505.11383v1",
+    "reason": "arXiv title match score=0.89: Dynam3D:Dynamic Layered3DTokens Empower VLMfor Vision-and-Language Navigation"
+  },
+  "dynamical decoupling of generalization and overfitting in large two layer networks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "dynamical low rank compression of neural networks with robustness under adversarial attacks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "echo elastic speculative decoding with sparse gating for high concurrency scenarios": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "edit bench evaluating llm abilities to perform real world instructed code edits": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "edit verse unifying image and video editing and generation with in context learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "efficient resource constrained training of transformers via subspace optimization": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "eigen bench a comparative behavioral measure of value alignment": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "elastic mm efficient multimodal llm s serving with elastic multimodal parallelism": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "emotion thinker prosody aware reinforcement learning for explainable speech emotion reasoning": {
+    "pdf_url": "https://arxiv.org/pdf/2601.15668v2",
+    "reason": "arXiv title match score=0.89: Emotion Thinker:Prosody-Aware Reinforcement Learningfor Explainable Speech Emotion Reasoning"
+  },
+  "energy based transformers are scalable learners and thinkers": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "enhancing generative auto bidding with offline reward evaluation and policy search": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "envisioning beyond the pixels benchmarking reasoning informed visual editing": {
+    "pdf_url": "https://arxiv.org/pdf/2504.02826v4",
+    "reason": "arXiv title match score=0.88: Envisioning Beyondthe Pixels:Benchmarking Reasoning-Informed Visual Editing"
+  },
+  "equilibrium pricing in oligopolistic data markets": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "equivalence of context and parameter updates in modern transformer blocks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "error propagation mechanisms and compensation strategies for quantized diffusion models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "evaluating robustness of reasoning models on parameterized logical problems": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "every language model has a forgery resistant signature": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "evo lm in search of lost training dynamics for language model reasoning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "exact functional anova decomposition for categorical inputs": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "exchangeability of gnn representations with applications to graph retrieval": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "exploratory causal inference in sae nce": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "exploratory diffusion model for unsupervised reinforcement learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "exploring diffusion transformer designs via grafting": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "exploring synthesizable chemical space with iterative pathway refinements": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "expressivity efficiency tradeoffs for hybrid sequence models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "extending sequence length is not all you need effective integration of multimodal signals for gene expression prediction": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "falcon few step accurate likelihoods for continuous flows": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "fast escape slow convergence learning dynamics of phase retrieval under power law data": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "fast training of accurate physics informed neural networks without gradient descent": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "faster activation functions at the edge for post training speedups": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "fire frobenius isometry reinitialization for balancing the stability plasticity tradeoff": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "flash sinkhorn io aware entropic optimal transport on gpu": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "flash sketch sketch kernel co design for fast sparse sketching on gpu s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "flash vid efficient video large language models via training free tree based spatiotemporal token merging": {
+    "pdf_url": "https://arxiv.org/pdf/2602.08024v1",
+    "reason": "arXiv title match score=0.93: Flash VID:Efficient Video Large Language Modelsvia Training-free Tree-based Spatiotemporal Token Merging"
+  },
+  "flash world high quality 3 d scene generation within seconds": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "flat land personalized graph federated learning via tailored lorentz space": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "flip 2 expanding protein fitness landscape benchmarks for real world machine learning applications": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "focus and dilution the multi stage learning process of attention": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "foundations of equivariant deep learning unifying graph and sheaf neural networks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "frab ench and ufe val unified fine grained evaluation with task and aspect generalization": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "from abstraction to instantiation learning behavioral representation for vision language action model": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "from condensation to rank collapse a two stage analysis of transformer training dynamics": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "from feasible to practical pareto optimal synthesis planning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "from markov to laplace how mamba in context learns markov chains": {
+    "pdf_url": "https://arxiv.org/pdf/2502.10178v2",
+    "reason": "arXiv title match score=1.00: From Markovto Laplace:How Mamba In-Context Learns Markov Chains"
+  },
+  "from movement to cognitive maps recurrent neural networks reveal how locomotor development shapes hippocampal spatial coding": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "from pixels to tokens a systematic study of latent action supervision for vision language action models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "from text to forecasts bridging modality gap with temporal evolution semantic space": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "fu xi ocean a global ocean forecasting system with sub daily resolution": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "gaia 2 benchmarking llm agents on dynamic and asynchronous environments": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "gated attention for large language models non linearity sparsity and attention sink free": {
+    "pdf_url": "https://arxiv.org/pdf/2505.06708v1",
+    "reason": "arXiv title match score=1.00: Gated Attentionfor Large Language Models:Non-linearity,Sparsity,and Attention-Sink-Free"
+  },
+  "gaussian certified unlearning in high dimensions a hypothesis testing approach": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "generalized gradient norm clipping non euclidean l 0 l 1 smoothness": {
+    "pdf_url": "https://arxiv.org/pdf/2506.01913v3",
+    "reason": "arXiv title match score=1.00: Generalized Gradient Norm Clipping&Non-Euclidean$(L_0,L_1)$-Smoothness"
+  },
+  "generalized linear mode connectivity for transformers": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "generating metamers of human scene understanding": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "generative human geometry distribution": {
+    "pdf_url": "https://arxiv.org/pdf/2503.01448v5",
+    "reason": "arXiv title match score=1.00: Generative Human Geometry Distribution"
+  },
+  "generative universal verifier as multimodal meta reasoner": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "geometric flow grounding a unified manifold decoupling framework for dynamics discovery and verification": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "gepa reflective prompt evolution can outperform reinforcement learning": {
+    "pdf_url": "https://arxiv.org/pdf/2507.19457v2",
+    "reason": "arXiv title match score=1.00: GEPA:Reflective Prompt Evolution Can Outperform Reinforcement Learning"
+  },
+  "glass flows efficient inference for reward alignment of flow and diffusion models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "global resolution optimal multi draft speculative sampling via convex optimization": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "gnn xemplar exemplars to explanations natural language rules for global gnn interpretability": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "good diffusion proactive copyright protection for diffusion generative models via learnable sample specific signatures": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "guaranteed optimal compositional explanations for neurons": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "half order fine tuning for diffusion model a recursive likelihood ratio optimizer": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "hallucination begins where saliency drops": {
+    "pdf_url": "https://arxiv.org/pdf/2601.20279v1",
+    "reason": "arXiv title match score=1.00: Hallucination Begins Where Saliency Drops"
+  },
+  "hats olver learning gr bner bases with hierarchical attention transformers": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "high accuracy and dimension free sampling with diffusions": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "high accuracy sampling for diffusion models and log concave distributions": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "high dimensional analysis of synthetic data selection": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "high dimensional calibration from swap regret": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "high dimensional neuronal activity from low dimensional latent dynamics a solvable model": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "holi spatial evolving video streams into holistic 3 d spatial intelligence": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "how do transformers learn to associate tokens gradient leading terms bring mechanistic interpretability": {
+    "pdf_url": "https://arxiv.org/pdf/2601.19208v2",
+    "reason": "arXiv title match score=0.91: How Do Transformers Learnto Associate Tokens:Gradient Leading Terms Bring Mechanistic Interpretability"
+  },
+  "how learning rate decay wastes your best data in curriculum based llm pretraining": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "how much can language models memorize": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "how reliable is language model micro benchmarking": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "hubble a model suite to advance the study of llm memorization": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "huxley g odel machine human level coding agent development by an approximation of the optimal self improving machine": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "hyper et efficient training in hyperbolic space for multi modal large language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "hyperparameter trajectory inference with conditional lagrangian optimal transport": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "identifiability of deep polynomial neural networks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "image net trained cnn s are not biased towards texture revisiting feature reliance through controlled suppression": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "improved regret bounds for gaussian process upper confidence bound in bayesian optimization": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "improving diffusion models for class imbalanced training data via capacity manipulation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "in place test time training": {
+    "pdf_url": "https://arxiv.org/pdf/2604.06169v1",
+    "reason": "arXiv title match score=1.00: In-Place Test-Time Training"
+  },
+  "in search of adam s secret sauce": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "in the flow agentic system optimization for effective planning and tool use": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "incentivizing truthfulness and collaborative fairness in bayesian learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "infinity star uni ed spacetime auto regressive modeling for visual generation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "info nce induces gaussian distribution": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "info tok adaptive discrete video tokenizer via information theoretic compression": {
+    "pdf_url": "https://arxiv.org/pdf/2512.16975v3",
+    "reason": "arXiv title match score=0.89: Info Tok:Adaptive Discrete Video Tokenizervia Information-Theoretic Compression"
+  },
+  "information flow reveals when to trust language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "information shapes koopman representation": {
+    "pdf_url": "https://arxiv.org/pdf/2510.13025v2",
+    "reason": "arXiv title match score=1.00: Information Shapes Koopman Representation"
+  },
+  "instilling an active mind in avatars via cognitive simulation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "interactive cross modal learning for text 3 d scene retrieval": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "intrinsic entropy of context length scaling in llm s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "invisible safety threat malicious finetuning for llm via steganography": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "is it thinking or cheating detecting implicit reward hacking by measuring reasoning effort": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "is your llm overcharging you tokenization transparency and incentives": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "it s all just vectorization einx a universal notation for tensor operations": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "jailbreak foundry from papers to runnable attacks for reproducible benchmarking": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "joint learning in the gaussian single index model": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "kv zip query agnostic kv cache compression with context reconstruction": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "large language diffusion models": {
+    "pdf_url": "https://arxiv.org/pdf/2502.09992v3",
+    "reason": "arXiv title match score=1.00: Large Language Diffusion Models"
+  },
+  "large language models develop novel social biases through adaptive exploration": {
+    "pdf_url": "https://arxiv.org/pdf/2511.06148v4",
+    "reason": "arXiv title match score=1.00: Large Language Models Develop Novel Social Biases Through Adaptive Exploration"
+  },
+  "laser learning active sensing for continuum field reconstruction": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "latent fourier transform": {
+    "pdf_url": "https://arxiv.org/pdf/2604.17986v1",
+    "reason": "arXiv title match score=1.00: Latent Fourier Transform"
+  },
+  "latent particle world models self supervised object centric stochastic dynamics modeling": {
+    "pdf_url": "https://arxiv.org/pdf/2603.04553v1",
+    "reason": "arXiv title match score=1.00: Latent Particle World Models:Self-supervised Object-centric Stochastic Dynamics Modeling"
+  },
+  "latent speech text transformer": {
+    "pdf_url": "https://arxiv.org/pdf/2510.06195v2",
+    "reason": "arXiv title match score=1.00: Latent Speech-Text Transformer"
+  },
+  "learning approximately equivariant networks via constrained optimization": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "learning human robot collaboration via heterogeneous agent lyapunov policy optimization": {
+    "pdf_url": "https://arxiv.org/pdf/2603.03741v2",
+    "reason": "arXiv title match score=0.89: HALO:Learning Human-Robot Collaborationvia Heterogeneous-Agent Lyapunov Policy Optimization"
+  },
+  "learning linear attention in polynomial time": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "learning long range dependencies through time reversal symmetry breaking": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "learning to learn with contrastive meta objective": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "learning to see before seeing demystifying llm visual priors from language pre training": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "learning to segment for vehicle routing problems": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "learning to theorize the world from observation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "learning unmasking policies for diffusion language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "learning with dual level noisy correspondence for multi modal entity alignment": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "less is enough synthesizing diverse data in feature space of llm s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "let features decide their own solvers hybrid feature caching for diffusion transformers": {
+    "pdf_url": "https://arxiv.org/pdf/2510.04188v1",
+    "reason": "arXiv title match score=0.91: Let Features Decide Their Own Solvers:Hybrid Feature Cachingfor Diffusion Transformers"
+  },
+  "llm dna tracing model evolution via functional representations": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "llm fingerprinting via semantically conditioned watermarks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "llm s get lost in multi turn conversation": {
+    "pdf_url": "https://arxiv.org/pdf/2505.06120v1",
+    "reason": "arXiv title match score=1.00: LLMs Get Lost In Multi-Turn Conversation"
+  },
+  "locality aware parallel decoding for efficient autoregressive image generation": {
+    "pdf_url": "https://arxiv.org/pdf/2507.01957v2",
+    "reason": "arXiv title match score=0.88: Locality-aware Parallel Decodingfor Efficient Autoregressive Image Generation"
+  },
+  "long writer zero mastering ultra long text generation via reinforcement learning": {
+    "pdf_url": "https://arxiv.org/pdf/2506.18841v3",
+    "reason": "arXiv title match score=0.89: Long Writer-Zero:Mastering Ultra-Long Text Generationvia Reinforcement Learning"
+  },
+  "loong rl reinforcement learning for advanced reasoning over long contexts": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "lottery prior randomized neural compression for zero shot inverse problems": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "m clm a modular chemical language model that generates functional and makeable molecules": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "mamba 3 improved sequence modeling using state space principles": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "markov chain monte carlo without evaluating the target an auxiliary variable approach": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "mastering sparse cuda generation through pretrained models and deep reinforcement learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "max sup overcoming representation collapse in label smoothing": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "maximum likelihood reinforcement learning": {
+    "pdf_url": "https://arxiv.org/pdf/2602.02710v1",
+    "reason": "arXiv title match score=1.00: Maximum Likelihood Reinforcement Learning"
+  },
+  "mc search evaluating and enhancing multimodal agentic search with structured long reasoning chains": {
+    "pdf_url": "https://arxiv.org/pdf/2603.00873v1",
+    "reason": "arXiv title match score=0.89: MC-Search:Evaluatingand Enhancing Multimodal Agentic Searchwith Structured Long Reasoning Chains"
+  },
+  "mean flow policy with instantaneous velocity constraint for one step action generation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "mean flows for one step generative modeling": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "mechanistic data attribution tracing the training origins of interpretable llm units": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "med agent gym a scalable agentic training environment for code centric reasoning in biomedical data science": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "mem agent reshaping long context llm with multi conv rl based memory agent": {
+    "pdf_url": "https://arxiv.org/pdf/2507.02259v1",
+    "reason": "arXiv title match score=1.00: Mem Agent:Reshaping Long-Context LLMwith Multi-Conv RL-based Memory Agent"
+  },
+  "memory mosaics at scale": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "meta embed scaling multimodal retrieval at test time with flexible late interaction": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "midtraining bridges pretraining and posttraining distributions": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "mind your margin and boundary are your distilled datasets truly robust": {
+    "pdf_url": "https://arxiv.org/pdf/2605.20606v2",
+    "reason": "arXiv title match score=0.88: Mind Your Marginand Boundary:Are Your Distilled Datasets Truly Robust?"
+  },
+  "minimax optimal strategy for delayed observations in online reinforcement learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "mitigating reward hacking in rlhf via bayesian non negative reward modeling": {
+    "pdf_url": "https://arxiv.org/pdf/2602.10623v2",
+    "reason": "arXiv title match score=0.88: Mitigating Reward Hackingin RLHFvia Bayesian Non-negative Reward Modeling"
+  },
+  "mixture of experts can surpass dense llm s under strictly equal resource": {
+    "pdf_url": "https://arxiv.org/pdf/2506.12119v2",
+    "reason": "arXiv title match score=1.00: Mixture-of-Experts Can Surpass Dense LLMs Under Strictly Equal Resource"
+  },
+  "mixtures closest to a given measure a semidefinite programming approach": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "modality free graph in context alignment": {
+    "pdf_url": "https://arxiv.org/pdf/2603.13434v1",
+    "reason": "arXiv title match score=1.00: Modality-free Graph In-context Alignment"
+  },
+  "modeling hierarchical thinking in large reasoning models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "mok a multimodal low rank adaptation for mllm s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "moma graph state aware unified scene graphs with vision language models for embodied task planning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "monitoring monitorability": {
+    "pdf_url": "https://arxiv.org/pdf/2512.18311v1",
+    "reason": "arXiv title match score=1.00: Monitoring Monitorability"
+  },
+  "monocular normal estimation via shading sequence estimation": {
+    "pdf_url": "https://arxiv.org/pdf/2602.09929v5",
+    "reason": "arXiv title match score=1.00: Monocular Normal Estimationvia Shading Sequence Estimation"
+  },
+  "more effort is needed to protect pedestrian privacy in the era of ai": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "motion attribution for video generation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "motion stream real time video generation with interactive motion controls": {
+    "pdf_url": "https://arxiv.org/pdf/2511.01266v5",
+    "reason": "arXiv title match score=0.88: Motion Stream:Real-Time Video Generationwith Interactive Motion Controls"
+  },
+  "mr ro pe mixed radix rotary position embedding": {
+    "pdf_url": "https://arxiv.org/pdf/2601.22181v1",
+    "reason": "arXiv title match score=1.00: Mr Ro PE:Mixed-radix Rotary Position Embedding"
+  },
+  "multi domain riemannian graph gluing for building graph foundation models": {
+    "pdf_url": "https://arxiv.org/pdf/2603.00618v1",
+    "reason": "arXiv title match score=0.88: Multi-Domain Riemannian Graph Gluingfor Building Graph Foundation Models"
+  },
+  "multimodal aligned semantic knowledge for unpaired image text matching": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "multimodal nested learning for decoupled and coordinated optimization": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "multiplayer nash preference optimization": {
+    "pdf_url": "https://arxiv.org/pdf/2509.23102v3",
+    "reason": "arXiv title match score=1.00: Multiplayer Nash Preference Optimization"
+  },
+  "muon ssm orthogonalizing state space models for sequence modeling": {
+    "pdf_url": "https://arxiv.org/pdf/2606.30461v1",
+    "reason": "arXiv title match score=0.88: Muon SSM:Orthogonalizing State Space Modelsfor Sequence Modeling"
+  },
+  "mv fgad towards efficient and effective federated graph anomaly detection via multi view learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "nash equilibria in games with playerwise concave coupling constraints existence and computation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "navigating the latent space dynamics of neural models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "necessary conditions for compositional generalization of embedding models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "neon negative extrapolation from self training improves image generation": {
+    "pdf_url": "https://arxiv.org/pdf/2510.03597v3",
+    "reason": "arXiv title match score=1.00: Neon:Negative Extrapolation From Self-Training Improves Image Generation"
+  },
+  "next step 1 toward autoregressive image generation with continuous tokens at scale": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "non asymptotic analysis of sticky track and stop": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "non convex federated optimization under cost aware client selection": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "non euclidean gradient descent operates at the edge of stability": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "nova a benchmark for rare anomaly localization and clinical reasoning in brain mri": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "omac a holistic optimization framework for llm based multi agent collaboration": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "omni reward towards generalist omni modal reward modeling with free form preferences": {
+    "pdf_url": "https://arxiv.org/pdf/2510.23451v1",
+    "reason": "arXiv title match score=0.89: Omni-Reward:Towards Generalist Omni-Modal Reward Modelingwith Free-Form Preferences"
+  },
+  "on computation and reinforcement learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "on linear mode connectivity of mixture of experts architectures": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "on minimum depth and width of floating point neural networks for representing floating point functions": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "on the closed form of flow matching generalization does not arise from target stochasticity": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "on the convergence rate of lo ra gradient descent": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "on the difficulty of learning a meta network for training data selection": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "on the generalization capacities of mllm s for spatial intelligence": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "on the identifiability of poisson branching structural causal model under latent confounding": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "on the reasoning abilities of masked diffusion language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "on the surprising effectiveness of a single global merging in decentralized learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "on the wasserstein geodesic principal component analysis of probability measures": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "one for two a unified framework for imbalanced graph classification via dynamic balanced prototype": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "online learning and equilibrium computation with ranking feedback": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "open apps simulating environment variations to measure ui agent reliability": {
+    "pdf_url": "https://arxiv.org/pdf/2511.20766v1",
+    "reason": "arXiv title match score=0.88: Open Apps:Simulating Environment Variationsto Measure UI-Agent Reliability"
+  },
+  "open hoi open world hand object interaction synthesis with multimodal large language model": {
+    "pdf_url": "https://arxiv.org/pdf/2505.18947v2",
+    "reason": "arXiv title match score=0.91: Open HOI:Open-World Hand-Object Interaction Synthesiswith Multimodal Large Language Model"
+  },
+  "open thoughts data recipes for reasoning models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "optimal and scalable mapf via multi marginal optimal transport and schr dinger bridges": {
+    "pdf_url": "https://arxiv.org/pdf/2605.10917v1",
+    "reason": "arXiv title match score=0.89: Optimaland Scalable MAPFvia Multi-Marginal Optimal Transportand Schr\u00f6dinger Bridges"
+  },
+  "optimal decision making based on prediction sets": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "optimal mistake bounds for transductive online learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "optimal sparsity of mixture of experts language models for reasoning tasks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "optimistic task inference for behavior foundation models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "opus towards efficient and principled data selection in large language model pre training in every iteration": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "ortho lo c uav 6 do f localization and calibration using orthographic geodata": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "orthogonal concept erasure for diffusion models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "overcoming joint intractability with lossless hierarchical speculative decoding": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "overparametrization bends the landscape bbp transitions at initialization in simple neural networks": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "overthinking reduction with decoupled rewards and curriculum data scheduling": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "p gen rm personalized generative reward model with test time user based scaling": {
+    "pdf_url": "https://arxiv.org/pdf/2602.12116v1",
+    "reason": "arXiv title match score=0.90: P-Gen RM:Personalized Generative Reward Modelwith Test-time User-based Scaling"
+  },
+  "p textrm less sampling a robust hyperparameter free approach for llm decoding": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "pan lut efficient pan sharpening via learnable look up tables": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "para rnn unlocking parallel training of nonlinear rnn s for large language models": {
+    "pdf_url": "https://arxiv.org/pdf/2510.21450v2",
+    "reason": "arXiv title match score=0.89: Para RNN:Unlocking Parallel Trainingof Nonlinear RNNsfor Large Language Models"
+  },
+  "pareto conditioned diffusion models for offline multi objective optimization": {
+    "pdf_url": "https://arxiv.org/pdf/2602.00737v2",
+    "reason": "arXiv title match score=0.88: Pareto-Conditioned Diffusion Modelsfor Offline Multi-Objective Optimization"
+  },
+  "partition generative modeling masked modeling without masks": {
+    "pdf_url": "https://arxiv.org/pdf/2505.18883v3",
+    "reason": "arXiv title match score=1.00: Partition Generative Modeling:Masked Modeling Without Masks"
+  },
+  "pate gail utility optimized private trajectory generation with imitation learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "path dependent discrete amortized inference": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "perception encoder the best visual embeddings are not at the output of the network": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "pheno brain phenotype conditioned long range communication for multi modal brain network analysis": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "photo agent exploratory visual aesthetic planning with large vision models": {
+    "pdf_url": "https://arxiv.org/pdf/2602.22809v3",
+    "reason": "arXiv title match score=0.89: Photo Agent:Exploratory Visual Aesthetic Planningwith Large Vision Models"
+  },
+  "phy sense sensor placement optimization for accurate physics sensing": {
+    "pdf_url": "https://arxiv.org/pdf/2505.18190v5",
+    "reason": "arXiv title match score=0.88: Phy Sense:Sensor Placement Optimizationfor Accurate Physics Sensing"
+  },
+  "phy world bench a comprehensive evaluation of physical realism in text to video models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "pinet optimizing hard constrained neural networks with orthogonal projection layers": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "planner aware path learning in diffusion language models training": {
+    "pdf_url": "https://arxiv.org/pdf/2509.23405v3",
+    "reason": "arXiv title match score=0.88: Planner Aware Path Learningin Diffusion Language Models Training"
+  },
+  "player one egocentric world simulator": {
+    "pdf_url": "https://arxiv.org/pdf/2506.09995v3",
+    "reason": "arXiv title match score=1.00: Player One:Egocentric World Simulator"
+  },
+  "plug and play compositionality for boosting continual learning with foundation models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "poet x memory efficient llm training by scaling orthogonal transformation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "position ai ml deepfake research is misaligned with ai generated non consensual intimate imagery aig ncii": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "position ai should facilitate democratic deliberation at scale": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "position anthropomorphic misalignment research needs stronger evidence": {
+    "pdf_url": "https://arxiv.org/pdf/2606.07612v1",
+    "reason": "arXiv title match score=1.00: Position:Anthropomorphic Misalignment Research Needs Stronger Evidence"
+  },
+  "position don t just fix it in post a science of ai must study learning dynamics": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "position if innovation in ai systematically violates fundamental rights is it innovation at all": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "position irresponsible ai big tech s influence on ai research and associated impacts": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "position stop automating peer review without rigorous evaluation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "position the ai imperative scaling high quality peer review in machine learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "position the alignment community is unintentionally building a censor s toolkit": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "position there are futures that benchmark driven ai cannot see": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "prescriptive scaling reveals the evolution of language model capabilities": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "pretrained vision language action models are surprisingly resistant to forgetting in continual learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "primt preference based reinforcement learning with multimodal feedback and trajectory synthesis from foundation models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "prism gauge invariant tangent space differentially private lo ra": {
+    "pdf_url": "https://arxiv.org/pdf/2606.00944v1",
+    "reason": "arXiv title match score=1.00: PRISM:Gauge-Invariant Tangent-Space Differentially Private Lo RA"
+  },
+  "privacy aware video anomaly detection guided orthogonal projection and a comprehensive evaluation framework": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "probabilistic kernel function for fast angle testing": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "procedural pretraining warming up language models with abstract data": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "protein autoregressive modeling via multiscale structure generation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "protein fold classification at scale benchmarking and pretraining": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "q rag long context multi step retrieval via value based embedder training": {
+    "pdf_url": "https://arxiv.org/pdf/2511.07328v2",
+    "reason": "arXiv title match score=0.90: Q-RAG:Long Context Multi-step Retrievalvia Value-based Embedder Training"
+  },
+  "qo q med building multimodal clinical foundation models with domain aware grpo training": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "quantifying frontier llm capabilities for container sandbox escape": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "quantitative bounds for length generalization in transformers": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "quotient space diffusion models": {
+    "pdf_url": "https://arxiv.org/pdf/2604.21809v2",
+    "reason": "arXiv title match score=1.00: Quotient-Space Diffusion Models"
+  },
+  "radiometrically consistent gaussian surfels for inverse rendering": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "rag 4 gfm bridging knowledge gaps in graph foundation models through graph retrieval augmented generation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "rain merging a gradient free method to enhance instruction following in large reasoning models with preserved thinking format": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "rare event analysis of large language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "rational transductors": {
+    "pdf_url": "https://arxiv.org/pdf/2602.07599v1",
+    "reason": "arXiv title match score=1.00: Rational Transductors"
+  },
+  "re qat achieving full precision reasoning accuracy with 4 bit floating point quantization aware training": {
+    "pdf_url": "https://arxiv.org/pdf/2606.15682v1",
+    "reason": "arXiv title match score=0.92: Re QAT:Achieving Full-Precision Reasoning Accuracywith4-bit Floating-Point Quantization-Aware Training"
+  },
+  "re vi t rotational equivariant vision transformers for neural pde solvers": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "real pdeb ench a benchmark for complex physical systems with real world data": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "real time hyper personalized generative ai should be regulated to prevent the rise of digital heroin": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "reasoning as representation rethinking visual reinforcement learning in image quality assessment": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "reasoning with sampling your base model is smarter than you think": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "red team cua realistic adversarial testing of computer use agents in hybrid web os environments": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "reducing belief deviation in reinforcement learning for active reasoning of llm agents": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "refine stat efficient exploration for probabilistic program synthesis": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "reinforcement learning with evolving rubrics for deep research": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "reliable weak to strong monitoring of llm agents": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "representation entanglement for generation training diffusion transformers is much easier than you think": {
+    "pdf_url": "https://arxiv.org/pdf/2507.01467v2",
+    "reason": "arXiv title match score=0.91: Representation Entanglementfor Generation:Training Diffusion Transformers Is Much Easier Than You Think"
+  },
+  "rethinking joint maximum mean discrepancy for visual domain adaptation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "rethinking multimodal learning from the perspective of mitigating classification ability disproportion": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "revela dense retriever learning via language modeling": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "revenue efficiency of correlated equilibria in first price auctions": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "reward free alignment for conflicting objectives": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "rex a family of reversible exponential stochastic runge kutta solvers": {
+    "pdf_url": "https://arxiv.org/pdf/2502.08834v4",
+    "reason": "arXiv title match score=0.88: Rex:AFamilyof Reversible Exponential(Stochastic)Runge-Kutta Solvers"
+  },
+  "riemannian metric matching for scalable geometric modeling of distributions": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "robo mme benchmarking and understanding memory for robotic generalist policies": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "robust contextual optimization with missing covariates": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "robust harmful features under jailbreak attacks mechanistic evidence from attention head specialization in large language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "rodrigues network for learning robot actions": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "safe dpo a simple approach to direct preference optimization with enhanced safety": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "safety guided flow sgf a unified framework for negative guidance in safe generation": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "sage a unified framework for generalizable object state recognition with state action graph embedding": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "sana video efficient video generation with block linear diffusion transformer": {
+    "pdf_url": "https://arxiv.org/pdf/2509.24695v2",
+    "reason": "arXiv title match score=0.88: SANA-Video:Efficient Video Generationwith Block Linear Diffusion Transformer"
+  },
+  "savvy spatial awareness via audio visual llm s through seeing and hearing": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "scalable event cloud network for event based classification": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "scale cua scaling open source computer use agents with cross platform data": {
+    "pdf_url": "https://arxiv.org/pdf/2509.15221v2",
+    "reason": "arXiv title match score=0.91: Scale CUA:Scaling Open-Source Computer Use Agentswith Cross-Platform Data"
+  },
+  "scaling atomistic protein binder design with generative pretraining and test time compute": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "scaling laws and spectra of shallow neural networks in the feature learning regime": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "second order smooth planning with optimal transport bellman smoothing": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "seeing through the brain new insights from decoding visual stimuli with f mri": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "semi supervised preference optimization with limited feedback": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "sequences of logits reveal the low rank structure of language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "shoot first ask questions later building rational agents that explore and act like people": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "simu home a temporal and environment aware benchmark for smart home llm agents": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "simultaneous speech to speech translation without aligned data": {
+    "pdf_url": "https://arxiv.org/pdf/2602.11072v1",
+    "reason": "arXiv title match score=1.00: Simultaneous Speech-to-Speech Translation Without Aligned Data"
+  },
+  "skip a layer or loop it learning program of layers in llm s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "soft jax soft torch empowering automatic differentiation libraries with informative gradients": {
+    "pdf_url": "https://arxiv.org/pdf/2603.08824v1",
+    "reason": "arXiv title match score=0.89: Soft JAX&Soft Torch:Empowering Automatic Differentiation Librarieswith Informative Gradients"
+  },
+  "softmax transformers are turing complete": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "solving time dependent differential equations with physical dynamical systems": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "spatio lm towards general physical spatial intelligence in vision language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "spectral perturbation bounds for low rank approximation with applications to privacy": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "speculative actions a lossless framework for faster ai agents": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "spherical watermark encryption free lossless watermarking for diffusion models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "stabilizing the q gradient field for policy smoothness in actor critic methods": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "stable video infinity infinite length video generation with error recycling": {
+    "pdf_url": "https://arxiv.org/pdf/2510.09212v1",
+    "reason": "arXiv title match score=0.88: Stable Video Infinity:Infinite-Length Video Generationwith Error Recycling"
+  },
+  "state entropy regularization for robust reinforcement learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "steering the herd a framework for llm based control of social learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "strategic navigation or stochastic search how agents and humans reason over document collections": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "structured flow autoencoders learning structured probabilistic representations with flow matching": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "superposition yields robust neural scaling": {
+    "pdf_url": "https://arxiv.org/pdf/2505.10465v4",
+    "reason": "arXiv title match score=1.00: Superposition Yields Robust Neural Scaling"
+  },
+  "svrg and beyond via posterior correction": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "swingarena adversarial programming arena for long context git hub issue solving": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "tab struct measuring structural fidelity of tabular data": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "taming momentum rethinking optimizer states through low rank approximation": {
+    "pdf_url": "https://arxiv.org/pdf/2602.24283v1",
+    "reason": "arXiv title match score=1.00: Taming Momentum:Rethinking Optimizer States Through Low-Rank Approximation"
+  },
+  "task free adaptive meta black box optimization": {
+    "pdf_url": "https://arxiv.org/pdf/2601.21475v2",
+    "reason": "arXiv title match score=1.00: Task-free Adaptive Meta Black-box Optimization"
+  },
+  "task optimized convolutional recurrent networks align with tactile processing in the rodent brain": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "tau 2 bench evaluating conversational agents in a dual control environment": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "td jepa latent predictive representations for zero shot reinforcement learning": {
+    "pdf_url": "https://arxiv.org/pdf/2510.00739v1",
+    "reason": "arXiv title match score=0.88: TD-JEPA:Latent-predictive Representationsfor Zero-Shot Reinforcement Learning"
+  },
+  "temporal sparse autoencoders leveraging the sequential nature of language for interpretability": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "temporal superposition and feature geometry of rnn s under memory demands": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "text to 3 d by stitching a multi view reconstruction network to a video generator": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "tg rag a retrieval augmented framework for reasoning guidance in specialized domains": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "the art of scaling reinforcement learning compute for llm s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "the coverage principle how pre training enables post training": {
+    "pdf_url": "https://arxiv.org/pdf/2510.15020v2",
+    "reason": "arXiv title match score=1.00: The Coverage Principle:How Pre-Training Enables Post-Training"
+  },
+  "the emergence of sparse attention impact of data distribution and benefits of repetition": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "the expressivity limits of transformers": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "the flexibility trap rethinking the value of arbitrary order in diffusion language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "the obfuscation atlas mapping where honesty emerges in rlvr with deception probes": {
+    "pdf_url": "https://arxiv.org/pdf/2602.15515v2",
+    "reason": "arXiv title match score=0.89: The Obfuscation Atlas:Mapping Where Honesty Emergesin RLVRwith Deception Probes"
+  },
+  "the polar express optimal matrix sign methods and their application to the muon algorithm": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "the shape of adversarial influence characterizing llm latent spaces with persistent homology": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "the signal is in the steps local scoring for reasoning data selection": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "the spacetime of diffusion models an information geometry perspective": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "thin kv thought adaptive kv cache compression for efficient reasoning models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "thread weaver adaptive threading for efficient parallel reasoning in language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "through the lens of contrast self improving visual reasoning in vlm s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "tighter cmi based generalization bounds via stochastic projection and quantization": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "tile lang bridge programmability and performance in modern neural kernels": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "to grok grokking provable grokking in ridge regression": {
+    "pdf_url": "https://arxiv.org/pdf/2601.19791v4",
+    "reason": "arXiv title match score=1.00: To Grok Grokking:Provable Grokkingin Ridge Regression"
+  },
+  "to infinity and beyond tool use unlocks length generalization in state space models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "tok suite measuring the impact of tokenizer choice on language model behavior": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "token importance guided direct preference optimization": {
+    "pdf_url": "https://arxiv.org/pdf/2505.19653v3",
+    "reason": "arXiv title match score=1.00: Token-Importance Guided Direct Preference Optimization"
+  },
+  "towards fair sequential decision making a causal decomposition approach": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "towards hierarchy uniformity equilibrium recovering semantic depth in hypergraph contrastive learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "towards long horizon interpretability efficient and faithful multi token attribution for reasoning llm s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "towards sub second biological foundation model infrastructure a quantized consistency diffusion framework for molecular docking": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "trace your diffusion model is secretly an instance edge detector": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "train before test harmonizes language model rankings": {
+    "pdf_url": "https://arxiv.org/pdf/2507.05195v2",
+    "reason": "arXiv title match score=1.00: Train-before-Test Harmonizes Language Model Rankings"
+  },
+  "training free bayesian filtering with generative emulators": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "transfer traj a vehicle trajectory learning model for region and task transferability": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "transformers are inherently succinct": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "transforming weather data from pixel to latent space": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "triple bert do we really need marl for order dispatch on ride sharing platforms": {
+    "pdf_url": "https://arxiv.org/pdf/2510.03257v2",
+    "reason": "arXiv title match score=0.90: Triple-BERT:Do We Really Need MARLfor Order Dispatchon Ride-Sharing Platforms?"
+  },
+  "troll trust regions improve reinforcement learning for large language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "true self supervised novel view synthesis is transferable": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "ttsds 2 resources and benchmark for evaluating human quality text to speech systems": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "ualm unified audio language model for understanding generation and reasoning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "uncover underlying correspondence for robust multi view clustering": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "understanding and mitigating numerical sources of nondeterminism in llm inference": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "understanding reasoning collapse in llm agent reinforcement learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "universal inverse distillation for matching models with real data supervision no gan s": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "unsupervised partner design enables robust ad hoc teamwork": {
+    "pdf_url": "https://arxiv.org/pdf/2508.06336v2",
+    "reason": "arXiv title match score=1.00: Unsupervised Partner Design Enables Robust Ad-hoc Teamwork"
+  },
+  "valueflow toward pluralistic and steerable value based alignment in large language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "venus bench mobile a challenging and user centric benchmark for mobile gui agents with capability diagnostics": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "verifying chain of thought reasoning via its computational graph": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "veritas generalizable deepfake detection via pattern aware reasoning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "vibe voice expressive podcast generation with next token diffusion": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "vid llm a compact video based 3 d multimodal llm with reconstruction reasoning synergy": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "video based optimal transport for feedback efficient offline preference based reinforcement learning": {
+    "pdf_url": "https://arxiv.org/pdf/2606.16856v1",
+    "reason": "arXiv title match score=0.90: Video-Based Optimal Transportfor Feedback-Efficient Offline Preference-Based Reinforcement Learning"
+  },
+  "visual planning let s think only with images": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "visual symbolic mechanisms emergent symbol processing in vision language models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "waft warping alone field transforms for optical flow": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "watch your steps dormant adversarial behaviors that activate upon llm finetuning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "wave learning unified versatile audio visual embeddings with multimodal llm": {
+    "pdf_url": "https://arxiv.org/pdf/2509.21990v2",
+    "reason": "arXiv title match score=0.89: WAVE:Learning Unified&Versatile Audio-Visual Embeddingswith Multimodal LLM"
+  },
+  "we dlm reconciling diffusion language models with standard causal attention for fast inference": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "web dev judge evaluating m llm s as critiques for web development quality": {
+    "pdf_url": "https://arxiv.org/pdf/2510.18560v3",
+    "reason": "arXiv title match score=0.88: Web Dev Judge:Evaluating(M)LLMsas Critiquesfor Web Development Quality"
+  },
+  "web gen bench evaluating llm s on generating interactive and functional websites from scratch": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "what preferences can and cannot predict in multi agent online learning": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "what s in my human feedback learning interpretable descriptions of preference data": {
+    "pdf_url": "https://arxiv.org/pdf/2510.26202v2",
+    "reason": "arXiv title match score=0.88: What's In My Human Feedback?Learning Interpretable Descriptionsof Preference Data"
+  },
+  "when the prompt becomes visual vision centric jailbreak attacks for large image editing models": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "which algorithms can graph neural networks learn": {
+    "pdf_url": "https://arxiv.org/pdf/2602.13106v1",
+    "reason": "arXiv title match score=1.00: Which Algorithms Can Graph Neural Networks Learn?"
+  },
+  "why diffusion models don t memorize the role of implicit dynamical regularization in training": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "why dpo is a misspecified estimator and how to fix it": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "why low precision transformer training fails an analysis on flash attention": {
+    "pdf_url": "https://arxiv.org/pdf/2510.04212v4",
+    "reason": "arXiv title match score=0.89: Why Low-Precision Transformer Training Fails:An Analysison Flash Attention"
+  },
+  "world in world world models in a closed loop world": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "wsm decay free learning rate schedule via checkpoint merging for llm pre training": {
+    "pdf_url": "",
+    "reason": ""
+  },
+  "xr 1 towards versatile vision language action models via learning unified vision motion representations": {
+    "pdf_url": "https://arxiv.org/pdf/2511.02776v3",
+    "reason": "arXiv title match score=0.90: XR-1:Towards Versatile Vision-Language-Action Modelsvia Learning Unified Vision-Motion Representations"
+  }
+}

@@ -38,8 +38,9 @@ The generated summary must reflect oral papers only. For NeurIPS, ICML, and ICLR
 Practical oral-summary notes:
 
 - Count NeurIPS/ICML/ICLR oral papers from `https://<venue-host>/virtual/<year>/events/oral`, preferring explicit `Oral` labels and falling back to the page's `N Events` count when needed.
-- Count AAAI Main Track oral schedules by extracting layout text with `pypdf` and counting unique `Paper ID` values.
-- AAAI's site may challenge-gate or block CLI fetches for some schedule URLs. The script keeps validated official-PDF fallbacks for known years: AAAI-25 Main Track Oral Talks = 457, AAAI-26 Main Track Oral Talks = 1051. Prefer the direct AAAI-26 PDF URL `https://aaai.org/wp-content/uploads/2026/01/Main-track-oral-talks.pdf`.
+- Count AAAI Main Track oral schedules by extracting the official PDF with PyMuPDF coordinate blocks, because plain layout text can drop or merge table rows.
+- AAAI's site may challenge-gate or block CLI fetches for some schedule URLs. The script keeps validated official-PDF fallbacks for known years and should prefer direct official PDF URLs such as `https://aaai.org/wp-content/uploads/2026/01/Main-track-oral-talks.pdf`.
+- For AAAI-26, coordinate extraction from the official PDF yields 1058 Main Track oral rows. Prefer this extraction over older plain-text counts.
 - If `pypdf` is missing, install it into a temporary directory, for example `python3 -m pip install --target /private/tmp/pypdf-extract pypdf`, then run with `PYTHONPATH=/private/tmp/pypdf-extract`.
 
 ## Oral Harvesting Workflow
@@ -69,12 +70,24 @@ python3 skills/harvest-ai-papers/scripts/resolve_oral_manifest_pdfs.py --year <y
 
 Only rows with a reachable paper PDF should have `status=ready`. Rows whose only paper source is challenge-gated OpenReview, a schedule page, an abstract page, or slides must stay `needs_pdf_url` and must not be harvested.
 
+For AAAI, the oral schedule PDF is not a paper PDF. Do not mark AAAI rows ready from the schedule PDF. Resolve AAAI oral rows through the official OJS proceedings paper pages and paper PDFs. It is acceptable to trust official AAAI OJS PDF links during manifest resolution when the final harvesting and validation steps still fetch the actual PDF and validate the completed Markdown:
+
+```bash
+python3 skills/harvest-ai-papers/scripts/resolve_oral_manifest_pdfs.py --year <year> --venue AAAI --trust-aaai-ojs --in-place
+```
+
 The resolver uses arXiv title search as a non-gated fallback and caches results in `output/arxiv-resolution-cache.json`. Keep `--arxiv-delay` at a polite value for full venue runs; lower it only for tiny smoke tests.
 
 Then harvest only rows marked `ready`:
 
 ```bash
 python3 skills/harvest-ai-papers/scripts/harvest_manifest.py --year <year>
+```
+
+After a large harvest, normalize already-written Markdown before validation. This promotes inline PDF section labels into real Markdown headings, keeps exactly one H1 title, escapes accidental code-fence markers from paper text, and repairs common PDF table-header artifacts:
+
+```bash
+PYTHONPATH=/private/tmp/pymupdf python3 skills/harvest-ai-papers/scripts/repair_harvested_markdown.py skills/harvest-ai-papers/output/harvested/<year>
 ```
 
 Useful pilot command:
@@ -115,6 +128,8 @@ PYTHONPATH=/private/tmp/pymupdf python3 skills/harvest-ai-papers/scripts/validat
 ```
 
 The validator checks that outputs are plain text Markdown, have frontmatter and one H1, include paper PDF metadata, preserve page coverage against the source PDF, include references/bibliography, keep section headings and paragraph breaks, and do not reference missing local figure assets.
+
+For very large runs, first run the non-network validation path over the complete tree. Use `--check-pdf-pages` for smaller samples or when it is acceptable to refetch every source PDF.
 
 ## Page Conversion Workflow
 

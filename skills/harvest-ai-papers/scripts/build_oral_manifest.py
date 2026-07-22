@@ -103,9 +103,76 @@ def aaai_pdf_text(pdf_bytes):
     )
 
 
+def join_words_by_line(words):
+    lines = []
+    for word in sorted(words, key=lambda item: (round(item[1] / 3) * 3, item[0])):
+        if not lines or abs(lines[-1][0] - word[1]) > 3:
+            lines.append([word[1], [word[4]]])
+        else:
+            lines[-1][1].append(word[4])
+    return clean_text(" ".join(" ".join(line_words) for _y, line_words in lines))
+
+
+def aaai_oral_rows_from_coordinates(year, pdf_url, page_url, pdf_bytes):
+    try:
+        import fitz
+    except ImportError as exc:
+        raise RuntimeError(
+            "PyMuPDF is required for accurate AAAI oral schedule extraction; "
+            "install it or set PYTHONPATH to a target install."
+        ) from exc
+
+    rows = []
+    seen = set()
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    for page in doc:
+        words = page.get_text("words") or []
+        ids = []
+        for word in words:
+            x0, y0, x1, _y1, text = word[:5]
+            if 135 <= x0 <= 185 and re.fullmatch(r"\d{2,6}", text):
+                ids.append((y0, x0, text))
+        ids = sorted(ids)
+        for index, (y0, _x0, paper_id) in enumerate(ids):
+            if paper_id in seen:
+                continue
+            seen.add(paper_id)
+            next_y = ids[index + 1][0] if index + 1 < len(ids) else page.rect.height
+            title_words = [word for word in words if 188 <= word[0] < 378 and y0 - 1 <= word[1] < next_y - 1]
+            author_words = [word for word in words if word[0] >= 378 and y0 - 1 <= word[1] < next_y - 1]
+            title = join_words_by_line(title_words)
+            authors = join_words_by_line(author_words)
+            if not title:
+                continue
+            rows.append(
+                {
+                    "year": year,
+                    "data_year": year,
+                    "venue": "AAAI",
+                    "presentation_type": "Oral",
+                    "paper_id": paper_id,
+                    "title": title,
+                    "authors": authors,
+                    "paper_page_url": "",
+                    "pdf_url": "",
+                    "source_url": page_url or pdf_url,
+                    "status": "needs_paper_url",
+                    "notes": "Official AAAI Main Track Oral Talks PDF; schedule row captured, paper URL still needs mapping.",
+                }
+            )
+    return rows
+
+
 def aaai_oral_rows(year):
     pdf_url, page_url = aaai_main_oral_pdf_url(year)
-    text = aaai_pdf_text(fetch_bytes(pdf_url))
+    pdf_bytes = fetch_bytes(pdf_url)
+    try:
+        rows = aaai_oral_rows_from_coordinates(year, pdf_url, page_url, pdf_bytes)
+        if rows:
+            return rows
+    except Exception:
+        pass
+    text = aaai_pdf_text(pdf_bytes)
     rows = []
     seen = set()
     row_re = re.compile(r"^.*?\s{2,}(?P<paper_id>\d{2,6})\s{2,}", re.M)
@@ -129,7 +196,7 @@ def aaai_oral_rows(year):
                 "title": title,
                 "authors": "",
                 "paper_page_url": "",
-                "pdf_url": pdf_url,
+                "pdf_url": "",
                 "source_url": page_url or pdf_url,
                 "status": "needs_paper_url",
                 "notes": "Official AAAI Main Track Oral Talks PDF; schedule row captured, paper URL still needs mapping.",

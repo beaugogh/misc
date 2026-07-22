@@ -145,6 +145,94 @@ def append_readable_block(out, paragraph):
         out.append(paragraph)
 
 
+SECTION_HEADINGS = [
+    "Abstract",
+    "Introduction",
+    "Related Work",
+    "Related Literature",
+    "Background",
+    "Preliminaries",
+    "Problem Formulation",
+    "Methodology",
+    "Method",
+    "Methods",
+    "Approach",
+    "Model",
+    "Algorithm",
+    "Experiments",
+    "Experiment",
+    "Experimental Setup",
+    "Experimental Results and Analysis",
+    "Results",
+    "Equilibrium Existence",
+    "Evaluation",
+    "Analysis",
+    "Discussion",
+    "Limitations",
+    "Conclusion",
+    "Conclusion and Future Work",
+    "Acknowledgements",
+    "Acknowledgments",
+    "References",
+    "Bibliography",
+    "Appendix",
+    "Supplementary Material",
+]
+
+
+def split_inline_section_heading(paragraph):
+    for heading in sorted(SECTION_HEADINGS, key=len, reverse=True):
+        if paragraph == heading:
+            return f"## {heading}"
+        if paragraph.startswith(f"{heading} "):
+            rest = paragraph[len(heading) + 1 :].strip()
+            if rest:
+                return f"## {heading}\n\n{rest}"
+    numbered = re.match(r"^(\d+(?:\.\d+)*)\.?\s+([A-Z][A-Za-z0-9 ,:;()/-]{2,120})(?:\s{2,}|\s(?=[A-Z][a-z]))(.+)$", paragraph)
+    if numbered:
+        heading = f"{numbered.group(1)} {numbered.group(2).strip()}"
+        rest = numbered.group(3).strip()
+        return f"## {heading}\n\n{rest}" if rest else f"## {heading}"
+    return paragraph
+
+
+def normalize_markdown_quality(markdown):
+    markdown = markdown.replace("```", "`\\`\\`\\`")
+    normalized_lines = []
+    seen_h1 = False
+    in_frontmatter = False
+    for index, line in enumerate(markdown.splitlines()):
+        if index == 0 and line == "---":
+            in_frontmatter = True
+            normalized_lines.append(line)
+            continue
+        if in_frontmatter:
+            normalized_lines.append(line)
+            if line == "---":
+                in_frontmatter = False
+            continue
+        if line.startswith("# "):
+            if seen_h1:
+                normalized_lines.append(f"## {line[2:].strip()}")
+            else:
+                seen_h1 = True
+                normalized_lines.append(line)
+        else:
+            normalized_lines.append(line)
+
+    paragraphs = re.split(r"\n{2,}", "\n".join(normalized_lines))
+    repaired = []
+    for paragraph in paragraphs:
+        stripped = paragraph.strip()
+        if not stripped:
+            continue
+        if stripped.startswith(("---", "#", "<!--", "![", "AI-readable visual equivalent")):
+            repaired.append(stripped)
+        else:
+            repaired.append(split_inline_section_heading(stripped))
+    return "\n\n".join(repaired).rstrip() + "\n"
+
+
 def markdownize_pdf_blocks(page, page_index, allow_numbered_headings=False):
     section_re = re.compile(
         r"^(abstract|introduction|related work|background|method|methods|approach|experiments?|results?|discussion|limitations?|conclusion|acknowledg(e)?ments?|references|bibliography|appendix|supplementary material)$",
@@ -168,7 +256,8 @@ def markdownize_pdf_blocks(page, page_index, allow_numbered_headings=False):
         if not paragraph:
             continue
 
-        explicit_section = section_re.match(paragraph)
+        paragraph = split_inline_section_heading(paragraph)
+        explicit_section = section_re.match(paragraph.removeprefix("## ").strip())
         if explicit_section and paragraph.lower() == "abstract":
             saw_abstract = True
         numbered_match = numbered_section_re.match(paragraph)
@@ -217,7 +306,11 @@ def pdf_to_markdown(pdf_url, row, output_path, min_words, min_figure_pixels):
             if xref in seen_xrefs:
                 continue
             seen_xrefs.add(xref)
-            extracted = doc.extract_image(xref)
+            try:
+                extracted = doc.extract_image(xref)
+            except Exception as exc:
+                print(f"skipped-figure: page {page_index} image {image_index} ({exc})")
+                continue
             image_bytes = extracted.get("image", b"")
             extension = extracted.get("ext", "png")
             width = int(extracted.get("width", 0) or 0)
@@ -246,6 +339,7 @@ def pdf_to_markdown(pdf_url, row, output_path, min_words, min_figure_pixels):
         "",
     ]
     markdown = "\n".join(frontmatter) + f"# {row.get('title') or 'Untitled paper'}\n\n" + "\n".join(parts).strip() + "\n"
+    markdown = normalize_markdown_quality(markdown)
     validate_whole_paper(markdown, min_words)
     return markdown
 
