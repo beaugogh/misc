@@ -1,0 +1,11 @@
+output: output
+name_chars: 90
+user_agent: "Mozilla/5.0 (compatible; CodexWebpageToMarkdown/1.0)"
+timeout_seconds: 30
+min_words: 80
+include_frontmatter: true
+preserve_images: true
+preserve_links: true
+extract_visual_assets: true
+visual_asset_dir_suffix: "_assets"
+max_image_bytes: 50000000

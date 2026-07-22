@@ -1,0 +1,6 @@
+interface:
+  display_name: "Webpage To Markdown"
+  short_description: "Convert URLs into readable Markdown archives"
+  default_prompt: "Use $webpage-to-markdown to convert this URL into a clean, faithful Markdown file."
+policy:
+  allow_implicit_invocation: true

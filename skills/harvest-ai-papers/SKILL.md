@@ -126,6 +126,9 @@ For figures, images, charts, and rendered equation regions, include an AI-readab
 
 - Prefer Mermaid when the figure is a reconstructible workflow, architecture, tree, timeline, or chart.
 - Otherwise convert extracted PDF images/figures/equation crops into SVG assets and reference those SVGs from the Markdown.
+- SVG preservation does not require a multimodal model. The default harvester uses PyMuPDF to extract image bytes or render PDF regions, then wraps the visual content in local SVG assets.
+- A multimodal or vision-capable model is only required when the task asks for semantic visual interpretation that is not available from source text, such as faithfully translating a chart, architecture figure, or diagram into Mermaid or a detailed text transcription.
+- For text-only agents, preserve the SVG asset and add caption, nearby paper text, dimensions, and an honest transcription status instead of inventing visual details.
 - Keep captions and nearby explanatory text with the figure whenever the source exposes them.
 - Do not leave generic visual placeholders. Each figure/image asset must have an adjacent structured AI-readable note with `Asset`, `Type`, `Extracted size`, caption/context or nearby paper text, and an honest `Transcription status`.
 - Treat these notes as accessibility metadata for downstream agents/LLMs. They must be machine-scannable, clearly assistant-derived, and separate from the original paper text.
