@@ -31,11 +31,9 @@ Preprint. Under review.
 
 arXiv:2507.01467v2 [cs.CV] 28 Sep 2025
 
-
 ![Figure extracted from page 1](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-001-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 2 -->
 
@@ -135,7 +133,6 @@ Generative models have undergone significant evolution [3, 4, 5, 6, 7], demonstr
 
 Recent studies demonstrate that enhanced generative models can acquire more discriminative representations, positioning them as capable representation learners [20, 1, 21]. However, as quantified by CKNNA metrics [22], these features still underperform compared to those from pretrained vision models [23, 24, 25]. This performance gap has motivated approaches leveraging pretrained visual encoder features to accelerate generative model training convergence. For example, REPA [1] employs implicit feature-space alignment between diffusion models and foundation vision models (see Fig. 2(a)), while REPA-E [21] extends this alignment by enabling end-to-end VAE tuning, and quantitatively demonstrates that enhanced alignment (via increased CKNNA scores directly improves generation fidelity.) However, the external alignment of REPA, which is absent during the entire denoising inference process, falls short of fully harnessing the potential of discriminative information
 
-
 <!-- Page 3 -->
 
 (see Fig. 2(b)). We suggest this structure likely impedes further advancements in discriminative semantic learning and overall generative capability.
@@ -157,7 +154,6 @@ Generative models for image generation. Traditional approaches such as DDPM [5] 
 Generative models as representation learners. Extensive research has established that intermediate features in diffusion models inherently encode rich semantic representations [1, 21], with demonstrated discriminative capabilities across diverse vision tasks including semantic segmentation [29, 30, 31], depth estimation [32], and controllable image editing [33, 34, 35]. Recent advancements have further developed knowledge transfer paradigms from diffusion models to efficient networks through techniques like RepFusion’s dynamic timestep optimization [36] and DreamTeacher’s cross-model feature distillation [37]. Notably, DDAE [20] confirms that improved diffusion models yield higher-quality representations, establishing a direct correlation between generation capability and representation learning performance. Building upon these insights, we propose to systematically integrate discriminative representations into the generative forward process, enabling persistent discriminative guidance throughout denoising inference.
 
 Generative models with external representations. Prior research [38, 39, 40] has explored augmenting diffusion models through auxiliary components. For example, RCG [41] employs a secondary diffusion model to generate the class token for adaLN-condition [42] in unconditional generation. In contrast, our approach eliminates the need for additional models by leveraging a single class token as part of the input to provide discriminative guidance, simultaneously enhancing both dis-
-
 
 <!-- Page 4 -->
 
@@ -200,7 +196,6 @@ s(x, t) = σ−1 t · αtv(x, t) −˙αtx αt ˙σt −˙αtσt
 . (7)
 
 We can learn the velocity field v(x, t) and use it to compute the score s(x, t) when using an SDE for sampling.
-
 
 <!-- Page 5 -->
 
@@ -256,12 +251,13 @@ REG inference process. The framework requires no auxiliary networks to generate 
 
 In general, REG demonstrates three key advantages over existing approaches: (1) Improved utilization of discriminative information. REG directly integrates discriminative information as part of the input during training, enabling both autonomous generation and consistent application of semantic guidance during inference. This design aims to address a limitation of REPA, which cannot autonomously generate discriminative representations to guide generation in inference. Because it relies on an external alignment mechanism during training to utilize discriminative features, rather than incorporating them as input and applying the corresponding denoising task. (2) Minimal computational overhead. This design introduces only a single global class token, providing efficient and effective discriminative guidance while incurring an almost negligible computational overhead of less than 0.5% FLOPs and latency at 256×256 resolution (see Tab. 4). (3) Enhanced performance across metrics. REG improves superior performance in generation fidelity, accelerating training convergence, and discriminative semantic learning. As shown in Fig. 2(e), REG achieves up to 23× and 63× faster FID convergence than REPA and SiT, significantly reducing training time. Fig. 3 further shows consistently higher CKNNA scores across training steps, network layers, and timesteps.
 
-
 <!-- Page 6 -->
 
 **Table 1.** FID comparison across training iterations for accelerated alignment methods. All experiments are conducted on ImageNet 256×256 without classifier-free guidance (CFG).
 
-Method #Params Iter. FID↓
+## Method
+
+#Params Iter. FID↓
 
 SiT-B/2 130M 400K 33.0 + REPA 130M 400K 24.4 + REG (ours) 132M 400K 15.2
 
@@ -271,7 +267,9 @@ SiT-XL/2 675M 400K 17.2 SiT-XL/2 675M 7M 8.3 + REPA 675M 200K 11.1 + REPA 675M 4
 
 **Table 2.** Comparison of the performance of different methods on ImageNet 256×256 with CFG. Performance metrics are annotated with ↑(higher is better) and ↓(lower is better).
 
-Method Epochs FID↓ sFID↓ IS↑ Pre.↑ Rec.↑
+## Method
+
+Epochs FID↓ sFID↓ IS↑ Pre.↑ Rec.↑
 
 Pixel diffusion ADM-U [43] 400 3.94 6.14 186.7 0.82 0.52 VDM++ [44] 560 2.40 - 225.3 - - Simple diffusion [45] 800 2.77 - 211.8 - - CDM [46] 4.88 - 158.7 - -
 
@@ -301,16 +299,19 @@ Implementation details.
 
 We adhere strictly to the standard training protocols of SiT [2] and REPA [1]. Experiments are conducted on the ImageNet dataset [51], with all images preprocessed to 256×256 resolution via center cropping and resizing, following the ADM framework [43]. Each image is encoded into a latent representation z ∈R32×32×4 using the Stable Diffusion VAE [15]. Model architectures B/2, L/2, and XL/2 (with 2 × 2 patch processing) follow the SiT specifications [2]. For comparability, we fix the training batch size to 256 and adopt identical learning rates and Exponential Moving Average (EMA) configurations as REPA [1]. Additional implementation details are provided in the Appendix.
 
-Evaluation protocol.
+## Evaluation
+
+protocol.
 
 To comprehensively evaluate image generation quality across multiple dimensions, we employ a rigorous set of quantitative metrics including Fréchet Inception Distance (FID) [52] for assessing realism, structural FID (sFID) [53] for evaluating spatial coherence, Inception Score (IS) [54] for measuring class-conditional diversity, precision (Prec.) for quantifying sample fidelity, and recall (Rec.) [55] for evaluating coverage of the target distribution, all computed on a standardized set of 50K generated samples to ensure statistical reliability. We further supplement these assessments with CKNNA [22] for analyzing feature-space characteristics. Sampling follows REPA [1], using the SDE Euler–Maruyama solver with 250 steps. Full evaluation protocol details are provided in the Appendix.
-
 
 <!-- Page 7 -->
 
 **Table 3.** Verify the effects of various target representation (Target Repr.) [23, 25], the depth of supervision (Depth), and the loss weight (β). Experiments employ SiT-B/2 architectures trained for 400K iterations on ImageNet 256×256. Performance metrics (with ↓/↑denoting preferred directions) are computed using an SDE Euler-Maruyama sampler (NFE=250) without classifier-free guidance. REPA† indicates our local reproduction of the original method’s reported results.
 
-Method Target Repr. Depth β FID↓ sFID↓ IS↑ Pre.↑ Rec.↑ SiT-B/2 - - - 33.00 6.46 43.70 0.53 0.63 + REPA DINOv2-B 4 - 24.40 6.40 59.90 0.59 0.65 + REPA† DINOv2-B 4 - 22.38 6.98 66.65 0.59 0.65
+## Method
+
+Target Repr. Depth β FID↓ sFID↓ IS↑ Pre.↑ Rec.↑ SiT-B/2 - - - 33.00 6.46 43.70 0.53 0.63 + REPA DINOv2-B 4 - 24.40 6.40 59.90 0.59 0.65 + REPA† DINOv2-B 4 - 22.38 6.98 66.65 0.59 0.65
 
 + REG
 
@@ -324,7 +325,9 @@ Comparison with SOTA methods. Tab. 2 presents a comprehensive comparison against
 
 **Table 4.** Computational cost and performance comparison. This table compares REPA and REG on ImageNet 256×256, detailing model size, FLOPs, sampling steps, latency, and generation quality metrics. REG achieves substantially better sample quality with negligible increases in computational cost.
 
-Method #Params FLOPs↓Latency (s)↓ FID↓ IS↑ SiT-XL/2 + REPA 675 114.46 6.18 7.90 122.60
+## Method
+
+#Params FLOPs↓Latency (s)↓ FID↓ IS↑ SiT-XL/2 + REPA 675 114.46 6.18 7.90 122.60
 
 SiT-XL/2 + REG 677 (+0.30%)
 
@@ -338,7 +341,6 @@ SiT-XL/2 + REG 677 (+0.30%)
 
 Computational cost comparison. We compare the computational efficiency of REG and REPA under the same model scale (SiT-XL/2) in Tab. 4. REG introduces only a marginal increase in parameter count (+0.30%) and FLOPs (+0.38%) relative to REPA, while maintaining nearly identical latency (6.21s vs. 6.18s, +0.49%). Despite the minimal computational overhead, REG yields substantial improvements in generation quality, achieving a 56.46% relative reduction in FID, alongside a 50.19% increase in IS. These results demonstrate that REG simultaneously improves generation quality and computational efficiency, highlighting its effectiveness as a general-purpose enhancement for generative models.
 
-
 <!-- Page 8 -->
 
 ## 4.3 Ablation Studies
@@ -351,13 +353,17 @@ Effect of β. Tab. 3 systematically evaluates the impact of varying the loss wei
 
 **Table 5.** Ablation study on different entanglement signals. All experiments are conducted on ImageNet 256×256, using SiT-B/2 models trained for 400K iterations. This experiment adopts the best configuration from Tab. 3 and focuses solely on the impact of different entanglement signals on generation quality.
 
-Method FID↓ sFID↓ IS↑ SiT-B/2 + REPA 24.40 6.40 59.90 + one learnable token 23.31 6.48 63.44 + avg (latent features) 24.12 6.52 60.78 + avg (DINOv2 features) 16.86 6.67 84.91 + DINOv2 class token 15.22 6.69 94.64
+## Method
+
+FID↓ sFID↓ IS↑ SiT-B/2 + REPA 24.40 6.40 59.90 + one learnable token 23.31 6.48 63.44 + avg (latent features) 24.12 6.52 60.78 + avg (DINOv2 features) 16.86 6.67 84.91 + DINOv2 class token 15.22 6.69 94.64
 
 Entanglement signal variants. Tab. 5 systematically evaluates the impact of different entanglement signals on generation quality through concatenative operation. Concatenating noised latent features with either a learnable token or the average of latent features provides limited improvement, likely due to the lack of rich discriminative semantic information In contrast, incorporating discriminative signals yields substantial gains: averaged DINOv2 features significantly reduce FID to 16.86, while the DINOv2 class token achieves the best performance, lowering FID by 9.18 and increasing IS to 94.64. These results yield two key insights: (1) high-level discriminative information (class token) substantially enhances generation quality, and (2) the entanglement methodology critically governs performance improvements. The demonstrated efficacy of class token concatenation reveals that global discriminative information effectively regularizes the generative latent space, simultaneously boosting both semantic and output quality while maintaining computational efficiency.
 
 **Table 6.** Ablation study on different class token entanglement [23, 25] without representation alignment. This table investigates the effectiveness of class token entanglement in the absence of explicit representation alignment. All experiments are conducted on ImageNet 256×256 at 400K iterations.
 
-Method Class token FID↓ sFID↓ IS↑ SiT-B/2 - 33.0 6.46 43.70
+## Method
+
+Class token FID↓ sFID↓ IS↑ SiT-B/2 - 33.0 6.46 43.70
 
 + Entanglement
 
@@ -368,7 +374,6 @@ Effectiveness of entanglement alone. Tab. 6 evaluates the impact of incorporatin
 ## 4.4 Enhancing the discriminative semantic learning of generative models
 
 We systematically measure REG, SiT, and REPA’s CKNNA scores across training steps, network layers, and timesteps to assess the discriminative semantics of dense features. For fair comparison, we follow REPA’s evaluation protocol: We compute CKNNA scores exclusively between spatially
-
 
 <!-- Page 9 -->
 
@@ -402,21 +407,17 @@ Timestep robustness. Evaluation of CKNNA at layer 8 (400K steps) demonstrates RE
 
 This paper presents Representation Entanglement for Generation (REG), a simple and efficient framework that firstly introduces image-class denoising paradigm instead of the current pure image denoising pipeline, which fully unleashes the potential of discriminative gains for generation. REG entangles low-level image latents with a single high-level class token from pretrained foundation models, achieved via synchronized noise injection and spatial concatenation. The denoising process simultaneously reconstructs both image latents and corresponding global semantics, enabling active semantic guidance that enhances generation quality while introducing minimal computational cost through the addition of just one token. Extensive experiments demonstrate REG’s superior performance in generation fidelity, accelerating training convergence, and discriminative semantic learning, validating its effectiveness and scalability.
 
-
 ![Figure extracted from page 9](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-009-figure-02.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 9](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-009-figure-03.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 9](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-009-figure-05.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 10 -->
 
@@ -472,7 +473,6 @@ Boqian Li, Kai Wang, and Yaxing Wang. From cradle to cane: A two-pass framework 
 
 [19] Qihao Liu, Zhanpeng Zeng, Ju He, et al. Alleviating distortion in image generation via multi- resolution diffusion models. In arXiv preprint arXiv:2406.09416, 2024. 2, 3
 
-
 <!-- Page 11 -->
 
 [20] Weilai Xiang, Hongyu Yang, Di Huang, and Yunhong Wang. Denoising diffusion autoencoders are unified self-supervised learners. In ICCV. 2, 3
@@ -520,7 +520,6 @@ Toward a meaningful and decodable representation. In CVPR, 2022. 3
 [39] Lijun Yu, Yong Cheng, Zhiruo Wang, et al. Spae: Semantic pyramid autoencoder for multimodal generation with frozen llms. In NeurIPS, 2023. 3
 
 [40] Jingfeng Yao, Bin Yang, and Xinggang Wang. Reconstruction vs. generation: Taming op- timization dilemma in latent diffusion models. In arXiv preprint arXiv:2501.01423, 2025. 3
-
 
 <!-- Page 12 -->
 
@@ -571,7 +570,6 @@ Lehtinen. Applying guidance in a limited interval improves sample and distributi
 [58] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. arXiv preprint arXiv:1711.05101, 2017. 16
 
 [59] Simon Kornblith, Mohammad Norouzi, Honglak Lee, and Geoffrey Hinton. Similarity of neural network representations revisited. In International conference on machine learning, 2019. 16
-
 
 <!-- Page 13 -->
 
@@ -657,7 +655,6 @@ SiT timestep 1~N
 
 To quantitatively validate the two methods’ discriminative semantics in inference, we use 10,000 ImageNet validation images as input processed through identical noise injection via the VAE encoder [15]. REG’s inference integrates noised latents with the noise-initialized class token through concatenation before multi-step denoising (see Fig. 4(d)), while OLT similarly processes noised latents with its learnable token (see Fig. 4(b)). Then, we process these ImageNet validation images through DINOv2 [23] to obtain the reference class token. Fig. 5 computes both CKNNA and cosine
 
-
 <!-- Page 14 -->
 
 +0.451
@@ -674,7 +671,9 @@ We summarize the total training overhead in Tab. 7, reporting the costs required
 
 **Table 7.** Training overhead comparison. REG achieves comparable performance to other models while significantly reducing training time.
 
-Model FID↓Training step↓All GPU hours↓
+## Model
+
+FID↓Training step↓All GPU hours↓
 
 SiT-XL/2 8.3 7M + REG (ours) 8.2 110K 39 (-98.36%)
 
@@ -684,17 +683,17 @@ C 256×256 ImageNet
 
 Tab. 8 presents extended training results with CFG using the REPA’s same guidance interval [56], demonstrating REG’s excellent performance with a 1.40 FID at 480 epochs; it achieves better performance comparable to REPA [1] at 800 epochs while requiring fewer than 40% of the training iterations. In addition, Tab. 9 presents more specific performance details of SiT + REG, further highlighting its superior robustness and accelerated convergence. Tab. 10 presents quantitative performance metrics of SiT-XL + REG under varying classifier-free guidance scale w.
 
-
 ![Figure extracted from page 14](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-014-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 15 -->
 
 **Table 8.** Extended REG training on ImageNet 256×256 with CFG demonstrates progressive performance gains.
 
-Method Epochs FID↓ sFID↓ IS↑ Pre.↑ Rec.↑
+## Method
+
+Epochs FID↓ sFID↓ IS↑ Pre.↑ Rec.↑
 
 Pixel diffusion ADM-U [43] 400 3.94 6.14 186.7 0.82 0.52 VDM++ [44] 560 2.40 - 225.3 - - Simple diffusion [45] 800 2.77 - 211.8 - - CDM [46] 4.88 - 158.7 - -
 
@@ -710,7 +709,9 @@ SiT-XL/2 [2] 2.06 4.50 270.3 0.82 0.59 + REPA 800 1.42 4.70 305.7 0.80 0.65 + RE
 
 **Table 9.** More performance analysis of SiT + REG across model scales without CFG.
 
-Model #Params Iter. FID↓ sFID↓ IS↑ Prec.↑ Rec.↑
+## Model
+
+#Params Iter. FID↓ sFID↓ IS↑ Prec.↑ Rec.↑
 
 SiT-B/2 [2] 130M 400K 33.0 6.46 43.7 0.53 0.63 + REPA 130M 400K 24.4 6.40 59.9 0.59 0.65 + REG (ours) 132M 50K 64.7 9.47 23.2 0.40 0.51 + REG (ours) 132M 100K 36.1 7.74 45.5 0.53 0.61 + REG (ours) 132M 200K 22.1 7.19 72.2 0.60 0.63 + REG (ours) 132M 400K 15.2 6.69 94.6 0.64 0.63
 
@@ -722,18 +723,21 @@ D 512×512 ImageNet
 
 To further validate REG’s effectiveness, we conduct experiments at 512×512 resolution following REPA’s protocol [1]. The RGB images are processed through the VAE [15] to yield 64×64×3 latents, with DINOv2 [23] providing both dense features and class token from 448×448 inputs. As demonstrated in Tab. 11, REG surpasses the performance of REPA trained for 200 epochs and SiT-XL/2 trained for 600 epochs in terms of FID at only 80 epochs, demonstrating its superior effectiveness.
 
-
 <!-- Page 16 -->
 
 **Table 10.** The results of SiT-XL + REG at 2.4M training iterations under varying classifier-free guidance scale w, employing the guidance interval method [56].
 
-Model #Params Iter. Interval w FID↓ sFID↓ IS↑ Prec.↑ Rec.↑
+## Model
+
+#Params Iter. Interval w FID↓ sFID↓ IS↑ Prec.↑ Rec.↑
 
 SiT-XL/2 [2] 675M 7M [0, 1] 1.50 2.06 4.50 270.3 0.82 0.59 + REG (ours) 675M 2.4M [0, 0.8] 2.4 1.45 4.32 280.44 0.77 0.67 + REG (ours) 675M 2.4M [0, 0.85] 2.4 1.41 4.24 299.65 0.77 0.67 + REG (ours) 675M 2.4M [0, 0.9] 2.4 1.61 4.21 334.50 0.79 0.64 + REG (ours) 675M 2.4M [0, 0.85] 2.5 1.43 4.25 303.11 0.77 0.67 + REG (ours) 675M 2.4M [0, 0.85] 2.4 1.41 4.24 299.65 0.77 0.67 + REG (ours) 675M 2.4M [0, 0.85] 2.3 1.40 4.24 296.93 0.77 0.66 + REG (ours) 675M 2.4M [0, 0.85] 2.2 1.40 4.25 293.57 0.77 0.67
 
 **Table 11.** Performance comparison on ImageNet 512×512 with CFG.
 
-Model Epochs FID↓ sFID↓ IS↑ Pre.↑ Rec.↑
+## Model
+
+Epochs FID↓ sFID↓ IS↑ Pre.↑ Rec.↑
 
 Pixel diffusion VDM++ [44] - 2.65 - 278.1 - - ADM-G, ADM-U [43] 400 2.85 5.86 221.7 0.84 0.53 Simple diffusion (U-Net) [45] 800 4.28 - 171.0 - - Simple diffusion (U-ViT, L) [45] 800 4.53 - 205.3 - -
 
@@ -765,7 +769,6 @@ Alignknn(K, K) · Alignknn(L, L)
 
 . (13)
 
-
 <!-- Page 17 -->
 
 We adopt REPA’s CKNNA computation methodology [1], calculating scores exclusively between spatially averaged dense features from both the generative model and DINOv2-g representations [23]. To ensure fair comparison, the class token is explicitly excluded from all CKNNA calculations.
@@ -788,66 +791,53 @@ We present more visualization results of REG in Fig. 6 - 25 with CFG (w = 4.0).
 
 **Figure 6.** The visualization results of SiT-XL/2 + REG use CFG with w = 4.0, and the class label is “Great white shark” (2).
 
-
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-02.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-03.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-04.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-05.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-06.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-07.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-08.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-09.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-10.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-11.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 17](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-017-figure-12.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 18 -->
 
@@ -857,186 +847,149 @@ AI-readable visual equivalent, added: Figure extracted from the paper PDF and co
 
 **Figure 9.** The visualization results of SiT-XL/2 + REG use CFG with w = 4.0, and the class label is “Macaw” (88).
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-02.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-03.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-04.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-05.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-06.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-07.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-08.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-09.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-10.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-11.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-12.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-13.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-14.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-15.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-16.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-17.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-18.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-19.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-20.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-21.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-22.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-23.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-24.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-25.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-26.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-27.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-28.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-29.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-30.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-31.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-32.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-33.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-34.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-35.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 18](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-018-figure-36.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 19 -->
 
@@ -1046,186 +999,149 @@ AI-readable visual equivalent, added: Figure extracted from the paper PDF and co
 
 **Figure 12.** The visualization results of SiT-XL/2 + REG use CFG with w = 4.0, and the class label is “American coot” (137).
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-02.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-03.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-04.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-05.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-06.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-07.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-08.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-09.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-10.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-11.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-12.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-13.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-14.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-15.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-16.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-17.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-18.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-19.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-20.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-21.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-22.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-23.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-24.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-25.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-26.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-27.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-28.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-29.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-30.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-31.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-32.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-33.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-34.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-35.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 19](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-019-figure-36.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 20 -->
 
@@ -1235,186 +1151,149 @@ AI-readable visual equivalent, added: Figure extracted from the paper PDF and co
 
 **Figure 15.** The visualization results of SiT-XL/2 + REG use CFG with w = 4.0, and the class label is “Timber wolf” (269).
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-02.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-03.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-04.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-05.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-06.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-07.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-08.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-09.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-10.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-11.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-12.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-13.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-14.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-15.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-16.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-17.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-18.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-19.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-20.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-21.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-22.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-23.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-24.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-25.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-26.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-27.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-28.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-29.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-30.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-31.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-32.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-33.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-34.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-35.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 20](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-020-figure-36.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 21 -->
 
@@ -1424,186 +1303,149 @@ AI-readable visual equivalent, added: Figure extracted from the paper PDF and co
 
 **Figure 18.** The visualization results of SiT-XL/2 + REG use CFG with w = 4.0, and the class label is “Giant panda” (388).
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-02.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-03.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-04.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-05.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-06.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-07.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-08.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-09.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-10.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-11.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-12.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-13.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-14.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-15.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-16.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-17.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-18.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-19.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-20.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-21.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-22.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-23.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-24.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-25.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-26.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-27.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-28.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-29.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-30.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-31.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-32.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-33.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-34.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-35.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 21](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-021-figure-36.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 22 -->
 
@@ -1613,186 +1455,149 @@ AI-readable visual equivalent, added: Figure extracted from the paper PDF and co
 
 **Figure 21.** The visualization results of SiT-XL/2 + REG use CFG with w = 4.0, and the class label is “Convertible” (511).
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-02.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-03.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-04.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-05.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-06.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-07.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-08.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-09.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-10.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-11.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-12.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-13.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-14.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-15.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-16.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-17.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-18.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-19.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-20.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-21.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-22.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-23.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-24.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-25.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-26.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-27.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-28.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-29.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-30.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-31.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-32.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-33.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-34.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-35.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 22](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-022-figure-36.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 23 -->
 
@@ -1802,246 +1607,197 @@ AI-readable visual equivalent, added: Figure extracted from the paper PDF and co
 
 **Figure 24.** The visualization results of SiT-XL/2 + REG use CFG with w = 4.0, and the class label is “Lakeside” (975).
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-02.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-03.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-04.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-05.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-06.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-07.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-08.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-09.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-10.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-11.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-12.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-13.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-14.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-15.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-16.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-17.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-18.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-19.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-20.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-21.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-22.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-23.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-24.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-25.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-26.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-27.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-28.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-29.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-30.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-31.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-32.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-33.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-34.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-35.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 23](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-023-figure-36.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 <!-- Page 24 -->
 
 **Figure 25.** The visualization results of SiT-XL/2 + REG use CFG with w = 4.0, and the class label is “Volcano” (980).
-
 
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-02.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-03.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-04.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-05.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-06.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-07.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-08.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-09.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-10.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-11.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 24](2025-NEURIPS-representation-entanglement-for-generation-training-diffusion-transformers-is-mu/page-024-figure-12.svg)
 

@@ -1,0 +1,2574 @@
+---
+title: "Quotient-Space Diffusion Models"
+source_url: https://iclr.cc/virtual/2026/oral/10011653
+paper_pdf_url: https://arxiv.org/pdf/2604.21809v2
+venue: ICLR
+year: 2026
+retrieved_date: 2026-07-21
+content_scope: whole paper PDF text with extracted SVG figure assets
+---
+# Quotient-Space Diffusion Models
+
+<!-- Page 1 -->
+
+Published as a conference paper at ICLR 2026
+
+QUOTIENT-SPACE DIFFUSION MODELS
+
+Yixian Xu1∗, Yusong Wang2,5∗, Shengjie Luo1, Kaiyuan Gao3, Tianyu He4, Di He1†, Chang Liu5†
+
+## 1 State Key Laboratory of General Artificial Intelligence, Peking University, Beijing, China 2 State Key Laboratory of
+
+Human-Machine Hybrid Augmented Intelligence, Institute of Artificial Intelligence and Robotics, Xi’an Jiaotong University 3 Huazhong University of Science and Technology, Wuhan, China 4 Microsoft Research Asia, Beijing, China 5 Zhongguancun Academy, Beijing, China
+
+## ABSTRACT
+
+Diffusion-based generative models have reformed generative AI, and also enabled new capabilities in the science domain, e.g., fast generation of 3D structures of molecules. In such tasks, there is often a symmetry in the system, identifying elements that can be converted by certain transformations as equivalent. Equivariant diffusion models guarantee a symmetric distribution, but miss the opportunity to make learning easier, while alignment-based simplification attempts fail to preserve the target distribution. In this work, we develop quotient-space diffusion models, a principled generative framework to fully handle and leverage symmetry. By viewing the intrinsic generation process on the quotient space, the exact construction that removes symmetry redundancy, the framework simplifies learning by allowing model output to have an arbitrary intra-equivalence-class movement, while generating the correct symmetric target distribution with guarantee. We instantiate the framework for molecular structure generation which follows SE(3) (rigid-body movement) symmetry. It improves the performance over equivariant diffusion models and outperforms alignment-based methods universally for small molecules and proteins, representing a new framework that surpasses previous symmetry treatments in generative models.
+
+## INTRODUCTION
+
+Diffusion models have emerged as the dominant approach for modeling distributions in highdimensional spaces. Building on their success in real-world domains such as images (Ho et al., 2020; Song et al., 2021), audios (Kong et al., 2021; Evans et al., 2024), and videos (Ho et al., 2022; Li et al., 2023), diffusion models are now increasingly adopted in scientific applications, ranging from fluid field solving (Bastek et al., 2025), electronic structure prediction (Kim et al., 2025), molecular structure generation (Xu et al., 2022; Abramson et al., 2024; Hassan et al., 2024; Geffner et al., 2025), and thermodynamic ensemble modeling (Zheng et al., 2024; Lewis et al., 2025).
+
+Compared to general applications, scientific tasks often exhibit inherent symmetry structures, wherein elements that can be converted by specific transformations are regarded as equivalent. As a representative example, a molecular structure can be represented as a R3N vector by concatenating the 3D coordinates of its N atoms. Due to spatial homogeneity, molecular structures that differ only by a global 3D translation and rotation (i.e., a rigid-body movement) hold exactly the same physical properties, hence should be regarded as symmetric/equivalent in representing the same state, i.e., the shape of the molecule. Mathematically, such transformations typically form a Lie group, e.g., the 3D special Euclidean group SE(3) in the molecular case, which formally characterizes the symmetry.
+
+The common treatment is assigning the same probability to equivalent elements in the original space, resulting in a group-invariant target distribution. This can be implemented by simply augmenting training data by applying random group actions (Abramson et al., 2024), or using a groupequivariant generation process starting from a group-invariant prior distribution (K¨ohler et al., 2020; Xu et al., 2022; Hoogeboom et al., 2022b). Nevertheless, these approaches have not leveraged the
+
+∗Equal contribution. †Correspondence to: Di He <dihe@pku.edu.cn>, Chang Liu <liuchang@bza.edu.cn>.
+
+arXiv:2604.21809v2 [cs.LG] 14 May 2026
+
+<!-- Page 2 -->
+
+Published as a conference paper at ICLR 2026
+
+**Figure 1.** A conceptual illustration highlighting characteristics of the quotient-space diffusion model for a distribution (shown in gray scale) on R2 with SO(2) (i.e., rotational) symmetry. (Left) SDE sampling trajectories. Same color indicates the same starting point (round dot). The quotient-space diffusion moves only radially along rays emanating from the origin, representing the quotient space R2/SO(2) which traverses across equivalence classes (origin-centered concentric circles) without moving within an equivalence class (angular movement). The conventional diffusion model moves over the whole R2 space, leading to jagged curves requiring subtler simulation. (Middle) Samples generated by the conventional equivariant diffusion model and (Right) by the quotient-space diffusion model. Both recover the same target distribution. The quotient-space diffusion also reduces learning difficulty (Eq. (11)) by allowing arbitrary model output in intra-equivalence-class movement (angular movement).
+
+symmetry to reduce learning difficulty, as the neural network for modeling the generation process still needs to learn a specific equivalent movement (e.g., translating and rotating a molecule as a rigid body (SE(3) action)), which is unnecessary as any such a movement does not update the essential system state (e.g., the shape of a molecule). In hope to remove this redundancy for an easier learning task, a few heuristic attempts are proposed by landmark prior works, e.g., GeoDiff (Xu et al., 2022) and AlphaFold 3 (Abramson et al., 2024). They align the target samples with respect to model input or output to reduce their degrees of freedom (DoFs) under equivalence. Nevertheless, we find (Sec. 3.4) these treatments alter the learning target from what is required in the sampling process, hence distort the generated distribution, even with heuristic fix attempts (Wohlwend et al., 2025).
+
+In this work, we develop quotient-space diffusion models, a principled framework for the desire to reduce learning difficulty by leveraging symmetry, while guaranteeing the correct symmetric target distribution by its sampling process. Quotient space treats a set of equivalent elements, i.e., an equivalence class, as one element. It is hence the exact mathematical construction that reflects the intrinsic variability without redundancy (e.g., the shape space of a molecule). We first transform the conventional equivariant diffusion process onto the quotient space, describing the generation process in essential move. Considering that the quotient space is quite abstract and inconvenient to carry out simulation directly, we further leverage the associated construction of horizontal lift to pull the quotient-space process back to the original space, making simulation as easy as for the original process. The resulting process effectively projects each original generation update onto the subspace that moves only across equivalence classes (e.g., deformation), removing the component that moves within an equivalence class (e.g., rigid-body translation and rotation). An additional update term arises from deduction which guarantees the correct distribution. Fig. 1(Left) shows a conceptual illustration. In contrast to the conventional equivariant diffusion, which leads to highly jagged paths, the quotient-space diffusion process moves straight only in the radial direction in this rotationally symmetric system, while producing the same target distribution (Middle vs. Right).
+
+Importantly, with the help of the projection, the model output is allowed to be arbitrary in the subspace of intra-equivalence-class movement (e.g., rigid-body translation and rotation), since any output in this subspace would be projected out in each generation step. This reduces learning difficulty as the model does not need to learn anything in this subspace. A mechanistic comparison with prior treatments is shown in Table 1. The quotient-space diffusion admits either an equivariant model or a general model with data augmentation in training. Appx. A discusses more related works.
+
+For the representative case of the R3N/SE(3) quotient space (shape space), we derive explicit expressions for the concepts, leading to concrete training and sampling algorithms. Particularly, the projection removes the total linear and angular momentum of the N points, leaving only deformation updates without rigid-body movement, and relaxes the model from learning to predict the total
+
+![Figure extracted from page 2](2026-ICLR-quotient-space-diffusion-models/page-002-figure-01.svg)
+
+AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
+
+![Figure extracted from page 2](2026-ICLR-quotient-space-diffusion-models/page-002-figure-02.svg)
+
+AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
+
+<!-- Page 3 -->
+
+Published as a conference paper at ICLR 2026
+
+**Table 1.** Mechanistic comparison among diffusion models for handling symmetry. Regarding leveraging the symmetry for easier training, we consider whether a method removes the need to learn to predict a target in the equivalent degrees of freedom (DoFs), and (if not) whether it removes the variance in the equivalent DoFs of target samples. Regarding generation validity, we consider whether the modified learning target has a compatible sampler that produces the correct target distribution. The denoising form Dθ of diffusion model is adopted. Ay(x) (Eq. (13)) aligns x towards y, and ¯θ treats θ as constant (i.e., stop-gradient). See Sec. 3.4 for details.
+
+Training strategies for Dθ
+
+Learning targets of Dθ
+
+Reduction of learning difficulty Sampling compatibility Removal of equivalent DoFs
+
+Removal of variance on equivalent DoFs
+
+Conventional diffusion loss
+
+E∥Dθ(xt, t) −x1∥2 E[x1|xt] ✗ ✗ ✓
+
+GeoDiff alignment loss E∥Dθ(xt, t) −Axt(x1)∥2 E[Axt(x1)|xt] ✗ ✓ ✗
+
+AF3 alignment loss E
+
+Dθ(xt, t)−AD¯ θ(xt,t)(x1)
+
+2 g · E[Axt(x1)|xt] for arbitrary g ∈G ✓ ✓ ✗
+
+Quotient-space diffusion loss
+
+E∥Pxt(Dθ(xt, t) −x1)∥2 E[Pxt(x1)|xt] + vV for arbitrary vV∈Ker(Pxt) ✓ ✓ ✓ linear and angular momentum. In the application of molecular structure generation, our quotientspace diffusion models universally outperform conventional diffusion models as well as alignmentbased treatments on a diverse range of generation quality metrics for small molecules and for proteins. Notably, with quotient-space diffusion, the 60M-parameter Prote´ına model (Geffner et al., 2025) even outperforms the much larger 200M-parameter model for protein structure generation.
+
+## 2 BACKGROUND
+
+## 2.1 DIFFUSION-BASED GENERATIVE MODELS ON EUCLIDEAN SPACE
+
+The main idea of diffusion models is to construct a step-by-step transformation from a simple prior distribution pprior at t = 0 to a complicated target distribution ptarget at t = 1. We follow the Stochastic Interpolant framework (Albergo et al., 2023) unifying diffusion models (Ho et al., 2020; Song et al., 2021) and flow matching models (Lipman et al., 2023; Liu et al., 2023). It defines the intermediate distribution for t ∈[0, 1] by:
+
+xt = αtx0 + βtx1 + γtϵ, where (x0, x1) ∼pjoint, ϵ ∼N(0, I), (1)
+
+where pjoint(x0, x1) is a pre-defined joint distribution with marginals pprior(x0) and ptarget(x1), and αt, βt, γt satisfy the boundary conditions α0 = 1, β0 = γ0 = 0, and α1 = γ1 = 0, β1 = 1 so that p0 = pprior and p1 = ptarget. This distribution transformation can be achieved by the following ordinary differential equation (ODE) (Albergo et al., 2023, Cor. 2.18):
+
+dxt = v(xt, t) dt, where v(xt, t):= E[ ˙αtx0 + ˙βtx1 + ˙γtϵ | xt], (2)
+
+and the dot decoration denotes time derivative. The velocity vector field v(xt, t) is typically trained with the objective: L(θ):= Ep(t)w(t)Epjoint(x0,x1)p(ϵ)∥vθ(xt, t) −(˙αtx0 + ˙βtx1 + ˙γtϵ)∥2, where p(t) and w(t) control the sampling frequency and weight over time. The distribution transformation can also be achieved by a stochastic process given by the stochastic differential equation (SDE):
+
+dxt = (v(xt, t) + ηts(xt, t)) dt + p
+
+2ηt dwt, where s(xt, t):= ∇xt log pt(xt) (3)
+
+is called the score function, and ηt ⩾0 controls stochasticity, and wt is the Wiener process (Albergo et al., 2023, Cor. 2.10). When pprior = N(0, I) (Albergo et al., 2023, Def. 3.4), x0 and ϵ can be combined and xt = ˆαtϵ+βtx1, where ˆαt = p α2 t + γ2 t, and the score function can be expressed by the velocity field: s(xt, t) =
+
+˙βtxt−βtv(xt,t) ˆαt(˙ˆαtβt−ˆαt ˙βt). A common convenient parameterization for a vθ(xt, t) model is to use a neural network Dθ(xt, t) in the following way, which turns the objective into:
+
+vθ(xt, t):= (˙ˆαt/ˆαt)xt −(˙ˆαtβt/ˆαt −˙βt)Dθ(xt, t), (4)
+
+L(θ) = Ep(t)w(t)(˙ˆαtβt −ˆαt ˙βt)2/ˆα2 t Ep(x1,xt)∥Dθ(xt, t) −x1∥2, (5)
+
+where p(x1, xt) is derived from Eq. (1) by integrating out x0 and ϵ. This objective conveys the intuition of predicting the clean-data sample x1 from a noisy sample xt, hence Dθ(xt, t) is called a denoising model and suits prevalent architectures.
+
+<!-- Page 4 -->
+
+Published as a conference paper at ICLR 2026
+
+## 2.2 FROM MANIFOLD TO QUOTIENT SPACE
+
+Symmetry can be formalized as identifying elements that can be converted to each other by a certain set of transformations. Such transformations typically form a Lie group, which is also a manifold. We consider the general case where the state space is a manifold. Fig. 2 illustrates the concepts.
+
+Manifold and tangent vectors (Appx. B.1). A (smooth) manifold M is a space is locally isomorphic to a Euclidean space. It generalizes the Euclidean space to allow spatial heterogeneity and a different global topology. The velocity of movement at a point x on M is represented as a tangent vector at x. All tangent vectors at x constitute a linear space TxM with the same dimension called the tangent space at x. In contrast to the Euclidean space, tangent spaces at different points are different linear spaces, but a smooth transformation F between the points (even on different manifolds) can induce a push-forward map F∗x: TxM →TF (x)M between the tangent spaces by linking infinitesimal movements around x and around F(x). It can be seen as a generalization of the Jacobian matrix. A manifold is typically endowed with a Riemannian metric, i.e., an inner product in each tangent space. It further induces common constructions like curve length, distance, measure, gradient, Laplacian, and the Wiener process (Appx. B.2) on the manifold.
+
+**Figure 2.** Illustration of mathematical concepts, their relations, and the scheme of technical development.
+
+Lie group (Appx. C.1). A Lie group is a group that is also a manifold, also regarded as a continuous group. Its role to characterize the symmetry of a state space M is by its (left) group action Lg: g 7→g ·x on M (e.g., translating and rotating a molecular structure when G = SE(3)). To comply with the symmetry, we ask the Riemannian metric to be invariant under group action (or, the group action is isometric): ⟨v, v′⟩x = ⟨(Lg)∗x(v), (Lg)∗x(v′)⟩g·x, for all v, v′ ∈TxM. Symmetry of constructions on M can then be characterized by G: a distribution p is said G-invariant if p(g·x) = p(x), ∀g ∈G, x ∈M, and a vector field v is G-equivariant if (Lg)∗x(vx) = vg·x.
+
+Quotient space (Appx. C.2). The group action defines a symmetry/equivalence relation on M: x ∼x′ if there exists g ∈G such that g · x = x′. The quotient space Q:= M/G is defined under this equivalence, treating each equivalence class as one element. It hence reflects the intrinsic variability of the system. There is a natural projection mapping connecting the two spaces: π: x ∈ M 7→{g · x | g ∈G} ∈Q. Under certain conditions, the quotient space is also a smooth manifold.
+
+## 3 METHODS
+
+As the quotient space represents the “essential states” of a system with symmetry, a principled diffusion model for the system is expected to be built on it. We unroll the development by first deriving the projected diffusion process onto the quotient space, then lifting it back into the total space (i.e., the original space M) for convenient implementation. See Fig. 2 for illustration of involved concepts and the scheme of the development. We then derive the specification in the R3N/SE(3) case for molecular structure generation, followed by training and sampling algorithms. Finally, we highlight the merit of the quotient-space diffusion in reducing training difficulty and sampler validity with a comparative analysis with existing symmetry treatments.
+
+## 3.1 DIFFUSION PROCESS ON A GENERAL QUOTIENT SPACE
+
+When viewed in the total space M, due to the intrinsic symmetry, the distribution should assign the same probability to elements in each equivalence class, formally regarded as a G-invariant distribution. To guarantee this, a common approach is to start from a simple G-invariant distribution pprior and let it undergo a G-equivariant generation process, which translates to the G-equivariance of the vector field ft (the drift term) for a diffusion process (the Wiener process wt defined under the Riemannian metric induces a G-invariant transition distribution when G acts on the Riemannian manifold M isometrically). This guarantees that each intermediate distribution along the generation process is also G-invariant (K¨ohler et al., 2020; Hoogeboom et al., 2022a). As G-invariant distributions vary only across equivalence classes, they correspond to distributions on the quotient space
+
+![Figure extracted from page 4](2026-ICLR-quotient-space-diffusion-models/page-004-figure-01.svg)
+
+AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
+
+<!-- Page 5 -->
+
+Published as a conference paper at ICLR 2026
+
+Q:= M/G, and the generation process can also be exactly represented on the quotient space, as explicitly given by the following theorem. Theorem 1. Assume {xt}t∈[0,T ] is a diffusion process on M, specified by the following SDE:
+
+dxt = ft(xt) dt + σt dwt, x0 ∼pprior, (6)
+
+where ft is a G-equivariant vector field on M, and pprior is G-invariant. Then the projected process {yt:= π(xt)}t∈[0,T ] onto the quotient space Q:= M/G is specified by the following SDE:
+
+dyt =
+
+(π∗ft)(yt) −σ2 t 2 h(yt)
+
+dt + σt dωt, y0 ∼π#pprior, (7)
+
+where: (1) π∗ft is the pushed-forward vector field onto Q induced by π, which is well-defined due to the G-equivariance of ft; (2) h(yt) is the mean curvature vector field induced on Q; (3) ωt is the Wiener process on Q; and (4) π#pprior is the pushed-forward distribution of pprior; i.e., its samples follow y0 = π(x0) where x0 ∼pprior.
+
+See Appx. D.1 for formal definitions and proof. Thm. 1 shows that the projected process on the quotient space is indeed a diffusion process, and running the original process Eq. (6) followed by projection π gives the same process by running Eq. (7) on the quotient space. The quotient-space process Eq. (7) is expressed using the projected vector field π∗ft, the Wiener process ωt on Q, and perhaps unexpectedly, an additional vector field h reflecting the curvature of Q. As the quotient space squeezes different equivalence classes all into points, a process viewed on the quotient space should accommodate for the change of volume of the equivalence class along the movement. This additional vector reflects the change rate of the volume of the equivalence class (see also Appx. D.3).
+
+Although the diffusion process on the quotient space is well defined, it is not convenient to simulate it in the quotient space directly, due to the difficulty in representing this quite abstract space, which usually cannot be represented by Euclidean vectors. We hence work towards deriving a diffusion process in the total space M, which can be simulated in the same way as the original diffusion process, while inheriting key features of a quotient-space diffusion process.
+
+A key feature from Thm. 1 is that if using f ′ = v+f where v ∈Ker π∗x:= {v ∈TxM | π∗x(v) = 0} at each x ∈M, then the corresponding SDE in Eq. (6) induces the same quotient-space diffusion Eq. (7). Indeed, vector components in this subspace are not really necessary, as it only induces a movement within the equivalence class π(x). Under the view of the illustration in Fig. 2(Right), this subspace is called the vertical space Vx:= Ker π∗x. Correspondingly, its orthogonal completion in TxM under the Riemannian metric, referred to as the horizontal space Hx:= V⊥ x, identifies vectors that leads to essential movements. Since they form TxM by direct sum TxM = Vx ⊕Hx, any tangent vector v ∈TxM admits a unique decomposition: v = vV + vH, where the horizontal component vH identifies the essential component. We denote this correspondence as the horizontal projection Px(v):= vH in TxM.
+
+With this construction, there is a unique correspondence from a quotient-space tangent vector u ∈ TyQ to a total-space horizontal tangent vector ˜u ∈Hx at any x ∈π−1(y) in the equivalence class, called the horizontal lift of u (Def. C.2.2). It forms a G-equivariant vector field in M, and if u = π∗x(v), its lift ^ π∗x(v) is given by Px(v). Since it is always horizontal, it preserves the gist of the quotient-space vector u of an essential update direction, we can leverage this notion to pull the desired quotient-space diffusion Eq. (7) back to the total space M, which admits a straightforward representation and simulation. Theorem 2. The horizontal lift of Eq. (7) has the following explicit expression:
+
+d˜xt =
+
+P˜xt(ft(˜xt)) −σ2 t 2 ˜h(˜xt)
+
+dt + σt d ˜wt, ˜x0 ∼pprior, (8)
+
+where Px(v):= vH is the horizontal projection in the tangent space of M, and ˜h is the horizontal lift of the mean curvature vector h, and ˜wt is the horizontal lift of the Wiener process of Q.
+
+See Appx. D.2 for proof. Note that this construction does not require Q to be embedded in M, which is generally not possible. Comparing Eq. (6) and Eq. (8), the lifted process is not simply given by projecting the vector field and the Wiener process in Eq. (6), but the additional vector field ˜h persists as the reflection of the spatial change rate of equivalence-class volume to compensate the disability to change the spread of mass within an equivalence class. Importantly, Eq. (8) only has horizontal movements, which focuses on movement across equivalence classes only. As a result, the length
+
+<!-- Page 6 -->
+
+Published as a conference paper at ICLR 2026 of sampling paths is reduced. This is one of the key advantages over existing equivariant diffusion models, which still traverse within each equivalence class following a certain rule. Moreover, Thm. 2 indicates that Eq. (8) produces the same target distribution, guaranteeing the correctness of sampling. A representative illustration is given in Fig. 1. These merits are formally stated as follows.
+
+Corollary 3 (Proof in Appx. D.2). (1) The resulting random variable ˜x1 by the lifted diffusion process Eq. (8) and the resulting x1 by the original diffusion process Eq. (6) follow the same distribution in the total space: p˜x1 = px1 = ptarget. (2) When σt ≡0 and starting from the same x0 ∈M, Eq. (8) leads to a shorter trajectory than Eq. (6) does.
+
+## 3.2 SPECIAL CASE: THE SHAPE SPACE
+
+The general abstract constructions can be specified and give instructions to the motivating and representative case of molecular structure generation, where M is the space of concatenated vectors of 3-dimensional coordinates of N points, and G is the special Euclidean group SE(3) composed of the 3-dimensional translation group T(3) and rotation group SO(3), representing rigid-body movements. An element of M is structured as x:= [⃗x(1), · · ·,⃗x(N)] (compactly, [⃗x(n)]n), where each⃗ x(n) ∈R3, and the SE(3) group acts on x by translating and rotating each⃗x(n).
+
+Since T(3) is not compact, there does not exist a translational invariant distribution. We (as well as many others (Yim et al., 2023b; Lin et al., 2024a)) hence represent the quotient space with respect to T(3) by the center-of-mass(CoM)-free subspace R3N
+
+CoM:= {x ∈R3N | 1 N
+
+PN n=1⃗x(n) =⃗0}, and consider the SO(3) action on its “purified” version R3N
+
+CoM◦(removing negligible degenerate cases; see Appx. C.3). The resulting quotient space Q:= R3N
+
+CoM◦/SO(3), as the concrete construction for R3N/SE(3), is a smooth manifold. Each element in Q represents N-point configurations that are equivalent under rigid-body movements; therefore, Q is regarded as the “shape space” reflecting essentially different N-point configurations that differ by deformations. As the manifold R3N
+
+CoM◦ can be embedded in a Euclidean space, and structures of SO(3) are well-established (Appx. C.3), we can derive the explicit expressions for the lifted quotient-space diffusion process (Eq. (8)):
+
+Theorem 4. Assume xt is a diffusion process in a manifold M that can be embedded into a Euclidean space, specified by the SDE: dxt = ft(xt) dt + σt dwt, where ft(xt) is G-equivariant and x0 ∼pprior is G-invariant. Then the lifted quotient-space diffusion process on Q:= M/G onto the total space M is given by:
+
+d˜xt =
+
+P˜xt(ft(˜xt)) −σ2 t 2 ˜h(˜xt)
+
+dt + σtP˜xt dwt, ˜x0 ∼pprior, (9)
+
+where P˜xt dwt can be simulated by projecting the infinitesimal Gaussian sample using P˜xt in each step. Particularly, for the shape space Q:= R3N/SE(3) = R3N
+
+CoM◦/SO(3), the horizontal projection P and the ˜h vector field have the following explicit expressions: for any x = [⃗x(n)]n ∈R3N
+
+CoM◦, which is CoM-free, and any v = [⃗v(n)]n ∈TxR3N
+
+CoM◦, which is momentum-free,
+
+Px(v) = h⃗ v(n) −K(x)−1 XN n′=1⃗x(n′) ×⃗v(n′)
+
+×⃗x(n)i n, and (10)
+
+˜h(x) = h
+
+K(x)−1⃗x(n)−tr(K(x)−1)⃗x(n)i n, where K(x):=
+
+N X n=1
+
+∥⃗x(n)∥2I −
+
+N X n=1⃗ x(n)⃗x(n)⊤∈R3×3, and “×” denotes the cross product in R3.
+
+See Appx. D.3 for proof. On R3N
+
+CoM◦with SO(3) symmetry, a vertical vector is induced from an infinitesimal SO(3) action, leading to a total angular momentum describing a rigid-body rotation without deformation. Correspondingly, a horizontal vector leads to a movement with zero total angular momentum. As a projection onto the horizontal space, Px(v) in Eq. (10) essentially removes the total angular momentum of v, leaving only a deformation without rigid-body rotation; see the end of Appx. D.3 for more physical interpretations. This is analogous to the conventional treatment for T(3) symmetry by removing the total (linear) momentum of v. Together, the lifted process only deforms the point cloud (molecule) without any rigid-body movement, exactly corresponding to a movement on the shape space Q. With the correction of the additional ˜h term (which is horizontal by definition), the process in Eq. (9) produces the same target distribution ptarget (by Cor. 3).
+
+<!-- Page 7 -->
+
+Published as a conference paper at ICLR 2026
+
+## 3.3 TRAINING AND SAMPLING
+
+With the general recipe for constructing a quotient-space diffusion process from a conventional diffusion process in the same space, we can now develop training and sampling methods for a quotient-space diffusion model. We consider the Euclidean total space and a Gaussian prior pprior = N(0, I). A more general case is shown in Appx. E.
+
+We start from the general diffusion process Eq. (3) of conventional diffusion model to generate ptarget = p1 from pprior = p0. With a Gaussian prior and noting Eq. (4), the effective drift term ft(xt) = v(xt, t)+ηts(xt, t) can be expressed using the denoising model Dθ(xt, t) under an affine transformation. The quotient-space diffusion is then given by Eq. (9).
+
+Training objective. With the help of the horizontal projection Px(v), Eq. (9) indicates that only the projected component of ft matters, and ft is allowed to produce an arbitrary output on the vertical space. Since ft and the Dθ(·, t) model differ only in an affine transformation and Px is linear, the same conclusions apply to Dθ(·, t). Therefore, we can modify the original training objective in Eq. (5) to only optimize the projected component:
+
+L(θ):= Ep(t)w(t)Ep(x1,xt)∥Pxt(Dθ(xt, t) −x1)∥2, (11)
+
+where all the time-step weights are subsumed into w(t). We can see that Dθ + vV has the same loss value with Dθ, where vV is an arbitrary vertical vector. So the model does not need to learn anything on the vertical space, corresponding to movement within each equivalence class. This effect fully leverages the symmetry in reducing learning difficulty, as does AF3 alignment, hence could converge faster than using GeoDiff alignment in training, meanwhile AF3 alignment does not have a compatible sampler with the modified learning target (Table 1). This is empirically observed as shown in Fig. G.3.1(Left) in Appx. G.3.
+
+ODE sampler. The original ODE sampler in Eq. (2) corresponds to the case with σt ≡0. By Eq. (9), the corresponding quotient-space diffusion process in the same total space is given by:
+
+dxt dt = Pxt(vθ(xt, t)), where vθ(xt, t) is given by Eq. (4).
+
+SDE sampler. Comparing the original SDE in Eq. (3) and Eq. (9), the lifted quotient-space SDE is:
+
+dxt = Pxt vθ(xt, t) + ηtsθ(xt, t)
+
+dt + ηt˜h(xt) dt + p
+
+2ηtPxt dwt, (12)
+
+where sθ(xt, t) = −xt−βtDθ(xt,t)
+
+ˆα2 t from Sec. 2.1. Details are summarized in Alg. 1 and 3 in Appx. E.
+
+## 3.4 COMPARATIVE ANALYSIS ON EXISTING TREATMENTS FOR SYMMETRY
+
+We now make a detailed analysis on existing methods that handle symmetry, and verify the conclusions in Table 1. In contrast to our quotient-space diffusion, we find that they either have not fully leveraged the symmetry to reduce learning difficulty, or do not have a proper sampler.
+
+Conventional equivariant diffusion models and data augmentation. The common treatment of equivariant diffusion model guarantees the invariance of p(x1) (Sec. 3.1, Para. 1). This can be implemented by either augmenting data samples by applying randomly chosen group actions, mimicking sampling from the invariant distribution, or using an invariant prior distribution and an equivariant architecture securing the equivariance of the model. Training remains the same as Eq. (5), and the standard samplers by Eqs. (2, 3) remain valid. For each value of xt, this objective amounts to let the model minimize ∥Dθ(xt, t) −x1∥2 averaged over x1 ∼p(x1|xt), so the optimal solution is the conditional expectation E[x1|xt].
+
+**Fig. 3.** shows an example for generating the structure of a diatomic molecule, where the target distribution p(x1) concentrates on a single structure x⋆up to a uniform random orientation (a). For a given xt, samples of p(x1|xt) are x⋆structures with orientations distributed around the orientation of xt (b). Indeed, an x1 sample more closely oriented with xt would have a higher probability to produce the given xt, so there is a specific orientation correspondence between the learning target E[x1|xt] and xt. So the model is still asked to learn a correspondence in the equivalent degrees of freedom (DoFs) (i.e., orientations), in contrast to the quotient-space case in Eq. (11) where the model output is unconstrained in the vertical space (i.e., total angular momentum). Moreover, the x1 samples are not all in the orientation of xt because x⋆in other orientations can also generate this xt, so the model learns the orientation correspondence from samples with a variance, leading to another aspect of learning difficulty.
+
+<!-- Page 8 -->
+
+Published as a conference paper at ICLR 2026
+
+**Figure 3.** Illustration of denoising-model learning target using conventional equivariant diffusion, GeoDiff alignment, and AlphaFold 3 (AF3) alignment. (a) The example considers the structure distribution p(x1) of a diatomic molecule, which concentrates on a single structure x⋆up to a uniform random orientation. A xt sample is produced by scaling and adding noise to a x1 sample. (b) For the given xt, equivariant diffusion training asks the model to match x1 samples that distribute with a variance in orientation (the equivalent DoFs). The learning target E[x1|xt] has an orientation correspondence to xt, and is not in the same shape as x⋆(the bond is shorter). (c) Using GeoDiff alignment, all learning samples coincide with x⋆in the orientation of xt (no variance in equivalent DoFs), so is the learning target E[Axt(x1)|xt] (has orientation correspondence), which is different from E[x1|xt] hence mismatches conventional diffusion samplers. (d) Using AlphaFold 3 (AF3) alignment, all learning samples coincide with x⋆in the arbitrary orientation of model output (no variance in equivalent DoFs), so is the learning target, which hence does not ask the model to learn an orientation correspondence to xt, but also mismatches conventional diffusion samplers.
+
+GeoDiff alignment. To reduce the learning difficulty, some heuristic treatments are proposed based on alignment. A representative treatment in GeoDiff (Xu et al., 2022) modifies the training loss into: Ep(x1,xt)∥Dθ(xt, t) −Axt(x1)∥2, where the alignment operation is defined as:
+
+Ay(x):= argminx′∈{g·x|g∈G} ∥x′ −y∥2. (13) The learning task asks Dθ(xt, t) to fit Axt(x1) samples where x1 ∼p(x1|xt), so the learning target becomes E[Axt(x1)|xt]. As illustrated by Fig. 3(c), all the Axt(x1) samples coincide with the x⋆structure in the orientation of xt. So the model learns E[Axt(x1)|xt] from samples with no variance in the equivalent DoFs (i.e., orientation), reducing certain learning difficulty. Nevertheless, this target still requires the model to learn a specific orientation correspondence.
+
+A caveat of this treatment is that using the conventional diffusion samplers is no longer valid, as they require a E[x1|xt] model, which is different (not just in orientation) from E[Axt(x1)|xt] since SO(3) is not a linear space. Fig. 3(b,c) illustrates this difference: E[x1|xt] averages diversely oriented x⋆structures, resulting in a different shape than x⋆(the bond is shorter), while E[Axt(x1)|xt] has the same shape as x⋆(and is oriented following xt).
+
+AF3 alignment. Alphafold 3 (AF3) (Abramson et al., 2024) introduces another alignment treatment by aligning the x1 samples towards the model output: E
+
+Dθ(xt, t) −AD¯ θ(xt,t)(x1)
+
+2, where ¯θ is treated constant in optimization. This loss function allows the model output to vary by an arbitrary group action (e.g., rotation) (Appx. A), hence removes the need to learn a specific target in the equivalent DoFs. Up to this DoF, the learning target is the same as that of GeoDiff E[Axt(x1)|xt], since all the x1 samples are averaged after aligned with the same reference.
+
+Nevertheless, in the sampling process, the arbitrariness in the equivalent DoFs (e.g., orientation) of the model output relative to xt leads to an essential arbitrariness in the vector field vθ(xt, t) through Eq. (4); therefore, there is no guarantee of recovering the target distribution using conventional diffusion samplers. This problem is also noted by Boltz-1 (Wohlwend et al., 2025), which proposes to align the prediction Dθ(xt, t) towards xt in the sampling process. As the AF3 target is the same as that of GeoDiff up to an arbitrary rotation, this amounts to using the GeoDiff model for sampling, which still cannot guarantee producing the target distribution as discussed above.
+
+In contrast, our quotient-space diffusion in Eq. (9) guarantees a valid sampling process through a solid deduction (Cor. 3), while the horizontal projection Px allows the model to have an arbitrary total angular momentum hence reduces learning difficulty. Table 1 summarizes the conclusions.
+
+## 4 EXPERIMENTS
+
+To show the empirical advantages of our quotient-space diffusion model in real-world applications, we consider the molecular structure generation and protein structure generation tasks, both of which models R3N distributions with SE(3) symmetry. See Appx. F for experimental details.
+
+![Figure extracted from page 8](2026-ICLR-quotient-space-diffusion-models/page-008-figure-01.svg)
+
+AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
+
+<!-- Page 9 -->
+
+Published as a conference paper at ICLR 2026
+
+**Table 2.** The effect of the quotient-space diffusion framework for molecular structure generation on the GEOM-QM9 and the GEOM-DRUGS datasets using the ET-Flow(SO(3)) and ET-Flow(O(3)) architectures. Best results are in bold. Best results using the same architecture are underlined.
+
+Datasets Methods
+
+Recall Precision
+
+Coverage (%) ↑ AMR (˚A) ↓ Coverage (%) ↑ AMR (˚A) ↓ mean median mean median mean median mean median
+
+GEOM-QM9 (0.5 ˚A RMSD for coverage)
+
+CGCF 69.47 96.15 0.425 0.374 38.20 33.33 0.711 0.695 GeoDiff 76.50 100.00 0.297 0.229 50.00 33.50 1.524 0.510 GeoMol 91.50 100.00 0.225 0.193 87.60 100.00 0.270 0.241 Torsional Diff. 92.80 100.00 0.178 0.147 92.70 100.00 0.221 0.195 MCF 95.0 100.00 0.103 0.044 93.7 100.00 0.119 0.055
+
+ET-Flow(SO(3)) 95.98 100.00 0.076 0.030 92.10 100.00 0.110 0.047 + GeoDiff alignment 95.71 100.00 0.085 0.040 95.20 100.00 0.098 0.050 + AF3 alignment 92.67 100.00 0.131 0.070 84.38 100.00 0.205 0.146 + Quotient-space diffusion 96.40 100.00 0.069 0.024 93.30 100.00 0.096 0.036
+
+GEOM-DRUGS
+
+(0.75 ˚A RMSD for coverage)
+
+GeoDiff 42.10 37.80 0.835 0.809 24.90 14.50 1.136 1.090 GeoMol 44.60 41.40 0.875 0.834 43.00 36.40 0.928 0.841 Torsional Diff. 72.70 80.00 0.582 0.565 55.20 56.90 0.778 0.729 MCF - S (13M) 79.4 87.5 0.512 0.492 57.4 57.6 0.761 0.715 MCF - B (62M) 84.0 91.5 0.427 0.402 64.0 66.2 0.667 0.605 MCF - L (242M) 84.7 92.2 0.390 0.247 66.8 71.3 0.618 0.530
+
+ET-Flow(O(3)) (8.3M) 79.53 84.57 0.452 0.419 74.38 81.04 0.541 0.470 + reproduction 78.94 84.24 0.489 0.472 66.24 70.42 0.651 0.595 + Quotient-space diffusion 79.86 85.71 0.459 0.433 72.70 79.63 0.565 0.501
+
+ET-Flow(SO(3)) (9.1M) 78.18 83.33 0.480 0.459 67.27 71.15 0.637 0.567 + reproduction 74.91 80.90 0.541 0.515 60.33 62.71 0.724 0.665 + GeoDiff alignment 75.11 80.74 0.545 0.526 59.58 60.48 0.734 0.678 + AF3 alignment 71.66 76.09 0.572 0.570 52.21 50.00 0.828 0.793 + Quotient-space diffusion 78.50 84.20 0.477 0.455 67.35 71.42 0.635 0.563
+
+## 4.1 MOLECULAR STRUCTURE GENERATION
+
+Datasets. Molecular structure generation requires generating the 3D structure of a molecule given its molecular graph. We consider the GEOM-QM9 and GEOM-DRUGS datasets (Axelrod & Gomez- Bombarelli, 2022), which provide a structure ensemble by metadynamics in CREST (Pracht et al., 2024) for each molecule. We follow the same dataset treatments as Hassan et al. (2024).
+
+Settings. We follow the settings of Hassan et al. (2024), adopting the equivariant graph Transformer architecture ET-Flow(SO(3)) with Gaussian prior distribution on GEOM-QM9, and the ET- Flow(O(3)) and ET-Flow(SO(3)) architectures with the harmonic prior on GEOM-DRUGS (Volk et al., 2023). Following existing convention, we report results in metrics based on RMSD, including Coverage (the ratio of test samples lying within a certain RMSD from a reference sample) and Average (over test samples) Minimum (over reference samples) RMSD (AMR), where “recall/precision” takes test samples from dataset/generated and reference samples from generated/dataset.
+
+Results. As shown in Table 2, our quotient-space diffusion framework consistently outperforms prior methods and alignment-based treatments in terms of generation quality,1 due to its merits to reduce learning difficulty by leveraging the symmetry while guaranteeing a correct sampler. On both datasets, our framework significantly improves over the vanilla ET-Flow and outperforms alignmentbased methods, and even surpasses strong baselines such as MCF (Wang et al., 2023) on GEOM- QM9 and achieves competitive precision results with the much larger MCF-L (242M) model (Wang et al., 2023) on GEOM-DRUGS. The alignment-based methods often even degrade the performance, due to the incompatibility between their new learning targets and the samplers. Appx. G.3 verifies the faster training by quotient-space diffusion, and the advantages under other sampling settings.
+
+## 4.2 PROTEIN STRUCTURE GENERATION
+
+Settings. To demonstrate the advantage of our quotient-space diffusion framework for larger and more relevant molecules, we evaluate it on the protein structure generation task and compare it with the state-of-the-art Prote´ına model (Geffner et al., 2025). As a basis for protein design, the task is to learn the aggregated, unconditional (not even on an amino acid sequence) distribution of backbone structures (i.e., coordinates of amino-acid residues) of all valid proteins. For the quotient-space and
+
+1We reproduce the results using the released configurations: https://github.com/ shenoynikhil/ETFlow. Due to changes in the data processing pipeline, our reproduced results do not exactly match those reported in the original paper.
+
+<!-- Page 10 -->
+
+Published as a conference paper at ICLR 2026
+
+**Table 3.** The effect of the quotient-space diffusion framework for protein structure generation using the Prote´ına model. Best results are in bold. Best results under the same settings are underlined.
+
+Settings Methods Designability (%) ↑ FPSD ↓vs. fS ↑in fJSD ↓vs.
+
+PDB AFDB C/A/T PDB AFDB
+
+Representative
+
+## References
+
+FrameDiff 65.4 194.2 258.1 2.46/5.78/23.35 1.04 1.42 FoldFlow (base) 96.6 601.5 566.2 1.06/1.79/9.72 3.18 3.10 FoldFlow (stoc.) 97.0 543.6 520.4 1.21/2.09/11.59 3.69 2.71 FoldFlow (OT) 97.2 431.4 414.1 1.35/3.10/13.62 2.90 2.32 FrameFlow 88.6 129.9 159.9 2.52/5.88/27.00 0.68 0.91 ESM3 22.0 933.9 855.4 3.19/6.71/17.73 1.53 0.98 Chroma 74.8 189.0 184.1 2.34/4.95/18.15 1.00 1.08 RFDiffusion 94.4 253.7 252.4 2.25/5.06/19.83 1.21 1.13 Proteus 94.2 225.7 226.2 2.26/5.46/16.22 1.41 1.37 Genie2 95.2 350.0 313.8 1.55/3.66/11.65 2.21 1.70
+
+SDE Sampling
+
+Prote´ına Msmall
+
+FS, γ = 0.35 96.0 386.5 378.2 1.77/4.97/17.78 2.17 1.73 + Quotient-space diffusion 97.6 274.7 277.1 2.24/6.69/20.99 1.68 1.55 Prote´ına Msmall
+
+FS, γ = 0.45 92.2 332.9 320.4 1.83/5.01/20.22 1.93 1.49 + Quotient-space diffusion 92.6 244.5 246.3 2.24/6.68/23.47 1.43 1.28 Prote´ına Msmall
+
+FS, γ = 0.50 89.2 306.2 290.8 1.86/4.92/21.15 1.81 1.36 + Quotient-space diffusion 90.2 228.0 228.7 2.25/6.59/25.24 1.32 1.17
+
+ODE Sampling
+
+Prote´ına MFS 19.6 85.4 21.4 2.51/5.65/27.35 0.59 0.09 Prote´ına Msmall
+
+FS 13.8 83.2 21.9 2.45/5.63/31.76 0.58 0.12 + AF3 alignment 3.8 229.0 82.4 2.18/4.30/14.28 1.35 0.36 + Quotient-space diffusion 15.6 69.9 17.6 2.57/6.40/32.14 0.41 0.11 alignment-based models, we select the most efficient Prote´ına architecture version Msmall
+
+FS, a 60Mparameter Transformer, and train it from scratch on the FoldSeek AFDB clusters dataset DFS. For evaluation, all of our trained models and the officially released Prote´ına checkpoints generate samples using 400 steps with self-conditioning. We adopt both the structure-level metric of designability, and distributional metrics of FPSD, fS and fJSD measuring the mismatch between generated and reference structure distributions (Geffner et al. (2025); Appx. F.2.5).2 Following the original work, we evaluate the models under a range of designability-diversity trade-offs controlled by the noise scale γ (global scale of ηt in Eq. (12)) in SDE sampling, as well as using ODE sampling.
+
+Results. As shown in Table 3, our quotient-space diffusion models outperform the vanilla Prote´ına model under all the settings and metrics, highlighting the practical advantages in handling the more complicated, higher-dimensional distribution of biomolecule structures. In contrast, the AF3 alignment treatment even degrades the performance significantly in this distributional setting, due to the fundamental incompatibility between its learning target and the sampler. As a practical benefit of reducing learning difficulty, the quotient-space diffusion framework even allows the 60M-parameter model Msmall
+
+FS to surpass the performance of the much larger 200M-parameter model MFS on most metrics. This provides a compelling evidence that the quotient-space diffusion model, ensuring both sampling fidelity and learning efficiency, is the key to advancing generative protein models.
+
+## 5 CONCLUSION
+
+In this work, we formally construct a framework for building diffusion models on the quotient space over a group, as a principled approach to handling symmetry for generative tasks. This is done by first revealing the essential generation process by projecting the conventional equivariant diffusion process onto the quotient space, then pulling it back to the original space so that practical implementation is as easy as the original process. The resulting process updates samples without any intraequivalence-class movement by an explicit projection operator, making simulation easier, and with the derived additional vector field, the process guarantees producing the correct target distribution. Moreover, the projection allows the model to be arbitrary in the subspace of intra-equivalence-class movement, hence reduces learning difficulty by leveraging the symmetry. On this point, we formalize the desire that has been pursued by remarkable prior works including GeoDiff and AlphaFold, whose heuristic alignment-based treatments would distort the generated distribution. On the representative molecular structure generation tasks on R3N with SE(3) symmetry, our quotient-space diffusion framework improves performance universally over conventional diffusion models as well as the alignment-based treatments, demonstrating the practical value of this principled approach for handling and leveraging symmetry.
+
+2Due to a known bug in a previous version of FoldSeek (Daras et al., 2025, Appx. B), we only focus on these metrics in the main text. See Table F.2.2 for results in more comprehensive metrics.
+
+<!-- Page 11 -->
+
+Published as a conference paper at ICLR 2026
+
+## ACKNOWLEDGMENTS
+
+This work is supported by Zhongguancun Academy (Grant No. C20250506). DH is supported by National Science Foundation of China (NSFC62376007), National Science Foundation of China (under Key Project No. 92570203), Beijing Natural Science Foundation (Z250001) and Beijing Major Science and Technology Project under Contract no. Z251100008425004.
+
+## 6 ETHICS STATEMENT
+
+This work adheres to the ICLR Code of Ethics. Our study does not involve human subjects, personal data, or sensitive demographic information. All experiments are conducted on publicly available benchmark datasets, which are widely used in the machine learning community. No new data collection or human/animal experimentation was performed.
+
+## 7 REPRODUCIBILITY STATEMENT
+
+To facilitate the reproducibility of our research, we provide comprehensive details throughout the paper and its supplementary materials. We begin by establishing the necessary foundational knowledge in Sec. 2.1 and Appx. B. For all theoretical claims and proofs presented in the main text, we offer detailed step-by-step derivations in Appx. D. Our experiments are thoroughly documented; the datasets, training procedures, and evaluation protocols are carefully described in Sec. 4 and Appx. F. Upon acceptance of this paper, we commit to making our full codebase and all model checkpoints publicly available to ensure that the community can fully reproduce our results.
+
+## 8 THE USE OF LARGE LANGUAGE MODELS (LLMS)
+
+In the preparation of this manuscript, LLMs were employed as a writing assistant to refine the language and improve the grammar. Furthermore, we utilized LLMs to assist in verifying our mathematical formulas for notational consistency. Following this process, all textual and mathematical content was meticulously reviewed, revised, and validated by the authors, who assume full responsibility for the final work presented.
+
+## REFERENCES
+
+Josh Abramson, Jonas Adler, Jack Dunger, Richard Evans, Tim Green, Alexander Pritzel, Olaf
+
+Ronneberger, Lindsay Willmore, Andrew J Ballard, Joshua Bambrick, et al. Accurate structure prediction of biomolecular interactions with AlphaFold 3. Nature, pp. 1–3, 2024.
+
+Michael S Albergo, Nicholas M Boffi, and Eric Vanden-Eijnden. Stochastic interpolants: A unifying framework for flows and diffusions. arXiv preprint arXiv:2303.08797, 2023.
+
+Jacob Austin, Daniel D Johnson, Jonathan Ho, Daniel Tarlow, and Rianne Van Den Berg. Structured denoising diffusion models in discrete state-spaces. Advances in neural information processing systems, 34:17981–17993, 2021.
+
+Simon Axelrod and Rafael Gomez-Bombarelli. GEOM, energy-annotated molecular conformations for property prediction and molecular generation. Scientific Data, 9(1):185, 2022.
+
+Jan-Hendrik Bastek, WaiChing Sun, and Dennis Kochmann. Physics-informed diffusion models.
+
+In The Thirteenth International Conference on Learning Representations, 2025. URL https: //openreview.net/forum?id=tpYeermigp.
+
+Fabrice Baudoin, Nizar Demni, and Jing Wang. Stochastic areas, horizontal Brownian motions, and hypoelliptic heat kernels. EMS Press, 2024.
+
+Joey Bose, Tara Akhound-Sadegh, Guillaume Huguet, Kilian FATRAS, Jarrid Rector-Brooks,
+
+Cheng-Hao Liu, Andrei Cristian Nica, Maksym Korablyov, Michael M. Bronstein, and Alexander Tong. SE(3)-stochastic flow matching for protein backbone generation. In The Twelfth International Conference on Learning Representations, 2024.
+
+Isaac Chavel. Riemannian geometry: a modern introduction. Number 108. Cambridge university press, 1995.
+
+<!-- Page 12 -->
+
+Published as a conference paper at ICLR 2026
+
+Ricky TQ Chen and Yaron Lipman. Flow matching on general geometries. arXiv preprint arXiv:2302.03660, 2023.
+
+Franc¸ois Cornet, Federico Bergamin, Arghya Bhowmik, Juan Maria Garcia Lastra, Jes Frellsen, and
+
+Mikkel N Schmidt. Kinetic langevin diffusion for crystalline materials generation. arXiv preprint arXiv:2507.03602, 2025.
+
+Giannis Daras, Jeffrey Ouyang-Zhang, Krithika Ravishankar, William Daspit, Costis Daskalakis,
+
+Qiang Liu, Adam Klivans, and Daniel J Diaz. Ambient proteins: Training diffusion models on low quality structures. bioRxiv, pp. 2025–07, 2025.
+
+Valentin De Bortoli, Emile Mathieu, Michael Hutchinson, James Thornton, Yee Whye Teh, and
+
+Arnaud Doucet. Riemannian score-based generative modelling. Advances in neural information processing systems, 35:2406–2422, 2022.
+
+Zach Evans, Cj Carr, Josiah Taylor, Scott H. Hawley, and Jordi Pons. Fast timing-conditioned latent audio diffusion. In Proceedings of the 41st International Conference on Machine Learning, volume 235 of Proceedings of Machine Learning Research, pp. 12652–12665, 2024. URL https://proceedings.mlr.press/v235/evans24a.html.
+
+Octavian Ganea, Lagnajit Pattanaik, Connor Coley, Regina Barzilay, Klavs Jensen, William Green, and Tommi Jaakkola. Geomol: Torsional geometric generation of molecular 3d conformer ensembles. Advances in Neural Information Processing Systems, 34:13757–13769, 2021.
+
+Tomas Geffner, Kieran Didi, Zuobai Zhang, Danny Reidenbach, Zhonglin Cao, Jason Yim, Mario
+
+Geiger, Christian Dallago, Emine Kucukbenli, Arash Vahdat, and Karsten Kreis. Proteina: Scaling flow-based protein structure generative models. In The Thirteenth International Conference on Learning Representations, 2025. URL https://openreview.net/forum?id= TVQLu34bdw.
+
+Majdi Hassan, Nikhil Shenoy, Jungyoon Lee, Hannes St¨ark, Stephan Thaler, and Dominique Beaini.
+
+ET-Flow: Equivariant flow-matching for molecular conformer generation. Advances in Neural Information Processing Systems, 37:128798–128824, 2024.
+
+Thomas Hayes, Roshan Rao, Halil Akin, Nicholas J Sofroniew, Deniz Oktay, Zeming Lin, Robert
+
+Verkuil, Vincent Q Tran, Jonathan Deaton, Marius Wiggert, et al. Simulating 500 million years of evolution with a language model. Science, 387(6736):850–858, 2025.
+
+Jonathan Ho, Ajay Jain, and Pieter Abbeel. Denoising diffusion probabilistic models. In Advances in Neural Information Processing Systems, volume 33, pp. 6840–6851, 2020.
+
+Jonathan Ho, William Chan, Chitwan Saharia, Jay Whang, Ruiqi Gao, Alexey Gritsenko, Diederik P
+
+Kingma, Ben Poole, Mohammad Norouzi, David J Fleet, et al. Imagen video: High definition video generation with diffusion models. arXiv preprint arXiv:2210.02303, 2022.
+
+Emiel Hoogeboom, Vıctor Garcia Satorras, Cl´ement Vignac, and Max Welling. Equivariant diffu- sion for molecule generation in 3d. In International conference on machine learning, pp. 8867– 8887. PMLR, 2022a.
+
+Emiel Hoogeboom, V´ıctor Garcia Satorras, Cl´ement Vignac, and Max Welling. Equivariant diffu- sion for molecule generation in 3D. In Kamalika Chaudhuri, Stefanie Jegelka, Le Song, Csaba Szepesvari, Gang Niu, and Sivan Sabato (eds.), Proceedings of the 39th International Conference on Machine Learning, volume 162 of Proceedings of Machine Learning Research, pp. 8867– 8887. PMLR, 17–23 Jul 2022b.
+
+Elton P Hsu. Stochastic analysis on manifolds. Number 38. American Mathematical Soc., 2002.
+
+Chenqing Hua, Sitao Luan, Minkai Xu, Zhitao Ying, Jie Fu, Stefano Ermon, and Doina Precup.
+
+Mudiff: Unified diffusion for complete molecule generation. In Learning on Graphs Conference, pp. 33–1. PMLR, 2024.
+
+Chin-Wei Huang, Milad Aghajohari, Joey Bose, Prakash Panangaden, and Aaron C Courville. Rie- mannian diffusion models. Advances in Neural Information Processing Systems, 35:2750–2761, 2022.
+
+<!-- Page 13 -->
+
+Published as a conference paper at ICLR 2026
+
+John B Ingraham, Max Baranov, Zak Costello, Karl W Barber, Wujie Wang, Ahmed Ismail, Vincent
+
+Frappier, Dana M Lord, Christopher Ng-Thow-Hing, Erik R Van Vlack, et al. Illuminating protein space with a programmable generative model. Nature, pp. 1–9, 2023.
+
+Bowen Jing, Gabriele Corso, Jeffrey Chang, Regina Barzilay, and Tommi Jaakkola. Torsional dif- fusion for molecular conformer generation. Advances in Neural Information Processing Systems, 35:24240–24253, 2022.
+
+Tero Karras, Miika Aittala, Timo Aila, and Samuli Laine. Elucidating the design space of diffusion- based generative models. Advances in neural information processing systems, 35:26565–26577, 2022.
+
+Seongsu Kim, Nayoung Kim, Dongwoo Kim, and Sungsoo Ahn. High-order equivariant flow match- ing for density functional theory Hamiltonian prediction. arXiv preprint arXiv:2505.18817, 2025.
+
+Jonas K¨ohler, Leon Klein, and Frank No´e. Equivariant flows: exact likelihood generative learning for symmetric densities. In International conference on machine learning, pp. 5361–5370. PMLR, 2020.
+
+Zhifeng Kong, Wei Ping, Jiaji Huang, Kexin Zhao, and Bryan C. Catanzaro. DiffWave: A versatile diffusion model for audio synthesis. In International Conference on Learning Representations (ICLR), 2021. URL https://openreview.net/forum?id=a-xFK8Ymz5J.
+
+John M Lee. Smooth manifolds. In Introduction to smooth manifolds, pp. 1–29. Springer, 2003.
+
+John M Lee. Introduction to Riemannian manifolds, volume 2. Springer, 2018.
+
+Sarah Lewis, Tim Hempel, Jos´e Jim´enez-Luna, Michael Gastegger, Yu Xie, Andrew Y. K. Foong,
+
+Victor Garc´ıa Satorras, Osama Abdin, Bastiaan S. Veeling, Iryna Zaporozhets, Yaoyi Chen, Soojung Yang, Adam E. Foster, Arne Schneuing, Jigyasa Nigam, Federico Barbero, Vincent Stimper, Andrew Campbell, Jason Yim, Marten Lienen, Yu Shi, Shuxin Zheng, Hannes Schulz, Usman Munir, Roberto Sordillo, Ryota Tomioka, Cecilia Clementi, and Frank No´e. Scalable emulation of protein equilibrium ensembles with generative deep learning. Science, 389(6761):eadv9817, 2025. doi: 10.1126/science.adv9817. URL https://www.science.org/doi/abs/10. 1126/science.adv9817.
+
+Xin Li, Wenqing Chu, Ye Wu, Weihang Yuan, Fanglong Liu, Qi Zhang, Fu Li, Haocheng Feng,
+
+Errui Ding, and Jingdong Wang. VideoGen: A reference–guided latent diffusion approach for high definition text-to-video generation. arXiv preprint arXiv:2309.00398, 2023. URL https: //arxiv.org/abs/2309.00398.
+
+Peijia Lin, Pin Chen, Rui Jiao, Qing Mo, Cen Jianhuan, Wenbing Huang, Yang Liu, Dan Huang, and Yutong Lu. Equivariant diffusion for crystal structure prediction. In Forty-first International Conference on Machine Learning, 2024a.
+
+Yeqing Lin, Minji Lee, Zhao Zhang, and Mohammed AlQuraishi. Out of many, one: Designing and scaffolding proteins at the scale of the structural universe with genie 2. arXiv preprint arXiv:2405.15489, 2024b.
+
+Yaron Lipman, Ricky T. Q. Chen, Heli Ben-Hamu, Maximilian Nickel, and Matthew Le. Flow matching for generative modeling. In The Eleventh International Conference on Learning Representations, 2023. URL https://openreview.net/forum?id=PqvMRDCJT9t.
+
+Xingchao Liu, Chengyue Gong, and Qiang Liu. Flow straight and fast: Learning to generate and transfer data with rectified flow. In The Eleventh International Conference on Learning Representations, 2023. URL https://openreview.net/forum?id=XVjTT1nw5z.
+
+Philipp Pracht, Stefan Grimme, Christoph Bannwarth, Fabian Bohle, Sebastian Ehlert, Gereon Feld- mann, Johannes Gorges, Marcel M¨uller, Tim Neudecker, Christoph Plett, et al. Crest—a program for the exploration of low-energy molecular chemical space. The Journal of Chemical Physics, 160(11), 2024.
+
+<!-- Page 14 -->
+
+Published as a conference paper at ICLR 2026
+
+Arne Schneuing, Charles Harris, Yuanqi Du, Kieran Didi, Arian Jamasb, Ilia Igashov, Weitao Du,
+
+Carla Gomes, Tom L Blundell, Pietro Lio, et al. Structure-based drug design with equivariant diffusion models. Nature Computational Science, 4(12):899–909, 2024.
+
+Raghav Singhal, Zachary Horvitz, Ryan Teehan, Mengye Ren, Zhou Yu, Kathleen McKeown, and
+
+Rajesh Ranganath. A general framework for inference-time scaling and steering of diffusion models. In Forty-second International Conference on Machine Learning, 2025. URL https: //openreview.net/forum?id=Jp988ELppQ.
+
+Yang Song, Jascha Sohl-Dickstein, Diederik P Kingma, Abhishek Kumar, Stefano Ermon, and Ben
+
+Poole. Score-based generative modeling through stochastic differential equations. In International Conference on Learning Representations, 2021.
+
+Anton Thalmaier. Stochastic riemannian geometry. 2023.
+
+Jos Torge, Charles Harris, Simon V Mathis, and Pietro Lio. Diffhopp: A graph diffusion model for novel drug design via scaffold hopping. arXiv preprint arXiv:2308.07416, 2023.
+
+Amanda A Volk, Robert W Epps, Daniel T Yonemoto, Benjamin S Masters, Felix N Castellano,
+
+Kristofer G Reyes, and Milad Abolhasani. AlphaFlow: autonomous discovery and optimization of multi-step chemistry using a self-driven fluidic lab guided by reinforcement learning. Nature Communications, 14(1):1403, 2023.
+
+Chentong Wang, Yannan Qu, Zhangzhi Peng, Yukai Wang, Hongli Zhu, Dachuan Chen, and Longx- ing Cao. Proteus: exploring protein structure generation for enhanced designability and efficiency. bioRxiv, pp. 2024–02, 2024.
+
+Yuyang Wang, Ahmed A Elhag, Navdeep Jaitly, Joshua M Susskind, and Miguel Angel
+
+Bautista. Swallowing the bitter pill: Simplified scalable conformer generation. arXiv preprint arXiv:2311.17932, 2023.
+
+Joseph L Watson, David Juergens, Nathaniel R Bennett, Brian L Trippe, Jason Yim, Helen E Eise- nach, Woody Ahern, Andrew J Borst, Robert J Ragotte, Lukas F Milles, et al. De novo design of protein structure and function with RFdiffusion. Nature, 620(7976):1089–1100, 2023.
+
+Jeremy Wohlwend, Gabriele Corso, Saro Passaro, Noah Getz, Mateo Reveiz, Ken Leidal, Wojtek
+
+Swiderski, Liam Atkinson, Tally Portnoi, Itamar Chinn, et al. Boltz-1 democratizing biomolecular interaction modeling. BioRxiv, pp. 2024–11, 2025.
+
+Lemeng Wu, Chengyue Gong, Xingchao Liu, Mao Ye, and Qiang Liu. Diffusion-based molecule generation with informative prior bridges. Advances in neural information processing systems, 35:36533–36545, 2022.
+
+Minkai Xu, Shitong Luo, Yoshua Bengio, Jian Peng, and Jian Tang. Learning neural generative dynamics for molecular conformation generation. arXiv preprint arXiv:2102.10240, 2021.
+
+Minkai Xu, Lantao Yu, Yang Song, Chence Shi, Stefano Ermon, and Jian Tang. GeoDiff: A geo- metric diffusion model for molecular conformation generation. In International Conference on Learning Representations, 2022.
+
+Minkai Xu, Alexander S Powers, Ron O Dror, Stefano Ermon, and Jure Leskovec. Geometric latent diffusion models for 3d molecule generation. In International Conference on Machine Learning, pp. 38592–38610. PMLR, 2023.
+
+Jason Yim, Andrew Campbell, Andrew YK Foong, Michael Gastegger, Jos´e Jim´enez-Luna, Sarah
+
+Lewis, Victor Garcia Satorras, Bastiaan S Veeling, Regina Barzilay, Tommi Jaakkola, et al. Fast protein backbone generation with se (3) flow matching. arXiv preprint arXiv:2310.05297, 2023a.
+
+Jason Yim, Brian L Trippe, Valentin De Bortoli, Emile Mathieu, Arnaud Doucet, Regina Barzilay, and Tommi Jaakkola. SE(3) diffusion model with application to protein backbone generation. In International Conference on Machine Learning, pp. 40001–40039, 2023b.
+
+<!-- Page 15 -->
+
+Published as a conference paper at ICLR 2026
+
+Shuxin Zheng, Jiyan He, Chang Liu, Yu Shi, Ziheng Lu, Weitao Feng, Fusong Ju, Jiaxi Wang,
+
+Jianwei Zhu, Yaosen Min, He Zhang, Shidi Tang, Hongxia Hao, Peiran Jin, Chi Chen, Frank No´e, Haiguang Liu, and Tie-Yan Liu. Predicting equilibrium distributions for molecular systems with deep learning. Nature Machine Intelligence, 2024. ISSN 2522-5839. doi: 10.1038/ s42256-024-00837-3.
+
+Yuchen Zhu, Tianrong Chen, Lingkai Kong, Evangelos A Theodorou, and Molei Tao. Trivialized momentum facilitates diffusion generative modeling on lie groups. arXiv preprint arXiv:2405.16381, 2024.
+
+<!-- Page 16 -->
+
+Published as a conference paper at ICLR 2026
+
+## APPENDIX
+
+The organization of the appendix are as follows. In Appx. A, we briefly discuss the related work relevant to our research. In Appx. B, we review some background knowledge of Riemannian geometry and stochastic calculus on the manifold. In Appx. C, we give the details of the Riemannian structures of the quotient space. In Appx. D, we give all the proofs of the theorems in the main text. In Appx. E, we extend our methods to more general cases. Appx. F details experimental settings, and finally Appx. G provides additional experimental results and methodological discussions.
+
+A RELATED WORK
+
+Diffusion models on Riemannian manifolds. As the quotient has the Riemannian manifold structure, several previous works construct the diffusion model on the Riemannian manifolds. De Bortoli et al. (2022) constructs diffusion models using different overlapping local coordinate systems of the manifold and requires geodesic random walk to simulate the forward process. Huang et al. (2022); Chen & Lipman (2023) construct diffusion models in an embedding space which allows a global representation but requires explicit geodesic formula of the manifold. Zhu et al. (2024) constructs the reverse of kinetic Langevin dynamics on a Lie group to perform generative modeling. Such an approach is not designed for and not readily applicable to the quotient space, which has a different geometric structure from the Lie group. In our quotient space case, the specialty with a quotient structure enables us to construct diffusion models using the coordinate systems of the total space without relying on an embedding of the quotient in the total space (unnecessarily an embedding space), which is more practical to implement yet still general.
+
+Geometric diffusion models. To ensure physical symmetry in the generation process, a mainstream strategy integrates fundamental physical constraints, such as SE(3) equivariance, directly into the diffusion-model architecture. This approach, pioneered by models like EDM (Hoogeboom et al., 2022a), typically employs an EGNN to operate directly on atomic coordinates, using techniques like zero center of mass adjustments to guarantee translational invariance. This foundational concept was subsequently extended in several directions. For instance, the approach was adapted for Diffusion Bridges in models like EDM-Bridge (Wu et al., 2022) and for diffusion in a latent space in models like GeoLDM (Xu et al., 2023). These equivariant diffusion techniques have been successfully applied across a range of molecular tasks. For structure generation, models like GeoDiff (Xu et al., 2022) predict 3D structures from molecular graphs. In molecular optimization, methods such as DiffHopp (Torge et al., 2023) refine existing molecules to enhance desired properties. For de novo design, a key advancement has been to combine discrete diffusion models (D3PM) (Austin et al., 2021) for 2D topology with continuous equivariant diffusion for 3D geometry, enabling joint generation as seen in models like DiffSBDD (Schneuing et al., 2024) and MUDiff (Hua et al., 2024). A similar problem has also been considered in crystalline structure generation, where the intrinsic periodic translation invariance is an intrinsic symmetry. Lin et al. (2024a) highlighted the intrinsic periodic translation symmetry that has been omitted for a long time in the field of periodic crystalline structure generation. The work designed a modified diffusion process that induces a transition kernel that is invariant under periodic translation, leading to a learning target for the score model that is invariant under periodic translation. Cornet et al. (2025) proposes a novel method that generalizes the Trivialized Diffusion Model framework for fractional coordinates to model the intrinsic periodic translation symmetry using flat coordinates. The proposed method considers the process with the velocity restricted to the CoM-free linear subspace. They have achieved the removal of variance on equivalent DoFs, but still asks the neural network model to learn to predict a specific target in the equivalent DoFs.
+
+Learning with alignment To reduce learning difficulty, some heuristic treatments (learning with alignment) have been proposed in hope to reduce the DoFs corresponding to the symmetry group action. The alignment strategy used in GeoDiff (Xu et al., 2022) aligns the target structure to the noisy input by finding an optimal rigid transformation that minimizes the distance between them.
+
+Another approach, proposed in AlphaFold 3 (AF3) (Abramson et al., 2024), aligns the target samples to the model output structure: E
+
+Dθ(xt, t) −AD¯ θ(xt,t)(x1)
+
+2, where ¯θ is treated constant in optimization. This loss function allows the model output to differ by an arbitrary group action (e.g., rotation). Indeed, for an arbitrary group action gxt,t, a new denoising model gxt,t · Dθ(xt, t)
+
+<!-- Page 17 -->
+
+Published as a conference paper at ICLR 2026 achieves the same loss since ∥gxt,t · Dθ(xt, t) −Agxt,t·D¯ θ(xt,t)(x1)∥2 = ∥gxt,t · Dθ(xt, t) −gxt,t · AD¯ θ(xt,t)(x1)∥2 = ∥Dθ(xt, t) −AD¯ θ(xt,t)(x1)∥2, where the last equality holds since the group preserves metric. As discussed in the main text, these two alignment-based training frameworks lack a definite guarantee for recovering the correct target distribution, and is incompatible with the sampling process.
+
+Boltz-1 (Wohlwend et al., 2025), an open-source replication of AF3, noticed this issue and proposed a modification in sampling to align the denoised structure to the structure in the current generation step before updating. Nevertheless, as discussed in Sec. 3.4, this, together with the training protocol of AF3, amounts to the operation of GeoDiff, still questioning the sampling process.
+
+B BACKGROUND IN RIEMANNIAN GEOMETRY AND STOCHASTIC CALCULUS
+
+B.1 RIEMANNIAN GEOMETRY
+
+In this section, we review some background on differential geometry and Riemannian geometry. For a systematic treatment of the subject, please refer to standard textbooks Lee (2003; 2018).
+
+First, we give the formal definition of the smooth manifold. A manifold is a general topological space that locally has a Euclidean structure. Definition B.1.1. An M-dimensional topological manifold is a topological space M such that:
+
+• M is locally Euclidean, i.e. locally homeomorphic to RM. Formally, ∀x ∈M,3 there exists an open neighborhood x ∈U ⊂M that is homeomorphic to some open set V ⊂M. We call the homeomorphism ϕ: U →V ⊂RM a coordinate system or a chart.
+
+• M is a Hausdorff topological space.
+
+• M has a countable basis for its topology.
+
+A smooth manifold is a topological manifold with an additional smooth structure, which is defined as follows. Definition B.1.2. A smooth structure on a M-dimensional topological space M is a collection of coordinate systems C = {(U(α), ϕ(α)): α ∈A} which satisfies the following properties:
+
+• The collection C covers M: S α∈A U(α) = M;
+
+• For any α, β ∈A, the transition function ϕ(α) ◦ϕ(β)−1 is a smooth map;
+
+• C is a maximal collection, i.e. if (U, ϕ) is a coordinate system such that for all α ∈A that the maps ϕ ◦ϕ(α)−1 and ϕ(α) ◦ϕ−1 are smooth, then (U, ϕ) ∈C.
+
+The pair (M, C) is called a smooth manifold of dimension M.
+
+If there is a coordinate system (U, ϕ) around a point x ∈M, then in this neighborhood of x, the manifold admits a coordinate chart xi(x):= ϕi(x) and a manifold point in the neighborhood can be expressed as a vector x(x) = (x1(x), · · ·, xM(x))⊤.
+
+With the smooth structure, we can define a smooth function on the manifold and a smooth mapping between smooth manifolds. Definition B.1.3. Let M, N be smooth manifolds with dimensions M, N respectively.
+
+• A function f: M →R is called a smooth function if its vectorized form f ◦ϕ−1: ϕ−1(U) →R is smooth on ϕ−1(U) ⊂RM for all smooth coordinate systems (U, ϕ) of M. Denote all the smooth functions on M as C∞(M).
+
+• A map F: M →N is called a smooth map if its vectorized form ψ◦F ◦ϕ−1: ϕ−1(U) → ψ(V) is smooth for all smooth coordinate systems (U, ϕ) of M and (V, ψ).
+
+3On an abstract manifold, a point is an abstract object and may not be a vector by itself, so we do not use a boldface notation. A vector representation as the coordinates is available after choosing a (local) coordinate system.
+
+<!-- Page 18 -->
+
+Published as a conference paper at ICLR 2026
+
+A smooth map F: M →N which is invertible and whose inverse is smooth is called a diffeomorphism. In this case we say that M and N are diffeomorphic manifolds.
+
+To define movement on a smooth manifold M, we need to define tangent vectors on the manifold.
+
+Definition B.1.4. Let M be a smooth manifold, and x ∈M is a point, and U is a neighborhood of it. A linear map v: C∞(U) →R is called a derivative at x if it satisfies v(fg) = f(x)v(g) + g(x)v(f), ∀f, g ∈C∞(U).
+
+The set of all the derivatives of C∞(U) in x, denoted by TxM, is a vector space called the tangent space to M at x. An element of TxM is called a tangent vector at x.
+
+Definition B.1.5. Let M, N be smooth manifolds and F: M →N be a smooth map. Let x ∈M and V ⊆N be a neighborhood of F(x). Then F induces a push-forward map over the tangent spaces, F∗x: TxM →TF (x)N, is defined as:
+
+F∗x(v)(f):= v(f ◦F), ∀f ∈C∞(V), v ∈TxM.
+
+When a coordinate system (U, ϕ) around x and (V, ψ) around F(x) are chosen, the coordinate expression for F∗x is just the Jacobian matrix of its vectorized form ψ ◦F ◦ϕ−1, i.e., ∇(ψ ◦F ◦ ϕ−1)(x). So F∗is also called the differential of F and also admits the notation dF.
+
+The tangent bundle TM of a smooth manifold M is the union of the tangent spaces of each points, i.e. TM:= F x∈M TxM. Similar to the total derivative of the smooth map in Euclidean space, the differential of a smooth map between smooth manifolds is a linear map between tangent spaces.
+
+A vector field v on a smooth manifold M is a correspondence that associates to each point x ∈M a vector vx ∈TxM. The vector field is smooth if the mapping v: M →TM is smooth. Denote all the smooth vector fields on M by X (M). With the definition of a vector field, we can define the solution of ordinary differential equation (ODE) on the manifold. The idea is similar to the definition in Euclidean space, the solution of the ODE is a curve whose velocity at each point is the same as the vector field.
+
+Definition B.1.6. Let v be a smooth vector field on the smooth manifold M. An integral curve of v is a differentiable curve γ: [0, T] →M whose velocity at each point is equal to the value of v at that point:
+
+˙γt = vγt, ∀t ∈[0, T].
+
+Definition B.1.7. A 1-form Θ on smooth manifold M is a correspondence that associates to each point x ∈M a covector Θx ∈T ∗ xM. The 1-form is smooth if the mapping Θ: M →T ∗M is smooth. The cotangent space T ∗ xM of M at x is defined as the dual space of TxM. The cotangent bundle T ∗M is the union of the cotangent space of each points, i.e., T ∗M:= F p∈M T ∗ xM.
+
+A smooth manifold only has a topological structure. If we want to define concepts like the “length of the velocity” and distance between two points on the manifold, a metric on the tangent space is required. Such a metric endows the metric with an additional geometry structure. The formal definitions are as follows.
+
+Definition B.1.8. A Riemannian metric on a smooth manifold is a correspondence which associates to each point p of M an inner product ⟨·, ·⟩x that varies smoothly on M. In other words, for any two smooth vector fields u, v, ⟨u, v⟩is a smooth function on M. A smooth manifold with a given Riemannian metric is called a Riemannian manifold.
+
+To define the ”difference” between tangent space at different points, we need to introduce a concept called affine connection.
+
+Definition B.1.9. An affine connection ∇on a Riemannian manifold is a mapping
+
+∇: X (M) × X (M) →X (M)
+
+which is denoted by (u, v) →∇uv which satisfies the following properties:
+
+• ∇uv is linear over C∞(M) in u: ∀f (1), f (2) ∈C∞(M) and u(1), u(2) ∈X (M),
+
+∇f (1)u(1)+f (2)u(2)v = f (1)∇u(1)v + f (2)∇u(2)v;
+
+<!-- Page 19 -->
+
+Published as a conference paper at ICLR 2026
+
+• ∇uv is linear over R in v: ∀a(1), a(2) ∈R and v(1), v(2) ∈X (M),
+
+∇u(1)(a(1)v(1) + a(2)v(2)) = a(1)∇uv(1) + a(2)∇uv(2);
+
+• ∇satisfies the following product rule: ∀f ∈C∞(M),
+
+∇u(fv) = f∇uv + (uf)v.
+
+A connection is called the Levi-Civita connection if satisfies the following additional properties:
+
+• ∇is compatible with metric: ∇u v(1), v(2)
+
+=
+
+∇uv(1), v(2)
+
++ v(1), ∇uv(2)
+
+;
+
+• ∇is torsion-free: ∇uv −∇vu = u(v(·)) −v(u(·)).
+
+The Levi-Civita connection is the connection with nice properties. Its existence and uniqueness is a fundamental result of Riemannian geometry.
+
+Theorem B.1.10. (Fundamental Theorem of Riemannian Geometry (Lee, 2018, Thm. 5.10)) Assume (M, ⟨·, ·⟩) is a Riemannian manifold. Then there exists a unique Levi-Civita connection.
+
+As the end of this subsection, we introduce the Laplace-Beltrami operator on the manifold, which is used to define the Wiener process on the manifold.
+
+Definition B.1.11. Let ∇be the Levi-Civita connection on the Riemannian manifold (M, ⟨·, ·⟩). The Hessian of f ∈C∞(M) is then defined by:
+
+Hess(f)(u, v):= v(u(f)) −(∇vu)(f), ∀u, v ∈X (M).
+
+The Laplace-Beltrami operator ∆is defined as the trace of Hessian. In other words, ∆f:= PM i=1 Hess(ei, ei) where {e1,..., eM} is an orthonormal basis for TxM.
+
+B.2 STOCHASTIC CALCULUS ON A MANIFOLD
+
+With the Riemannian structure defined in the previous section, we can consider the definition of stochastic differential equations (SDE) and diffusion processes on the manifold. For a systematic treatment of the subject, please refer to standard textbooks Hsu (2002); Thalmaier (2023). First, we recall the definition of SDE and diffusion process in Euclidean space.
+
+Definition B.2.1. The infinitesimal generator of a stochastic process (xt)t for a function ϕ(x) is
+
+Ltϕ(x) = lim s→0+
+
+E[ϕ(xt+s)|xt = x] −ϕ(x)
+
+s, where ϕ is a suitably regular function. For an Itˆo process defined as the solution to the SDE dxt = f(xt, t) dt + Σ(xt, t) dwt, the generator is
+
+Lt =
+
+D X i=1 f i(x, t)∂i + 1
+
+2
+
+D X i,j=1
+
+Σ(x, t)Σ(x, t)⊤ ij ∂i∂j.
+
+On the other hand, the diffusion process can also be defined by its generator.
+
+Definition B.2.2. A D-dimensional stochastic process xt with continuous sample path defined on a probability space (Ω, F, P) is called a diffusion process generated by a smooth second-order elliptic operator Lt if the following hold: ∀f ∈C∞(RD), the process
+
+M f t = f(xt) −f(x0) −
+
+Z t
+
+## 0 Lsf(xs) ds
+
+is a Ft-martingale.
+
+To generalize the definition of SDE to a Riemannian manifold M, we need to define the secondorder differential operator on the manifold. Let M be an M-dimensional Riemannian manifold. A second-order partial differential operator on M is of the form
+
+L = v(0) +
+
+R X k=1 v(k)2, where v(k) ∈X (M),
+
+<!-- Page 20 -->
+
+Published as a conference paper at ICLR 2026 for some R ∈N+. The square of a vector field is understood as the decomposition of derivatives:
+
+v(k)2(f):= v(k)(v(k)(f)), ∀f ∈C∞(M).
+
+The vector fields can be generalized to the time-dependent case. Now we can extend the definition of a diffusion process on a Riemannian manifold. Definition B.2.3. (Thalmaier, 2023, Def. 1.1.3) Let (Ω, F, P; (F)t⩾0) be a probability space equipped with increasing sequence of sub-σ-algebra Ft ⊆F. An adapted continuous process xt taking values in M, is called Lt-diffusion if for all test functions f ∈C∞ c (M), the process
+
+N f t:= f(xt) −f(x0) −
+
+Z t
+
+0 (Lsf)(xs) ds, t ⩾0, is a martingale, i.e. E[N f t −N f s | Fs] = 0, ∀s ⩽t.
+
+For a special case, we can define the Wiener process on the Riemannian manifold M. Definition B.2.4. The Wiener process wt on M is a diffusion process with generator 1
+
+2∆, where ∆ is the Laplace-Beltrami operator on the Riemannian manifold (M, ⟨·, ·⟩) (Def. B.1.11); i.e. wt is a continuous stochastic process on M such that for any f ∈C∞(M), f(xt) −1
+
+2
+
+Z t
+
+0 ∆f(ws) ds, is a local martingale up to a valid time period.
+
+For stochastic differential geometry, the Stratonovitch integral is more convenient than the Itˆo Integral. The Stratonovitch differential effectively subsumes the deterministic second-order effect of the Wiener process from the quadratic variation into the drift term, so that it satisfies the ordinary chain rule of calculus. This property enables a clear correspondence between the diffusion process under a diffeomorphism between two Riemannian manifolds. Next, we give the definition of the Stratonovitch integral on the Euclidean space and its generalization to Riemannian manifolds. Definition B.2.5. For continuous real-valued semimartingales x and y, let x◦dy:= x dy+ 1
+
+2d[x, y] be the Stratonovitch differential. Here x dy is the usual Itˆo differential, and d[x, y]:= dxdy is the quadratic co-variation of x and y. The integral
+
+Z t
+
+0 x ◦dy =
+
+Z t
+
+0 xdy + 1
+
+2d[x, y]t is called the Stratonovitch integral of x with respect to y. Proposition B.2.6. (Itˆo-Stratonovitch formula (Thalmaier, 2023, Prop. 1.2.10)). Let x be a continuous RD-valued semimartingale and f ∈C∞(RD). Then df(x) = ⟨∇f(x), ◦dx⟩.
+
+The Itˆo-Stratonovitch formula shows the advantage of the Stratonovich differential: it satisfies the usual chain rule of classical calculus. So at least formally, classical differential calculus can be applied in calculations involving Stratonovich differentials. Proposition B.2.7. (Thalmaier, 2023, Prop. 1.2.11) Solutions to the Stratonovitch SDE dxt = f(xt, t) dt + Σ(xt, t) ◦dwt (B.2.1)
+
+define L-diffusions for the operator
+
+L = v(0) + 1
+
+2
+
+D X k=1 v(k)2, where v(0) = f, v(k) =
+
+D X i=1
+
+Σi k∂i.
+
+From this result, we can see that Eq. (B.2.1) describes the same diffusion process as the following Itˆo SDE:
+
+dxt = f(xt, t) + 1
+
+2
+
+D X k=1 v(k)
+
+∗(v(k))
+
+dt + Σ(xt, t) dwt, where v(k)
+
+∗(v(k)):= PD i,j=1 v(k)j(∂jv(k)i)∂i.
+
+Now we can generalize the definition of SDE to the Riemannian manifold case. An SDE on manifold M can be defined by vector fields v(0), v(1),..., v(M) on M. Let w be the RM-valued Wiener
+
+<!-- Page 21 -->
+
+Published as a conference paper at ICLR 2026 process and x0 be an M-valued random variable serving as the initial value of the solution. The equation is symbolically written as dxt = v(0)(xt, t) dt +
+
+D X k=1 v(k)(xt, t) ◦dwk t. (B.2.2)
+
+Definition B.2.8. An M-valued semimartingale xt defined up to a proper stopping time τ is a solution to the SDE Eq. (B.2.2) up to τ if for all f ∈C∞(M), f(xt) = f(x0) +
+
+Z t
+
+0 v(0)(f)(xs, s) ds +
+
+D X k=1 v(k)(f)(xs, s) ◦dwk t
+
+!
+
+, 0 ⩽t < τ.
+
+Proposition B.2.9. (Thalmaier, 2023, Cor. 1.2.19) Let L = v(0) + 1
+
+2 PD k=1 v(k)2 and xt be the solution to the SDE Eq. (B.2.2). Then for all f ∈C∞(M),
+
+N f t:= f(xt) −f(x0) −
+
+Z t
+
+0 (Lsf)(xs)ds, t ⩾0, is a martingale. In other words, the solution of SDE Eq. (B.2.2) is a L diffusion to the operator L = v(0) + 1
+
+2 PD k=1 v(k)2.
+
+C LIE GROUP AND QUOTIENT SPACE
+
+In this section, we formally describe the Lie group and rigorously construct the quotient space as a manifold. Please refer to the standard textbooks Lee (2018) for details in the systematic treatment.
+
+C.1 LIE GROUP AND ITS ACTION ON A MANIFOLD
+
+With the definition of a smooth manifold, we first define the concept of Lie group as a continuous group with good properties.
+
+Definition C.1.1. A Lie group is a smooth manifold G that is also a group with the property that the multiplication map G × G →G, (g, h) 7→g · h and the inversion map G →G, g 7→g−1 are both smooth.
+
+Define the left multiplication mapping Lg(h) = gh, which is introduced to differentiate g as a Liegroup element and as an action on a group element. A vector field v on G is said to be left-invariant if it is invariant under all left multiplications, i.e. (Lg)∗g′(vg′) = vgg′.
+
+Certain vector fields on a Lie group have an algebraic structure called the Lie algebra. We first give the general axiomatic definition.
+
+Definition C.1.2. A Lie algebra is a vector space g endowed with a map called the Lie bracket [·, ·]: g × g →g that satisfies the following properties for all X, Y, Z ∈g:
+
+• Bilinearity: ∀a, b ∈R,
+
+[aX + bY, Z] = a[X, Z] + b[Y, Z], [Z, aX + bY ] = a[Z, X] + b[Z, Y ];
+
+• Antisymmetry: [X, Y ] = −[Y, X];
+
+• Jacobi Identity: [X, [Y, Z]] + [Y, [Z, X]] + [Z, [X, Y ]] = 0.
+
+All the smooth left-invariant vector fields on a Lie group G form a Lie algebra g, called the Lie algebra of G. It has the same dimension as G. Importantly, left-invariant vector fields are isomorphic to the tangent space at the identity, TeG, which is also identified as the Lie algebra g of the Lie group G.
+
+Example C.1.3. The Lie algebra of the group SO(3), denoted by so(3), is given by all the 3dimensional antisymmetric matrices so(3) = {A ∈R3×3 | A + A⊤= 0}.
+
+A Lie group typically represents a set of transformations on a state space M of interest. We formally define this as the group action. In the following, assume that the total space M is a Riemannian manifold and G is a compact Lie group.
+
+<!-- Page 22 -->
+
+Published as a conference paper at ICLR 2026
+
+Definition C.1.4. Let G be a group and M is a Riemannian manifold. A (left) group action of G on M is a map G × M →M, (g, x) 7→g · x, satisfying g1 · (g2 · x) = (g1g2) · x and e · x = x, ∀g1, g2 ∈G, x ∈M. An action is smooth if its defining map G × M →M is smooth. We also reload the notation Lg(x):= g · x for distinguishing g as an element from as a transformation on the manifold.
+
+In the case where the Lie group acts on a Riemannian manifold, to draw meaningful conclusions, we would expect some compatibility between group action and the Riemannian metric, which is the concept of an isometric action. Moreover, to ensure the topological structure of the quotient space so as to define useful constructions on the quotient space, concepts of a free action and proper action are introduced. Definition C.1.5. (1) A smooth action is said to be an isometric action if the map Lg: M → M, x 7→g · x is an isometry for any g ∈G, i.e.,
+
+⟨u, v⟩x = ⟨(Lg)∗x(u), (Lg)∗x(v)⟩g·x. (C.1.1)
+
+(2) A smooth action is said to be free if for any x ∈M, g · x = x indicates g = e. (3) A smooth action is said to be proper if the map G × M →M × M, (g, x) 7→(g · x, x) is a proper map, meaning that the preimage of every compact set is compact.
+
+For the properness, there is a convenient characterization. Proposition C.1.6. (Lee, 2018, Prop. C.15) Assume G is a Lie group acting smoothly on the smooth manifold M. The action is proper if and only if the following condition is satisfied: if {p(n)}n is a sequence in M and {g(n)}n is a sequence in G such that both {p(n)}n and {g(n) · p(n)}n converge, then a subsequence of {g(n)}n converges. Particularly, every smooth action by a compact Lie group on a smooth manifold is proper.
+
+C.2 CONSTRUCTION OF THE QUOTIENT SPACE
+
+The group action typically represents a symmetry in the sense that points that can be transformed to each other by a group action are regarded as symmetric, i.e., they are equivalent. Therefore, we can define an equivalence relation ∼on M as x ∼x′ if ∃g ∈G, x′ = g · x. The equivalence class with representative x is defined as the set of all points that are equivalent to x. The quotient space Q:= M/G (as a set) is defined under this equivalence relation, which consists of equivalence classes under the relation ∼. The original space M is referred to as the total space. There is a natural mapping called projection that connects the total space and the quotient space, which maps any x ∈M to the equivalence class it represents. In this case where the equivalence is defined by a Lie group, the projection mapping can be written as:
+
+π: M →Q, π(x):= {g · x | g ∈G}.
+
+Due to this expression, the equivalence class in such a case is the orbit of the Lie group G at x. Therefore, it can be understood that an equivalence class is a “representation” (literal meaning; not the mathematical concept) of the Lie group, hence can also adopt manifold structures of G under the mentioned “good” conditions. Also, the (M, Q, π) structure forms a fiber bundle, in which context the equivalence class is also called a fiber at π(x), and this special fiber bundle induced from a Lie group action is called a principal G-bundle.
+
+Moreover, under certain conditions, the quotient space inherits the Riemannian structure of the total space M through the projection mapping. Theorem C.2.1. (Lee, 2018, Cor. 2.29) Let M be a Riemannian manifold, and G be a Lie group acting smoothly, freely, properly, and isometrically on M. Then the quotient space Q:= M/G has a unique smooth manifold structure and Riemannian metric such that π is a Riemannian submersion.
+
+We will assume the conditions, i.e., G is a Lie group acting smoothly, freely, properly, and isometrically on M, in the following development. Given that Q is a smooth manifold, the projection mapping induces a linear mapping π∗between the tangent spaces of the two manifolds. It introduces more structures in the total space M. In each tangent space TxM, we can define a subspace of it, called the vertical space, by the kernel of π∗:
+
+Vx:= Ker π∗x.
+
+By this definition, tangent vectors in the vertical space can be understood that it does not move x in a way that alters the projection onto Q by π, so the movement stays within the equivalence class. The
+
+<!-- Page 23 -->
+
+Published as a conference paper at ICLR 2026 vertical space can then be understood as the tangent space of the equivalence class. As mentioned above, in this case where the quotient space is induced from the Lie group G, the equivalence class is a “representation” of the Lie group, hence the vertical space is a “mirror” of the tangent space of the Lie group, which is in turn isomorphic to the Lie algebra g of the Lie group G.
+
+To complete the whole tangent space, a concept of horizontal space Hx is expected. In general, the horizontal space Hx is a linear subspace of TxM that makes up TxM by direct sum with Vx:
+
+TxM = Vx ⊕Hx.
+
+Under this direct-sum construction, any tangent vector v ∈TxM can then be uniquely decomposed into the vertical and horizontal components, v = vV +vH. Correspondingly, a vector field on M is called a vertical/horizontal vector field if it takes a vertical/horizontal tangent vector at every point. Every smooth vector field v on M can be expressed uniquely in the form v = vV +vH, where both the vertical and horizontal vector fields are smooth (Lee, 2018, Prop. 2.25). For future reference, we assign a convenient notation to the horizontal projection within TxM itself:
+
+Px(v):= vH, ∀v ∈TxM.
+
+Nevertheless, the horizontal space Hx as a subspace that makes up the tangent space TxM by the direct sum with Vx is not unique. Therefore, a smooth correspondence from x to such an Hx is an independent structure, referred to as the “connection” in the fiber-bundle context. In the current specific case where M endows a Riemannian structure, we can uniquely define the horizontal space as the orthogonal complement under the inner product in the tangent space:
+
+Hx:= V
+
+⊥(TxM,⟨·,·⟩x) x, (C.2.1)
+
+which gives a canonical “connection”.
+
+As would be expected, in contrast to vertical tangent vectors, a horizontal tangent vector represents a movement through different equivalence classes, corresponding to a movement on the quotient space Q. Therefore, we can construct the concept of horizontal lift which establishes a correspondence from a vector field on Q to a horizontal vector field on M. Definition C.2.2. Given a vector field u on Q, a vector field ˜u on M is called a horizontal lift of u, if ˜u is a horizontal vector field, i.e., ˜ux ∈Hx for all x ∈M, and ˜u is π-related to u by π∗x(˜ux) = uπ(x). Proposition C.2.3. (Lee, 2018, Prop. 2.25) Given a smooth connection x 7→Hx and assuming π: M →Q is a smooth submersion, every smooth vector field on Q always has a unique smooth horizontal lift to M.
+
+If the connection is induced from the Riemannian structure of M by Eq. (C.2.1) and if the group action is isometric, then a nice compatibility can be derived. For a quotient-space tangent vector u ∈TyQ at some y ∈Q, consider two ways to construct a tangent vector at some point x ∈ π−1(y) in the equivalence class. The first way is directly by the horizontal lift, which gives ˜ux, which is the unique horizontal tangent vector such that π∗x(˜ux) = u. The other way is to first horizontal-lift u to another point x′ ∈π−1(y) in the equivalence class, then push it forward to the tangent space at x by a transformation that maps x′ to x. Since both points lie in the same equivalence class and the Lie group acts on the manifold freely, there exists a unique group action g ∈G such that x = g · x′ = Lg(x′), so the resulting tangent vector is (Lg)∗x′(˜ux′). Noting that (Lg)∗x′ preserves the metric between Tx′M and TxM (see Eq. (C.1.1)), we know that it also preserves the horizontal spaces, i.e., (Lg)∗x′(Hx′) = Hx, so (Lg)∗x′(˜ux′) ∈Hx. Moreover, π∗x
+
+(Lg)∗x′(˜ux′)
+
+= (π◦Lg)∗x′(˜ux′) = π∗x′(˜ux′) = u also projects to the quotient-space tangent vector u (noting that π ◦Lg = π for any g ∈G, and recalling the definition of horizontal lift), by the uniqueness of the horizontal tangent vector that projects to u, we have ˜ux = (Lg)∗x′(˜ux′), or equivalently,
+
+˜ug·x = (Lg)∗x(˜ux), ∀x ∈π−1(y), g ∈G. (C.2.2)
+
+The unique existence of the correspondence from Tπ(x)Q back to TxM by horizontal lift (Prop. C.2.3) allows us to introduce a Riemannian structure on Q from that on M. For any y ∈Q and u(1), u(2) ∈TyQ, define:
+
+⟨u(1), u(2)⟩Q y:= ⟨˜u(1)
+
+x, ˜u(2)
+
+x ⟩M x, (C.2.3)
+
+<!-- Page 24 -->
+
+Published as a conference paper at ICLR 2026 for any x ∈π−1(y). This is well-defined since the right hand side is independent the choice of x due to the horizontal-lift–push-forward compatibility (Eq. (C.2.2)) and isometry (Eq. (C.1.1)): ⟨˜u(1)
+
+g·x, ˜u(2)
+
+g·x⟩M g·x = ⟨(Lg)∗x(˜u(1)
+
+x), (Lg)∗x(˜u(2)
+
+x)⟩M g·x = ⟨˜u(1)
+
+x, ˜u(2)
+
+x ⟩M x.
+
+Subsequent constructions on the quotient space Q can be induced from this Riemannian structure. Due to its compatibility with the original Riemannian manifold M, these constructions have direct connections to their counterparts on M. Particularly, the Levi-Civita connections on Q and M follow the relation below.
+
+Proposition C.2.4. (Lee, 2018, Exercise. 5.6) Let ∇M and ∇Q denote the Levi-Civita connections on M, Q, respectively, where ∇Q is constructed from the Riemannian metric induced from that of M by Eq. (C.2.3). Then for any vector fields u(1), u(2) on Q, denoting their horizontal lifts to M as ˜u(1), ˜u(2), we have:
+
+∇M
+
+˜u(1) ˜u(2) = ^ ∇Q u(1)u(2) + 1
+
+2
+
+L˜u(1) ˜u(2) V
+
+, where ^ ∇Q u(1)u(2) denotes the horizontal lift of the vector field ∇Q u(1)u(2) on Q, and L˜u(1) ˜u(2) is the Lie derivative (or commutator) of vector field ˜u(2) under ˜u(1), defined as d dt t=0 (Φt)∗˜u(2) where Φt is the flow of vector field ˜u(1). The Lie derivative adopts an explicit expression L˜u(1) ˜u(2)(f) =
+
+˜u(1)(˜u(2)(f)) −˜u(2)(˜u(1)(f)). Particularly,
+
+^ ∇Q u(1)u(2) = (∇M
+
+˜u(1) ˜u(2))H.
+
+C.3 SPECIFICATIONS FOR THE SHAPE SPACE R3N/SE(3)
+
+For a concrete and practically highly concerned example, we consider the shape space R3N/SE(3). In this example, each R3N element is structured as:
+
+x = [⃗x(1),⃗x(2), · · ·,⃗x(N)] ∈R3N, with each⃗x(n) ∈R3, which represents the 3-dimensional coordinates of N points in R3 (point cloud). The SE(3) group is composed of the 3-dimensional translation group T(3) and the 3-dimensional rotation group SO(3), altogether representing the set of rigid-body movements of the N points. Since the translation group T(3) is not compact, there does not exist a probability distribution that is translation invariant. We (as well as many others (Yim et al., 2023b; Lin et al., 2024a)) hence represent the quotient space w.r.t this group by suppressing these equivalent DoFs by choosing a canonical translational position by anchoring the center of mass (CoM) of the point cloud at the origin, and consider the resulting CoM-free subspace R3N
+
+CoM:= {x ∈R3N | 1 N
+
+PN n=1⃗x(n) =⃗0} 4 and consider the SO(3) action on it. Since the constraint is linear, this space R3N
+
+CoM is a linear subspace of R3N, and it is naturally a Riemannian manifold with the standard inner product of R3N. An element of the SO(3) group is given by a 3 × 3 rotation matrix for which we reload the notation g. The natural action of g on x is defined as g · x = g⃗x(1), g⃗x(2), · · ·, g⃗x(N)
+
+(g here represents the rotation matrix), i.e. the rotation is applied on each point of the system.
+
+Unfortunately, SO(3) does not act freely (see Def. C.1.5) on R3N
+
+CoM in some degenerate cases, e.g. all the points lie on a straight line. So we define the subset D ⊂R3N
+
+CoM that SO(3) does not have free action on it; i.e., for any x ∈D, there exists a nontrivial action g̸ = e ∈SO(3) such that g · x = x, indicating that D contains points that have a higher symmetry beyond SO(3). For a converging sequence {x(n)}n in D which converges to x ∈R3N
+
+CoM as n →∞, there exists a sequence {g(n)}n in G such that g(n) · x(n) = x(n). Since the group SO(3) is compact and the group action is continuous, {g(n)}n has a convergent subsequence that converges to g ∈G, which satisfies g · x = x. Hence x ∈D, and therefore, D is closed. Subsequently, R3N
+
+CoM◦:= R3N
+
+CoM \ D is still a smooth manifold. As D is measure-zero in R3N
+
+CoM (since any g ∈SO(3) is non-singular, the equation g · x = x reduces degrees of freedom of x), it is unlikely for a real simulation in R3N
+
+CoM to hit the set D, making negligible difference algorithmically.
+
+4Here we choose a simple form of CoM by treating atoms equally weighted to avoid unnecessary notation complexity. In fact, any choice to determine one point in R3 from the N points suffices the reduction of the translation DoFs (as long as proper permutational invariance is guaranteed).
+
+<!-- Page 25 -->
+
+Published as a conference paper at ICLR 2026
+
+By removing the degenerate set D, SO(3) can now act freely and smoothly on R3N
+
+CoM◦. Moreover, since the SO(3) action is isometric in the Euclidean space and R3N
+
+CoM◦inherits the same metric, SO(3) also acts isometrically on R3N
+
+CoM◦. Since SO(3) is a compact group, by Prop. C.1.6, the action is also proper. Now that the action is smooth, free, proper, and isometric, by Thm. C.2.1, the quotient space Q:= R3N
+
+CoM◦/SO(3) is a Riemannian manifold and the projection π: R3N
+
+CoM◦→Q is a Riemannian submersion. This Q is the concrete construction for the R3N/SE(3) quotient space. Since the each element in this quotient space Q is an equivalence class containing equivalent pointcloud configurations, we refer to this space Q as the “shape space”.
+
+By the projection mapping π: R3N
+
+CoM◦→Q, the vertical space Vx:= Ker π∗x can already be defined, which reflects the infinitesimal movements in R3N
+
+CoM◦by group actions, which amounts to movements within the equivalence class π(x) (Appx. B). Since R3N
+
+CoM◦is a Riemannian manifold (tangent space inner product is inherited from the standard Euclidean inner product), we can define the horizontal space Hx:= (Vx)
+
+⊥TxR3N
+
+CoM◦as the orthogonal complement of Vx in TxR3N
+
+CoM◦. Since Vx and Hx recover TxR3N
+
+CoM◦by direct sum, any tangent vector v ∈TxR3N
+
+CoM◦can thus be uniquely decomposed as the addition of a vertical component and horizontal component.
+
+On this concrete example, the vertical and horizontal spaces can be expressed explicitly. Since the vertical space is induced from group action, which acts freely, so this space is isomorphic to the tangent space of the Lie group, i.e., the Lie algebra. For G = SO(3), the Lie algebra so(3) is the set of antisymmetric 3 × 3 matrices. So the vertical space is given by:
+
+Vx = {[A⃗x(1), A⃗x(2), · · ·, A⃗x(N)] | A ∈so(3)}.
+
+Using the 3-dimensional representation⃗ω = [⃗ω1,⃗ω2,⃗ω3]⊤∈R3 for so(3), any antisymmetric 3×3 matrix can be represented as:
+
+A =
+
+
+
+
+
+0 −⃗ω3⃗ ω2⃗ ω3 0 −⃗ω1
+
+−⃗ω2⃗ ω1 0
+
+
+
+=
+
+3 X i=1⃗ ωiJi, (C.3.1)
+
+where J1:=
+
+"0 0 0 0 0 −1 0 1 0
+
+#
+
+, J2:=
+
+" 0 0 1 0 0 0 −1 0 0
+
+#
+
+, J3:=
+
+"0 −1 0 1 0 0 0 0 0
+
+#
+
+. (C.3.2)
+
+The⃗ω vector is the Euler vector (or rotation vector) representation of so(3). Its direction represents the axis of rotation, and its length represents the rate of rotation; therefore, the⃗ω vector can be thought of as an angular velocity vector. Eq. (C.3.1) suggests that {J1, J2, J3} forms a basis for so(3). Following this representation, we have A⃗x(n) =⃗ω×⃗x(n), where “×” denotes the usual cross product on R3, so the vertical space can also be written as:
+
+Vx = {[⃗ω ×⃗x(1),⃗ω ×⃗x(2), · · ·,⃗ω ×⃗x(N)] |⃗ω ∈R3}. (C.3.3)
+
+This can be thought of as the (linear) velocity on each atom induced from the common angular velocity⃗ω as if all the atoms are on a rigid body which rotates following the angular velocity⃗ω. As a rigid-body movement, this (linear) velocity does not deform the shape of the body, hence the “shape” of the point cloud is reserved, and the resulting configuration would still be within the equivalence class. This is the intuition behind the concept of the vertical space.
+
+For the horizontal space, which is the orthogonal complement of the vertical space, is given by
+
+Hx = n v = [⃗v(1), · · ·,⃗v(N)] ∈R3N
+
+N X n=1⃗ v(n) =⃗0,
+
+N X n=1⃗ x(n) ×⃗v(n) =⃗0 o
+
+, (C.3.4)
+
+since the⃗v(n) vectors should keep the CoM fixed, and as the orthogonal complement, they should also satisfy PN n=1⃗v(n) · (⃗ω ×⃗x(n)) =⃗ω · (PN n=1⃗x(n) ×⃗v(n)) = 0 for any⃗ω ∈R3. Intuitively, the first constraint PN n=1⃗v(n) =⃗0 means the total (linear) momentum of the system is zero, meaning that the movement keeps the CoM of the point cloud, i.e., the total/rigid-body translational degree of freedom is fixed. The second constraint PN n=1⃗x(n)×⃗v(n) =⃗0 means the total angular momentum of the system is zero, meaning that there is no net rotation as a whole, i.e., the total/rigid-body rotational degree of freedom is fixed. Therefore, vectors in the horizontal space correspond to movements that does not move within an equivalence class, but purely across equivalence classes.
+
+<!-- Page 26 -->
+
+Published as a conference paper at ICLR 2026
+
+Given the construction of the horizontal space (i.e., a “connection”), the horizontal lift for a quotientspace tangent vector (and vector field) can be derived. As SO(3) acts smoothly, freely, properly, and isometrically on R3N
+
+CoM◦, a Riemannian structure can be induced for Q from that of R3N
+
+CoM◦, which is inherited from the standard Euclidean metric. Since the horizontal-lifted vector field is horizontal, by the above intuition, it induces a movement purely across equivalence classes, making it a perfect correspondence to a vector field on the quotient space, and avoiding “unnecessary” movements that are within an equivalence class.
+
+D PROOFS
+
+D.1 PROOF OF THEOREM 1
+
+Theorem 1’. Assume {xt}t∈[0,T ] is a diffusion process on M, specified by the following SDE:
+
+dxt = ft(xt) dt + σt dwt, x0 ∼pprior, (6’)
+
+where ft is a G-equivariant vector field on M, wt is the Wiener process on M,5 and pprior is a G-invariant distribution. Then the projected process {yt:= π(xt)}t∈[0,T ] onto the quotient space Q:= M/G is specified by the following SDE:
+
+dyt =
+
+(π∗ft)(yt) −σ2 t 2 h(yt)
+
+dt + σt dωt, y0 ∼π#pprior, (7’)
+
+where: (1) π∗ft is the pushed-forward vector field of ft induced by π, i.e., (π∗ft)(yt):= π∗xtft(xt), which is the same for any xt ∈π−1(yt) due to the G-equivariance of ft; (2) h(yt):= π∗xt(PM i=M−G+1 ∇eiei) for any xt ∈π−1(yt) is the mean curvature vector at yt, where {ei}M i=1 is an orthonormal basis of TxtM such that Vxt = span{ei}M i=M−G+1; (3) ωt is the Wiener process on Q; and (4) π#pprior is the pushed-forward distribution of pprior, i.e., its samples can be produced by y0 = π(x0) where x0 ∼pprior.
+
+Proof. As xt is a diffusion process on M given by the the SDE dxt = ft(xt) dt + σt dwt, by Prop. B.2.9 and Def. B.2.4, xt is an Lt-diffusion and the generator is
+
+Lt = ft + σ2 t 2 ∆M.
+
+For any x ∈M, let {ei}M i=1 be an orthonormal basis of TxM such that Hx = span{ei}M−G i=1, and Vx = span{ei}M i=M−G+1. Then by the Riemannian submersion construction of π: M →Q (see Appx. C), {¯ei:= π∗xei}M−G i=1 is an orthonormal basis of Tπ(x)Q. Such a basis as a smooth function of x always exists in a neighborhood, so locally each ei can be viewed as a vector field. Let ∇M and ∇Q be the Levi-Civita connections on M, Q, respectively, where ∇Q is induced from the Riemannian metric inherited from M. Using the local expression of the Laplace-Beltrami operator (Def. B.1.11), the generator is given by
+
+Lt = ft + σ2 t 2 ∆M = ft + σ2 t 2
+
+M X i=1
+
+(ei(ei(·)) −∇M ei ei) = ft −σ2 t 2
+
+M X i=1
+
+∇M ei ei
+
+!
+
++ σ2 t 2
+
+M X i=1 e2 i.
+
+Then the process is the solution to the following Stratonovitch SDE dxt = v(0)(xt, t)dt +
+
+M X i=1 v(i)(xt, t) ◦dwi t, where v(0):= ft −σ2 t 2
+
+M X i=1
+
+∇M ei ei, and v(i):= σtei for i = 1, · · ·, M.
+
+By Def. B.2.8, for all f ∈C∞(M), f(xt) = f(x0) +
+
+Z t
+
+0 v(0)(f)(xs, s)ds +
+
+M X i=1 v(i)(f)(xs, s) ◦dwi s
+
+!
+
+.
+
+5The Wiener process wt is defined under the Riemannian metric (Def. B.2.4). The transition probability it induces is G-invariant when the group G acts on the Riemannian manifold M isometrically (Def. C.1.5(1)).
+
+<!-- Page 27 -->
+
+Published as a conference paper at ICLR 2026
+
+Let ¯f ∈C∞(Q), then f:= ¯f ◦π ∈C∞(M), then
+
+¯f(π(xt)) = ¯f(π(x0)) +
+
+Z t
+
+0 v(0)(¯f ◦π)(xs, s)ds +
+
+M X i=1 v(i)(¯f ◦π)(xs, s) ◦dwi s
+
+!
+
+,
+
+= ¯f(π(x0)) +
+
+Z t
+
+0
+
+(π∗v(0))(¯f)(π(xs), s)ds +
+
+M X i=1
+
+(π∗v(i))(¯f)(π(xs), s) ◦dwi s
+
+!
+
+, by Def. B.1.5. Since ¯f is arbitrary, by Def. B.2.8, yt:= π(xt) is the solution to:
+
+dyt = π∗v(0)(yt, t)dt +
+
+M X i=1 π∗v(i)(yt, t) ◦dwi t.
+
+We first need to check that the projected vector field is well defined. In fact, we only need to check that π∗f is well defined. Since f is G-equivariant, then for any g ∈G, (Lg)∗ft(x) = ft(g · x). Then π∗(ft(g · x)) = π∗((Lg)∗ft(x)) = (π ◦Lg)∗(ft(x)) = π∗(ft(x)), where we have used the chain rule in the second-last step, and the last step holds since π ◦Lg and π projects to the same equivalence class (x and g · x are in the same equivalence class). By a notational equivalence that π∗(ft(x)) = π∗ft(π(x)), we know that π∗ft(y) is the same on the equivalence class regardless of the choice of x in π−1(y), which implies that the projected vector field π∗ft is well defined.
+
+Next, we calculate the expression of the projected vector field. Since Hx = span{e1, · · ·, eM−G}, Vx = span{eM−G+1, · · ·, eM}, we have π∗xei =
+
+¯ei, if i ⩽M −G, 0, if i ⩾M −G + 1, so π∗x(v(i)) = σt¯ei for i = 1, · · ·, M −G and π∗x(v(i)) = 0 for i ⩾M −G + 1. Moreover, since each ei for i ∈{1, · · ·, M −G} lies in the horizontal space and π∗ei = ¯e by definition, by the uniqueness of horizontal lift, we know ˜¯ei = ei. By Prop. C.2.4, which means π∗
+
+^ ∇Q u(1)u(2)
+
+= ∇Q u(1)u(2) = π∗
+
+(∇M
+
+˜u(1) ˜u(2))H
+
+= π∗(∇M
+
+˜u(1) ˜u(2)), we know that π∗(∇M ei ei) = ∇Q
+
+¯ei¯ei. Therefore, for the drift term, we have:
+
+π∗v(0)(y, t) = π∗ft(y) −σ2 t 2
+
+M X i=1 π∗(∇M ei ei)
+
+= π∗ft(y) −σ2 t 2
+
+M−G X i=1 π∗(∇M ei ei) −σ2 t 2
+
+M X i=M−G+1 π∗(∇M ei ei)
+
+= π∗ft(y) −σ2 t 2
+
+M−G X i=1
+
+∇Q
+
+¯ei¯ei −σ2 t 2
+
+M X i=M−G+1 π∗(∇M ei ei)
+
+= π∗ft(y) −σ2 t 2
+
+M−G X i=1
+
+∇Q
+
+¯ei¯ei −σ2 t 2 h(y).
+
+So the generator of the process yt is
+
+Ls = π∗ft −σ2 t 2
+
+M−G X i=1
+
+∇Q
+
+¯ei¯ei −σ2 t 2 h + σ2 t 2
+
+M−G X i=1
+
+¯e2 i
+
+= π∗ft −σ2 t 2 h
+
++ σ2 t 2
+
+M−G X i=1
+
+¯e2 i −
+
+M−G X i=1
+
+∇Q
+
+¯ei¯ei
+
+!
+
+= π∗ft −σ2 t 2 h
+
++ σ2 t 2 ∆Q. (D.1.1)
+
+Then we can conclude that the projected process yt:= π(xt) is the solution to the following SDE dyt =
+
+(π∗ft)(yt) −σ2 t 2 h(yt)
+
+dt + σt dωt,
+
+<!-- Page 28 -->
+
+Published as a conference paper at ICLR 2026 where π∗ft is the push-forward vector field, h(yt) is the mean curvature vector at yt and ωt is the standard Wiener process on the quotient space Q.
+
+D.2 PROOF OF THEOREM 2
+
+In Def. C.2.2, we define the horizontal lift of a vector field that generates a deterministic flow. In fact, for a stochastic process on Q, we can define the horizontal lift for it similarly. First, we need to define the stochastic line integral, which is the integration of a one-form along the trajectory of a stochastic process.
+
+Definition D.2.1. (Hsu, 2002, Prop. 2.4.2) Let Θ be a 1-form (Def. B.1.7) on M and xt the solution to the equation dxt = v(0)(xt, t)dt +
+
+D X i=1 v(i)(xt, t) ◦dwi t.
+
+Then
+
+Z t
+
+0 Θxs ds =
+
+Z t
+
+0 Θ(v(0))(xs) ds +
+
+Z t
+
+0
+
+D X i=1
+
+Θ(v(i))(xs) ◦dwi s.
+
+Definition D.2.2. (Baudoin et al., 2024, Def. 3.1.9) A semimartingale (xt)t on M is called horizontal if for every 1-form Θ on M whose kernel contains the horizontal space H, one has R t
+
+0 Θxs ds = 0, for all t ⩾0. Let (yt)t be a semimartingale on Q such that y0 is a point of Q. Then for a given starting point x0 ∈π−1(y0), there exists a unique horizontal semimartingale xt on M such that xt starts from x0 and π(xt) = yt for all t ⩾0. This process (xt)t is called the horizontal lift of (yt)t from x0.
+
+Theorem 2’. The horizontal lift of Eq. (7) has the following explicit expression:
+
+d˜xt =
+
+P˜xt(ft(˜xt)) −σ2 t 2 ˜h(˜xt)
+
+dt + σt d ˜wt, ˜x0 ∼pprior, (8’)
+
+where Px(v):= vH is the horizontal projection in the tangent space of M, ˜h is the horizontal lift of the mean curvature vector, and ˜wt is the horizontal lift of the Wiener process of Q.
+
+Proof. We only need to check the definition of the horizontal lift (Def. D.2.2). Again, for any x ∈M, let {ei}M i=1 be an orthonormal basis of TxM such that Hx = span{ei}M−G i=1, and Vx = span{ei}M i=M−G+1. Then by the Riemannian submersion construction of π: M →Q (see Appx. C), {¯ei:= π∗xei}M−G i=1 is an orthonormal basis of Tπ(x)Q. Such a basis as a smooth function of x always exists in a neighborhood, so each ei can be viewed as a vector field in each neighborhood. Let ∇M and ∇Q be the Levi-Civita connections on M, Q, respectively, where ∇Q is induced from the Riemannian metric inherited from M.
+
+Now we calculate the generator of the SDE in Eq. (8’). From Eq. (D.1.1), the Wiener process ωt on the quotient space Q has generator 1
+
+2∆Q = 1 2 PM−G i=1
+
+¯e2 i −∇Q
+
+¯ei¯ei
+
+. Since each ei for i ∈{1, · · ·, M −G} lies in the horizontal space and π∗ei = ¯e by definition, by the uniqueness of horizontal lift, we know ˜¯ei = ei. By Prop. C.2.4, we know that the generator of the horizontal-lifted Wiener process ˜wt has generator 1
+
+2 PM−G i=1 e2 i −(∇M ei ei)H
+
+. So the generator of the horizontal lifted process in Eq. (8’) is:
+
+˜Lt = f H t −σ2 t 2 ˜h
+
++ σ2 t 2
+
+M−G X i=1 e2 i −(∇M ei ei)H
+
+. (D.2.1)
+
+Its projection under π∗is given by:
+
+π∗˜Lt = π∗ft −σ2 t 2 h
+
++ σ2 t 2
+
+M−G X i=1
+
+¯e2 i −∇Q
+
+¯ei¯ei
+
+, which coincides with the generator of Eq. (7) (see Eq. (D.1.1)). So the process π(˜xt) is the same diffusion process as yt, where yt is defined in Eq. (7).
+
+<!-- Page 29 -->
+
+Published as a conference paper at ICLR 2026
+
+Let Θ be a 1-form on M whose kernel contains the horizontal space H everywhere. From Eq. (D.2.1), ˜xt is the following SDE dxt = v(0)(xt, t)dt +
+
+M X i=1 v(i)(xt, t) ◦dwi t, where v(0) = f H t −σ2 t 2 ˜h
+
+−σ2 t 2
+
+M−G X i=1
+
+(∇M ei ei)H, v(i) = σtei.
+
+Then the line integral
+
+Z t
+
+0 Θxs ds =
+
+Z t
+
+0
+
+M X i=0
+
+Θ(v(i))(˜xs) ◦dwi s = 0, since v(i) ∈H and Θ(v(i)) = 0. So we can conclude that ˜xt is the horizontal lift of yt.
+
+Corollary 3’. (1) The resulting random variable ˜x1 by the lifted diffusion process Eq. (8) and the resulting x1 by the original diffusion process Eq. (6) follow the same distribution in the total space: p˜x1 = px1 = ptarget. (2) When σt ≡0 and starting from the same x0 ∈M, Eq. (8) leads to a shorter trajectory than Eq. (6) does:
+
+Z 1
+
+0 ⟨P˜xt(ft(˜xt)), P˜xt(ft(˜xt))⟩dt ⩽
+
+Z 1
+
+0 ⟨ft(xt), ft(xt)⟩dt.
+
+Proof. (1) Since x0 and ˜x0 follow the same G-invariant distribution pprior, and by Thm. 1 and that the lifted process projects to the same quotient-space process before the lift, we know that π(xt) follows the same diffusion process as π(xt) on Q. Since ft is G-equivariant and the Wiener process is G-invariant, we know that the transition kernel p(x1 | x0) is G-equivariant. Together with that pprior is G-invariant, we know that p(x1) is G-invariant (Xu et al., 2022, Prop. 1). On the side of the lifted quotient-space diffusion process, since the lifted process does not have a vertical movement, i.e., the process effectively does not apply any group action, we know that p(˜x1 | ˜x0) is also Gequivariant, and together with the G-invariance of pprior, we know that p(˜x1) is G-invariant as well. Since p(x1) and p(˜x1) project to the same distribution on Q and they are G-invariant, we know that they are the same distribution on the total space M.
+
+(2) When σt ≡0, the process becomes deterministic and solves the ODEs dxt dt = ft(xt) and d˜xt dt = P˜xt(ft(˜xt)). Since they start from the same point x0 = ˜x0, and the vector fields ft and P˜xt(ft(˜xt)) differ only in a vertical movement, i.e., movement by a group action, we know that there exists gt ∈G such that xt = gt · ˜xt. By leveraging the G-equivariance of ft and the isometry of group action, the lengths of the two processes can then be related by:
+
+Z 1
+
+0 ⟨ft(xt), ft(xt))⟩xtdt =
+
+Z 1
+
+0 ⟨ft(gt · ˜xt), ft(gt · ˜xt))⟩xtdt
+
+=
+
+Z 1
+
+0 ⟨(Lgt)∗˜xtft(˜xt), (Lgt)∗˜xtft(˜xt))⟩gt·˜xtdt
+
+=
+
+Z 1
+
+0 ⟨ft(˜xt), ft(˜xt))⟩˜xtdt =
+
+Z 1
+
+0 ft(˜xt)H, ft(˜xt)H)
+
+˜xt + ft(˜xt)V, ft(˜xt)V)
+
+˜xt dt
+
+⩾
+
+Z 1
+
+0 ft(˜xt)H, ft(˜xt)H)
+
+˜xtdt =
+
+Z 1
+
+0 ⟨P˜xt(ft(˜xt)), P˜xt(ft(˜xt))⟩˜xtdt.
+
+D.3 PROOF OF THEOREM 4
+
+Theorem 4’. Assume xt is a diffusion process in a manifold M that can be embedded into a Euclidean space, specified by the SDE: dxt = ft(xt) dt+σt dwt, where ft(xt) is G-equivariant and x0 ∼pprior is G-invariant. Then the lifted quotient-space diffusion process on Q:= M/G onto the total space M is given by:
+
+d˜xt =
+
+P˜xt(ft(˜xt)) −σ2 t 2 ˜h(˜xt)
+
+dt + σtP˜xt dwt, ˜x0 ∼pprior, (9’)
+
+<!-- Page 30 -->
+
+Published as a conference paper at ICLR 2026 where P˜xt dwt can be simulated by projecting the infinitesimal Gaussian sample using P˜xt in each step. Particularly, for the shape space Q:= R3N/SE(3) = R3N
+
+CoM◦/SO(3), the horizontal projection P and the ˜h vector field have the following explicit expressions: for any x = [⃗x(n)]n ∈R3N
+
+CoM◦, which is CoM-free, and any v = [⃗v(n)]n ∈TxR3N
+
+CoM◦, which is momentum-free,
+
+Px(v) = h⃗ v(n) −K(x)−1 XN n′=1⃗x(n′) ×⃗v(n′)
+
+×⃗x(n)i n, and (10’)
+
+˜h(x) = h
+
+K(x)−1⃗x(n)−tr(K(x)−1)⃗x(n)i n, (D.3.1)
+
+where K(x):=
+
+N X n=1
+
+∥⃗x(n)∥2I −
+
+N X n=1⃗ x(n)⃗x(n)⊤∈R3×3, (D.3.2)
+
+and “×” denotes the cross product in R3.
+
+Proof. We unroll the proof by first deriving the general expression Eq. (9’) in the case of Euclidean total space, then deriving the expression for the projection operator Px(v) for G = SO(3), and the horizontal-lifted mean curvature vector field ˜h(x) for G = SO(3). Expressions for the SO(3) case are expressed in the total space M defined in Appx. C.3, which can be embedded in the Euclidean space R3N.
+
+The general expression Eq. (9’). Again, for any x ∈M, let {ei}M i=1 be an orthonormal basis of TxM such that Hx = span{ei}M−G i=1, and Vx = span{ei}M i=M−G+1. Then by the Riemannian submersion construction of π: M →Q (see Appx. C), {¯ei:= π∗xei}M−G i=1 is an orthonormal basis of Tπ(x)Q. Such a basis as a smooth function of x always exists in a neighborhood, so each ei can be viewed as a vector field in each neighborhood. Let ∇M and ∇Q be the Levi-Civita connection on M, Q, respectively, where ∇Q is induced from the Riemannian metric inherited from M.
+
+As shown in Appx. D.2, Eq. (D.2.1), the horizontal lift of Eq. (8) has the generator
+
+Lt = f H t −σ2 t 2 ˜h
+
++ σ2 t 2
+
+M−G X i=1 e2 i −(∇M ei ei)H
+
+.
+
+Since Leiei = ei(ei(·)) −ei(ei(·)) = 0, by Prop. C.2.4, we know that (∇M ei ei)V = 0 for i = {1, · · ·, M −G}, so
+
+Lt = f H t −σ2 t 2 ˜h
+
++ σ2 t 2
+
+M−G X i=1 e2 i −(∇M ei ei)
+
+.
+
+Since M is embedded in a Euclidean space, we have ∇M ei ei = PM j=1 ei(ej i)∂j, where ej i is the j-th component of ei and ∂j:= ∂/∂xj is the derivative w.r.t a standard coordinate system of the Euclidean space (i.e., these {∂j}M j=1 are a standard orthonormal basis frame for tangent spaces of the Euclidean space, which are isometrically isomorphic to the Euclidean space itself). Since f H t (x) = Pxft(x), then the generator becomes
+
+Lt = f H t (x) −σ2 t 2 ˜h(x)
+
++ σ2 t 2
+
+M−G X i=1 e2 i −(∇M ei ei)
+
+=
+
+Pxft(x) −σ2 t 2 ˜h(x)
+
++ σ2 t 2
+
+M−G X i=1
+
+M X j,k=1 ej i(∂jek i)∂k + ej iek i ∂j∂k −ej i(∂jek i)∂k
+
+=
+
+Pxft(x) −σ2 t 2 ˜h(x)
+
++ σ2 t 2
+
+M−G X i=1
+
+M X j,k=1 ej iek i ∂j∂k
+
+=
+
+Pxft(x) −σ2 t 2 ˜h(x)
+
++ σ2 t 2
+
+M X j,k=1
+
+(Px)jk∂j∂k
+
+=
+
+Pxft(x) −σ2 t 2 ˜h(x)
+
++ σ2 t 2
+
+M X j,k=1
+
+(PxPx
+
+⊤)jk∂j∂k,
+
+<!-- Page 31 -->
+
+Published as a conference paper at ICLR 2026 where we have defined Px:= PM−G i=1 eie⊤ i as the projection operator. Then Lt is the generator of d˜xt =
+
+P˜xt(ft(˜xt)) −σ2 t 2 ˜h(˜xt)
+
+dt + σtP˜xtdwt.
+
+Now we deduce the explicit expressions for the case when G = SO(3).
+
+The expression for the projection operator Px(v) for G = SO(3). Recall from Appx. C.3, the tangent space TxM of M at x can be explicitly expressed as (Eqs. (C.3.3, C.3.4)):
+
+• The vertical tangent space Vx:
+
+Vx = {[⃗ω ×⃗x(1),⃗ω ×⃗x(2), · · ·,⃗ω ×⃗x(N)] |⃗ω ∈R3}.
+
+• The horizontal space Hx, which is the orthogonal complement of the vertical space:
+
+Hx = n v = [⃗v(1), · · ·,⃗v(N)] ∈R3N
+
+N X n=1⃗ v(n) =⃗0,
+
+N X n=1⃗ x(n) ×⃗v(n) =⃗0 o
+
+.
+
+The horizontal projection mapping is defined by Px(v) = vH = v −vV, ∀v ∈TxM, and we can find an explicit expression of it. By definition, PN n=1⃗x(n) ×⃗v(n)H =⃗0, then
+
+N X n=1⃗ x(n) ×⃗v(n) =
+
+N X n=1⃗ x(n) ×⃗v(n)V.
+
+Assume vV = [⃗ω ×⃗x(1),⃗ω ×⃗x(2), · · ·,⃗ω ×⃗x(N)], then
+
+N X n=1⃗ x(n) ×⃗v(n) =
+
+N X n=1⃗ x(n) ×⃗v(n)V =
+
+N X n=1⃗ x(n) × (⃗ω ×⃗x(n))
+
+=
+
+N X n=1
+
+D⃗ x(n),⃗x(n)E⃗ ω −
+
+D⃗ x(n),⃗ω
+
+E⃗ x(n) =
+
+N X n=1
+
+∥⃗x(n)∥2I −
+
+N X n=1⃗ x(n)⃗x(n)⊤
+
+!⃗ ω, where we have used the identity⃗x(n) × (⃗ω ×⃗x(n)) =
+
+⃗ x(n),⃗x(n) ⃗ ω −
+
+⃗ x(n),⃗ω
+
+⃗ x(n). By denoting
+
+K(x):=
+
+N X n=1
+
+∥⃗x(n)∥2I −
+
+N X n=1⃗ x(n)⃗x(n)⊤, (D.3.3)
+
+we have⃗ω = K(x)−1(PN n=1⃗x(n) ×⃗v(n)), and vV = [⃗ω ×⃗x(n)]n =
+
+"
+
+K(x)−1
+
+N X n′=1⃗ x(n′) ×⃗v(n′)
+
+!
+
+×⃗x(n)
+
+## n
+
+, where the last cross-product is applied on each 3-dimensional coordinate vector⃗x(n). Henceforth, we have:
+
+Px(v) = v −vV =
+
+"⃗ v(n) −K(x)−1
+
+N X n′=1⃗ x(n′) ×⃗v(n′)
+
+!
+
+×⃗x(n)
+
+## n
+
+, ∀v ∈TxM.
+
+The expression for the horizontal-lifted mean curvature vector field ˜h(x) for G = SO(3). (a) We start with a characterization of the horizontal-lifted mean curvature vector field ˜h(x) in the general case. As we have mentioned, ˜h(x) reflects the effect of the change of the volume of the equivalence class, which helps us derive an explicit expression of it. The volume can be defined by a Riemannian structure. As each equivalence class can be seen to be induced by the Lie group, we first establish a relation between the two spaces. When the Lie group G acts smoothly, freely, properly, and isometrically on M, we can define a mapping Φx: G →M, g 7→g · x which identifies the Lie group to the equivalence class π(x) that x is in. This Φx is a bijection since freeness indicates that if g · x = g′ · x, then g = g′.
+
+<!-- Page 32 -->
+
+Published as a conference paper at ICLR 2026
+
+Using this bijection, we can induce structures on G from those on M. Firstly, a Riemannian structure can be defined. Let {gi}G i=1 be a coordinate chart of G, and {gi}G i=1 be the induced frame on G, i.e., {gi}G i=1 is a basis set of TgG. Then a Riemannian metric can be defined by:
+
+Gx ij(g):= ⟨gi, gj⟩G,x g:= ⟨Φx
+
+∗ggi, Φx
+
+∗ggj⟩M
+
+Φx(g). (D.3.4)
+
+The Riemannian structure defines a measure on G in the form of the volume form (i.e., top-ranked (rank-G) exterior form on G), which can be explicitly expressed by:
+
+Volx(g):= p det(Gx(g)) dg1 ∧· · · ∧dgG, where {dgi}G i=1 is a basis set of T ∗ g G and dgi(gj) = gj(gi) = δi j. Through the embedding mapping Φx, the volume form can also be seen as a measure on the equivalence class π(x) through x.
+
+The relation between the horizontal-lifted mean curvature vector field and the volume of equivalence class lies in the effect under time variation. For this, we first define how a spatial function can be extended to vary in time (unnecessarily uniquely). Definition D.3.1. Let Φ: G →M be an immersion. A smooth variation of Φ is a smooth mapping Φ·(·): (−ϵ, ϵ) × G →M satisfying:
+
+• For any t ∈(−ϵ, ϵ), Φt(·) is an immersion;
+
+• Φ0(·) = Φ(·).
+
+The relation is explicitly given by the following conclusion: Proposition D.3.2. (First variation of volume (Chavel, 1995, Exercise. III.14)) Let Φx t be a smooth variation of Φx. Define the corresponding time-dependent Riemannian metric tensor Gx t,ij(g):= ⟨(Φx t)∗ggi, (Φx t)∗ggj⟩M
+
+Φx t (g), and Volx t (g):= p det(Gx t (g)) dg1 ∧· · · ∧dgG the corresponding volume form. Then the mean curvature vector ˜h(x) satisfies the following formula:
+
+d dt t=0
+
+Z
+
+G
+
+Volx t (g) = −
+
+Z
+
+G
+
+⟨˜h(Φx
+
+0(g)), vΦx 0 (g)⟩Volx 0(g), (D.3.5)
+
+where vΦx
+
+0 (g):= ˙γ0 for which (γt)t is the curve γt = Φx t (g).
+
+This proposition formalizes the intuition that the mean curvature vector represents the effect of volume change of equivalence class. The left hand side represents the change rate of
+
+R
+
+G Volx t (g), i.e., the volume of the equivalence class through x, and the equality on the right hand side indicates that this change is given by the projection of the equivalence-class movement v in the direction of the mean curvature vector ˜h(x). Particularly, as the mean curvature vector ˜h(x) is horizontal everywhere, if the movement v is vertical (almost) everywhere, then the volume does not change, which matches the intuition.
+
+(b) Before diving into the G = SO(3) case, we first derive a general explicit expression for ˜h(x) under a common construction that common Lie groups have, including SO(3). Let the coordinate system of G be defined in a left-invariant way, i.e., gi|g = (Lg)∗egi|e.
+
+Then consider the mapping ψx g (g′):= (gg′) · x, which leads to two equivalent expressions from its differential map. The first leverages ψx g (g′) = Φx(Lg(g′)) and gives (ψx g)∗g′g = Φx
+
+∗gg′(Lg)∗g′g for any g ∈Tg′G. The second leverages ψx g (g′) = g · (g′ · x) = Lg(Φx(g′)) and gives (ψx g)∗g′g = (Lg)∗(g′·x)Φx
+
+∗g′g, which indicate that:
+
+Φx
+
+∗(Lg)∗= (Lg)∗Φx
+
+∗.
+
+By further noting the isometry of the group action on M, the metric defined in Eq. (D.3.4) can be simplified as:
+
+Gx ij(g) =⟨Φx
+
+∗ggi, Φx
+
+∗ggj⟩M
+
+Φx(g) =
+
+Φx
+
+∗g(Lg)∗egi|e, Φx
+
+∗g(Lg)∗egj|e
+
+M g·x
+
+=⟨(Lg)∗xΦx
+
+∗egi|e, (Lg)∗xΦx
+
+∗egj|e⟩M g·x = ⟨Φx
+
+∗egi|e, Φx
+
+∗egj|e⟩M x = Gx ij(e), (D.3.6)
+
+which turns out to be constant over G. This turns the left-hand-side of Eq. (D.3.5) simplified to: Z
+
+G
+
+∂t=0 p det(Gx t) dg1 ∧· · · ∧dgG =
+
+Z
+
+G
+
+∂t=0 log p det(Gx t)
+
+q det(Gx
+
+0) dg1 ∧· · · ∧dgG
+
+<!-- Page 33 -->
+
+Published as a conference paper at ICLR 2026
+
+=∂t=0 log p det(Gx t)
+
+Z
+
+G
+
+Volx
+
+0(g) = V x 0 ∂t=0 log p det(Gx t), where V x t:=
+
+R
+
+G Volx t (g) is the volume of the equivalence class π(x) induced from Φx t.
+
+For the time-dependent embedding Φx t (g), we consider a special type that is induced from an leftinvariant vector field v on the total space M:
+
+Φx t (g):= Expg·x(tvg·x), for t around zero. This definition indicates that ˙γ0 in Eq. (D.3.5) is:
+
+∂t=0Φx t (g) = vΦx
+
+0 (g) = vg·x = (Lg)∗xvx, (D.3.7)
+
+which is left-invariant by definition. Moreover, as a horizontal-lifted vector field, ˜h(x) is naturally left-invariant (see Eq. (C.2.2)). Together with the isometry of the group action on M, this indicates that the right-hand-side of Eq. (D.3.5) can be simplified to:
+
+−
+
+Z
+
+G
+
+⟨˜h(Φx
+
+0(g)), vΦx 0 (g)⟩Φx 0 (g)Volx 0(g)
+
+= −
+
+Z
+
+G
+
+⟨(Lg)∗x˜h(x), (Lg)∗xvx⟩g·xVolx
+
+0(g) = − Z
+
+G
+
+⟨˜h(x), vx⟩xVolx
+
+0(g)
+
+= −⟨˜h(x), vx⟩x
+
+Z
+
+G
+
+Volx
+
+0(g) = −V x 0 ⟨˜h(x), vx⟩x.
+
+In this case, Eq. (D.3.5) can be simplified to V x
+
+0 ∂t=0 log p det(Gx t) = −V x
+
+0 ⟨˜h(x), vx⟩x, which indicates:
+
+⟨˜h(x), vx⟩x = −1
+
+2∂t=0 log det(Gx t), ∀x ∈M.
+
+To further simplify the expression, next we will prove the following conversion from the time derivative to spatial derivative, i.e., ∂t=0 log det(Gx t) = ⟨∇x log det(Gx
+
+0), vx⟩x, henceforth ˜h(x) = −1
+
+2∇x log det(Gx). Firstly, using Jacobi’s formula in matrix calculus, we have ∂t=0 log det(Gx t) = tr
+
+Gx t
+
+−1∂t=0Gx t
+
+, and by Eq. (D.3.6), we have:
+
+∂t=0(Gx t)ij = ⟨∂t=0(Φx t)∗egi, (Φx
+
+0)∗egj⟩M x + ⟨(Φx
+
+0)∗egi, ∂t=0(Φx t)∗egj⟩M x.
+
+We next convert the time derivative ∂t=0(Φx t)∗egi into spatial derivative by leveraging the leftinvariance of v that defines Φx t. Consider a general g ∈G and g ∈TgG. From the definition of a tangent vector, for any test function f around Φx
+
+0(g) = g · x, we have:
+
+(Φx t)∗gg
+
+(f) = g f(Φx t (·))|g
+
+= gi∂gif(Φx t (·))|g = gi(∂xαf|g·x)∂giΦx t (g)α = gi∂giΦx t (g)α∂xα
+
+(f), where we have used Einstein’s summation convention where summations over indices repeated in the superscript and subscript are implied. Taking the derivative w.r.t t and by leveraging Eq. (D.3.7), we have:
+
+∂t=0(Φx t)∗gg = gi∂gi(∂t=0Φx t (g)α)∂xα
+
+= gi∂givα g·x∂xα = gi∂gi
+
+(Lg)∗xvx α∂xα
+
+= gi∂gi ∂Lα g ∂xβ x vβ x∂xα = gi∂xβ ∂Lα g ∂gi x vβ x∂xα
+
+= vβ x∂xβ ∂Lα g ∂gi x gi∂xα = vβ x∂xβ
+
+(Φx
+
+0)∗gg α∂xα, which converts the time derivative to spatial derivatives by exchanging the order of differentiating g · x = Lg(x) = Φx
+
+0(g) w.r.t x and g. By leveraging the linearity of inner product, we know ⟨∂t=0(Φx t)∗egi, (Φx
+
+0)∗egj⟩M x = vβ x∂xβ(Φx
+
+0)∗egi, (Φx 0)∗egj M x, so:
+
+∂t=0(Gx t)ij = vβ x∂xβ(Φx
+
+0)∗egi, (Φx 0)∗egj M x +
+
+(Φx
+
+0)∗egi, vβ x∂xβ(Φx
+
+0)∗egj M x = vβ x∂xβ⟨Φx
+
+∗egi, Φx
+
+∗egj⟩x = vβ x∂xβ(Gx
+
+0)ij,
+
+<!-- Page 34 -->
+
+Published as a conference paper at ICLR 2026 hence ∂t=0 log det(Gx t) = tr
+
+Gx
+
+0 −1∂t=0Gx t
+
+= tr
+
+Gx
+
+0 −1vβ x∂xβGx
+
+0
+
+= vβ x tr
+
+Gx
+
+0 −1∂xβGx
+
+0
+
+= vβ x∂xβ log det(Gx
+
+0) = ⟨∇x log det(Gx 0), vx⟩x. Therefore, the mentioned expression indeed holds:
+
+˜h(x) = −1
+
+2∇x log det(Gx). (D.3.8)
+
+(c) Finally, we derive the expression for the specific case of G = SO(3). Its embedding into M through x ∈M is given by Φx(g):= g · x = gx, where in the last expression, g is meant to be its 3 × 3 rotation-matrix form, and gx:= [g⃗x(n)]n denotes a set of matrix-vector products. Its push-forward mapping is given explicitly as Φx
+
+∗gg = gx, where g ∈TgG also takes its 3 × 3 matrix form. As indicated by Eq. (C.3.1), {J1, J2, J3} as defined in Eq. (C.3.2) forms a basis for so(3), i.e., the tangent space at e = I, which also induces a basis {gJ1, gJ2, gJ3} for TgG, and this basis frame is left invariant, satisfying the construction above. Therefore, the asked basis frame {gi}i at g can be constructed by gi = 1 √
+
+2gJi. Then the Riemannian metric tensor G is given explicitly by:
+
+Gx ij(g) = ⟨gix, gjx⟩M gx = 1
+
+2(gJix)⊤(gJjx) = 1 2x⊤J⊤ i Jjx = 1
+
+2
+
+N X n=1⃗ x(n)J⊤ i Jj⃗x(n).
+
+To proceed, one can easily verify that J⊤ i Jj = δijI −⃗1j⃗1⊤ i, where⃗1i denotes the 3-dimensional one-hot vector where 1 is placed at the i-th dimension. Leveraging this expression, we have:
+
+Gx(g) = 1
+
+2K(x) =: Gx, where K(x):= PN n=1 ∥⃗x(n)∥2I−PN n=1⃗x(n)⃗x(n)⊤is the same as defined in Eq. (D.3.3). Note that this expression indeed does not depend on g. From Eq. (D.3.8), we know:
+
+˜h(x) = −1
+
+2∇x log det Gx = −1 2∇x log det K(x). (D.3.9)
+
+Using Jacobi’s formula d log det G = tr(K−1dK) again, we have:
+
+K(x):=
+
+N X n=1
+
+∥⃗x(n)∥2I −
+
+N X n=1⃗ x(n)⃗x(n)⊤, ∂K
+
+∂⃗x(n)i = 2⃗x(n)iI −(⃗1i⃗x(n)⊤+⃗x(n)⃗1i⊤), where⃗1i ∈R3 is a one-hot vector at i. Therefore, tr
+
+K−1 ∂K
+
+∂⃗x(n)i
+
+= 2 tr(K−1)⃗x(n)i −2⃗1i⊤K−1⃗x(n), and finally we get the expression for the mean curvature vector field for SO(3):
+
+˜h(x) =
+
+−1
+
+2∇⃗x(n) log det Gx n
+
+= h
+
+(K(x)−1 −tr(K(x)−1)I)⃗x(n)i n.
+
+Physical interpretations of the expressions. As already assumed when defining the center of mass (CoM) of the system, the N points in the system are treated as possessing the same mass, which simplifies calculation without hurting the utility to reduce the equivalent degrees of freedom. Under this assumption, the K(x) matrix defined in Eq. (D.3.2) is the inertia tensor of the N-point cloud as a rigid body. Given a total/rigid-body angular velocity⃗ω, the angular momentum of the system is K(x)⃗ω. On the other hand, PN n′=1⃗x(n′) ×⃗v(n′) is the total/rigid-body angular momentum of the system by definition (no matter whether [⃗v(n′)]n′ deforms the point cloud / molecule). So the angular momentum is⃗ω = K(x)−1 PN n′=1⃗x(n′) ×⃗v(n′)
+
+. The linear velocity it induces on each point, altogether only contributing a rigid-body rotation, is [⃗ω ×⃗x(n)]n. Therefore, subtracting this velocity from the original one, which gives the expression of the horizontal projection operator in Eq. (10), leaves a linear velocity that only deforms the point cloud / molecule, without any rigidbody rotation. This is in analogy with the treatment for the T(3) translational group where the total/rigid-body (linear) momentum is removed.
+
+As for the lifted mean curvature vector field in Eq. (D.3.1), it can be reformulated as ˜h(x) = −1
+
+2∇x log det K(x) (as also shown in the proof, Eqs. (D.3.8, D.3.9)). To understand this, recall
+
+<!-- Page 35 -->
+
+Published as a conference paper at ICLR 2026 that on the quotient space, rotationally equivalent structures are compressed as one point, neglecting the volume of the equivalence class which differs with the shape. This also induces a neglect of the volume of angular momentum in the original space, which also differs with the shape. Indeed, as the angular momentum induced by an angular velocity⃗ω on a point cloud in state x is⃗L = K(x)⃗ω, where K(x) is the inertia tensor of the point cloud. Therefore, although the volume of the angular velocity ω up to a given scale is independent of the configuration of the point cloud, the volume of the angular momentum⃗L does: d⃗L = (det K(x)) d⃗ω (d⃗L and d⃗ω here represent the respective volume form; i.e., infinitesimal volume element). So configurations with a larger det K(x) occupies a larger portion of the original space, so in the purely deformation process, configurations with a larger det K(x) would be easier to be hit than it actually should be. Therefore, the ˜h(x) vector field comes to counteract this effect, by adding a steering force towards configurations with a smaller det K(x). Only with this correction can the generation process recover the same target distribution.
+
+Finally, we verify that this ˜h(x) vector field is indeed horizontal. From Eq. (C.3.4), this amounts to showing PN n=1⃗x(n) × ˜h(n)(x) =⃗0. Since:
+
+N X n=1⃗ x(n) × ˜h(n)(x) =
+
+N X n=1⃗ x(n) ×
+
+K(x)−1⃗x(n) −tr(K(x)−1)⃗x(n)
+
+=
+
+N X n=1⃗ x(n) × (K(x)−1⃗x(n))
+
+=
+
+N X n=1
+
+1 det K(x)K(x)
+
+K(x)⃗x(n)
+
+×⃗x(n)
+
+, we only need to verify PN n=1
+
+K(x)⃗x(n)
+
+×⃗x(n) =⃗0. Leveraging the expression for K(x) in Eq. (D.3.2), we have: PN n=1
+
+K(x)⃗x(n)
+
+×⃗x(n)
+
+=
+
+N X n=1
+
+N X n′=1
+
+∥⃗x(n′)∥2
+
+⃗ x(n) ×⃗x(n) −
+
+N X n=1
+
+N X n′=1⃗ x(n′)⃗x(n′)⊤ ⃗ x(n)
+
+×⃗x(n)
+
+= −
+
+N X n=1
+
+N X n′=1
+
+⃗ x(n′)⊤⃗x(n) ⃗ x(n′)
+
+×⃗x(n) = −
+
+N X n=1
+
+N X n′=1
+
+⃗ x(n′)⊤⃗x(n) ⃗ x(n′) ×⃗x(n)
+
+.
+
+Noting that⃗x(n′)⊤⃗x(n) =⃗x(n)⊤⃗x(n′) while⃗x(n′) ×⃗x(n) = −⃗x(n) ×⃗x(n′), we can couple the (n, n′) pair with the (n′, n) pair in the summation, which all cancels out. Therefore, the result is indeed zero.
+
+E TRAINING AND SAMPLING METHODS IN MORE GENERAL CASES
+
+Training objective. The diffusion model on the total space M is trained by the denoising score matching objective. Since the vertical components of the velocity are not strictly needed, we propose to supervise the model only on the horizontal components and allow arbitrary vertical output of the model. Recall that the horizontal projection operator Px projects a vector to its horizontal component, i.e., Px(v) = vH. Thus the improved training objective is given by
+
+L(θ):= Ep(t)w(t)E(x0,x1)∼pjoint,ϵ∼N (0,I)
+
+Pxt vθ(xt, t) −(˙αtx0 + ˙βtx1 + ˙γtϵ)
+
+2.
+
+ODE sampler. After the training stage, Pxt(vθ(xt, t)) is an approximation of the ground truth vector field in the horizontal subspace. For the deterministic sampler, we need to simulate the horizontal lift of the projected ODE, which is given by dxt dt = Pxt(v(xt, t)).
+
+In practice, the ODE process is approximated by numerical solvers, e.g. the Euler method and Runge-Kutta methods.
+
+SDE sampler. For the stochastic sampler, we need to simulate the horizontal lift of the projected original SDE in Eq. (3). According to Thm. 1 and Thm. 4, the lifted process is given by dxt = Pxt vθ(xt, t) + ηtsθ(xt, t)
+
+dt + ηt˜h(xt) dt + p
+
+2ηtPxt dwt,
+
+<!-- Page 36 -->
+
+Published as a conference paper at ICLR 2026
+
+The training and sampling algorithm is summarized in Algorithm 2 and 3.
+
+## Algorithm
+
+1 Training for pprior = N(0, I)
+
+1: repeat 2: (x0, x1) ∼pjoint 3: t ∼pt 4: xt = ˆαtx0 + βtx1 5: Take a gradient descent step on
+
+∇θ w(t) ∥Pxt (Dθ(xt, t) −x1)∥2
+
+6: until converged
+
+## Algorithm
+
+2 Training for general pprior
+
+1: repeat 2: (x0, x1) ∼pjoint, ϵ ∼N(0, I) 3: t ∼pt 4: xt = αtx0 + βtx1 + γtϵ 5: vt = ˙αtx0 + ˙βtx1 + ˙γtϵ 6: Take a gradient descent step on
+
+∇θ w(t) ∥Pxt (vθ(xt, t) −vt)∥2
+
+7: until converged
+
+## Algorithm
+
+3 Sampling
+
+1: x0 ∼pprior 2: for i = 0 to K −1 do 3: ∆ti = ti+1 −ti 4: if ODE sampling then 5: xti+1 = xti + Pxti vθ(xti, ti) ∆ti 6: end if 7: if SDE sampling then 8: di = Pxti (vθ(xti, ti) + ηtisθ(xti, ti)) + ηti ˜h(xti) 9: ϵ ∼N(0, I) 10: xti+1 = xti + di∆ti + p
+
+2ηti∆tiPxti ϵ 11: end if 12: end for
+
+F EXPERIMENTAL DETAILS
+
+F.1 MOLECULAR STRUCTURE GENERATION
+
+This appendix summarizes our experimental setup, which strictly follows that of ET-Flow (Hassan et al., 2024). We detail the datasets, model architecture, training, sampling, and evaluation. For a more comprehensive discussion of each component, we refer the reader to the appendices of their original paper.
+
+F.1.1 DATASET
+
+First, we evaluate our framework on the molecule structure generation task. In this scenario, our goal is to generate the 3D coordinates of a molecule given the graph structure of the molecule. We conduct the experiments on the GEOM datasets (Axelrod & Gomez-Bombarelli, 2022), which provide structure ensembles generated by metadynamics in CREST (Pracht et al., 2024), and we focus on the GEOM-QM9 and GEOM-DRUGS datasets. Following the data processing and splits from Hassan et al. (2024), we use the random splits with train/validation/test of 243473/30433/1000 for GEOM-DRUGS and 106586/13323/1000 for GEOM-QM9. In addition, data with disconnected molecule graphs are removed for GEOM-DRUGS (Hassan et al., 2024). Our reproduction is based on the modified data-processing pipeline following the released configurations thus different from the results reported in the original paper. In evaluation, we use the same sampling steps of 50 NFEs for all ET-Flow series models in Table 2 for fair comparison.
+
+F.1.2 SETTINGS
+
+We primarily follow the setting in Hassan et al. (2024). We set the Gaussian distribution as the prior distribution on GEOM-QM9 and use the harmonic prior for GEOM-DRUGS (Volk et al., 2023). Following Jing et al. (2022); Xu et al. (2022), we report the RMSD-based metrics, e.g., Coverage and Average Minimum RMSD (AMR) between generated and ground truth structure ensembles. We parameterize vθ by using equivariant graph transformer architectures from ET-Flow (Hassan et al., 2024), including the O(3) and SO(3) equivariant variants, which also serves as a verification that
+
+<!-- Page 37 -->
+
+Published as a conference paper at ICLR 2026 our framework is compatible with different backbone models. For training, we use AdamW as the optimizer, and set the hyper-parameter ϵ to 1e-8 and (β1, β2) to (0.9,0.999). We use the dynamic gradient clipping as (Hassan et al., 2024; Hoogeboom et al., 2022b). The peak learning rate is set to 5e-4 for GEOM-DRUGS and 7e-4 for GEOM-QM9. The batch size is set to 48 for GEOM-DRUGS and 128 for GEOM-QM9. The weight decay is set to 1e-8. The model is trained for 1000 epochs for both datasets. The noise scale σ is set to 0.1. We also use 50 time steps with the Euler solver for sampling. All models are trained on 8 NVIDIA A100 GPUs.
+
+F.1.3 BASELINES
+
+Following (Hassan et al., 2024), we choose strong baselines trained on GEOM-DRUGS and GEOM- QM9 for a challenging comparison. We report the performance of CGCF (Xu et al., 2021), GeoMol (Ganea et al., 2021), GeoDiff (Xu et al., 2022), Torsional Diffusion (Jing et al., 2022), and MCF (Wang et al., 2023).
+
+F.2 PROTEIN STRUCTURE GENERATION
+
+This appendix summarizes our experimental setup, which strictly follows that of Prote´ına (Geffner et al., 2025). We detail the datasets, model architecture, training, sampling, and evaluation. For a more comprehensive discussion of each component, we refer the reader to the appendices of their original paper.
+
+F.2.1 DATASET
+
+For training, we utilize the FoldSeek AFDB clusters (DFS) dataset as curated and described in the Prote´ına. This dataset is a high-quality, non-redundant subset of the AlphaFold Database (AFDB), containing 588,318 cluster-representative protein structures with lengths between 32 and 256 residues. The dataset is annotated with hierarchical CATH labels, which are leveraged during training. Our data processing and handling strictly follow the pipeline detailed in Appx. M of Geffner et al. (2025).
+
+F.2.2 BASELINES
+
+The representative references in Table 3 primarily focus on generating the full backbone of proteins, whereas the Prote´ına setting evaluated here focuses only on generating the alpha carbon atoms (Cα) of the residues. These baselines can be categorized according to their structure-generation strategies. FrameDiff (Yim et al., 2023b) and RFDiffusion (Watson et al., 2023) are diffusionbased backbone generators built on residue-frame representations. FrameDiff (Yim et al., 2023b) trains a standalone SE(3)-aware denoising model for unconditional backbone generation, whereas RFDiffusion (Watson et al., 2023) adapts the RoseTTAFold structure prediction architecture into a denoising diffusion model and is particularly effective for conditional design and motif scaffolding. FoldFlow (Bose et al., 2024) and FrameFlow (Yim et al., 2023a) retain a similar frame-based geometric representation but replace the score-based diffusion with flow matching, with the goal of achieving more stable dynamics and faster sampling. FoldFlow (Bose et al., 2024) further introduces deterministic, optimal-transport, and stochastic variants. Proteus (Wang et al., 2024) also falls within the backbone-frame diffusion family, but improves the denoising architecture with graph triangle blocks and multi-track interactions, enhancing designability and sampling efficiency without relying on large pretrained structure-prediction models. Chroma (Ingraham et al., 2023) adopts a different geometry-aware diffusion strategy, generating protein backbones through correlated coordinate diffusion and subsequently completing sequence and side-chain design with its design network. Genie2 (Lin et al., 2024b) is closer to the Prote´ına setting in terms of its forward process, as it adds Gaussian noise only to the Cα coordinates, while still adopting the residue frame representation and SE(3)-equivariant modules. ESM3 (Hayes et al., 2025) is methodologically distinct from these structure-centric baselines: it is a multimodal protein language model operating over sequence, structure, and function tokens for broad conditional protein generation. In Table 3, results of these baselines under the metrics are taken directly from the Prote´ına paper (Geffner et al., 2025).
+
+F.2.3 MODEL ARCHITECTURE AND TRAINING
+
+We adopt the efficient Msmall
+
+FS architecture from the original Prote´ına work (Geffner et al., 2025), which is a 60M-parameter non-equivariant Transformer-based architecture that forgoes the use of computationally expensive triangle update layers and pair representation updates. Key aspects of the
+
+<!-- Page 38 -->
+
+Published as a conference paper at ICLR 2026 training protocol from Prote´ına are preserved, including their novel Beta-Uniform mixture for the time-sampling distribution p(t), the use of self-conditioning, and data augmentation with random rotations. All model and training hyperparameters, such as embedding dimensions, number of layers, attention heads, and optimizer settings, are kept consistent with hyperparameters saved in their released checkpoint Msmall
+
+FS. The hyperparameters for the Msmall
+
+FS model are detailed in Table F.2.1, in comparison with the larger models from the original Prote´ına paper.
+
+Table F.2.1: Hyperparameters for Prote´ına model.
+
+Hyperparameter MFS Mno-tri
+
+FS Msmall
+
+FS Prote´ına Architecture sequence repr dim 768 768 512 # registers 10 10 10 sequence cond dim 512 512 128 t sinusoidal enc dim 256 256 196 idx. sinusoidal enc dim 128 128 196 fold emb dim 256 256 196 pair repr dim 512 512 196 seq separation dim 128 128 128 pair distances dim (xt) 64 64 64 pair distances dim (˜x(xt)) 128 128 128 pair distances min (˚A) 1 1 1 pair distances max (˚A) 30 30 30 # attention heads 12 12 12 # tranformer layers 15 15 12 # triangle layers 5 — — # trainable parameters 200M 200M 60M
+
+Prote´ına Training # steps 200K 360K 150K batch size per GPU 4 10 5 # GPUs 128 96 16 # grad. acc. steps 1 1 1
+
+F.2.4 SAMPLING
+
+To facilitate a direct comparison with the publicly available Prote´ına checkpoints, we trained our model with an identical hierarchical fold class conditioning mechanism. However, to ensure a fair assessment of foundational generative capabilities, all experiments reported in our main text were performed in a strictly unconditional setting. We applied the same sampling protocol across all models, using 400 sampling steps and enabling self-conditioning, which consistently improved performance. No other guidance techniques, such as autoguidance, were utilized. We use deterministic ODE sampling to assess distributional fidelity and SDE sampling to explore the designabilitydiversity trade-off. We adapt the SDE formulation and its Euler-Maruyama numerical scheme, detailed in Appx. I of Geffner et al. (2025), for our quotient space framework, while retaining all other configurations, such as the sampling scheduler and g(t), from the original paper.
+
+F.2.5 EVALUATION
+
+We evaluate our models rigorously adheres to the metrics established and validated in the Prote´ına paper. We assess model performance using the standard suite of metrics in protein backbone structure design:
+
+• Designability. Quantified by the self-consistency RMSD (scRMSD) protocol, using ProteinMPNN for inverse folding and ESMFold for structure prediction, with a success threshold of scRMSD less than 2 ˚A. • Diversity. Measured in two ways: by the average pairwise TM-score among designable samples, and by the number of distinct structural clusters identified by FoldSeek at a TMscore threshold of 0.5.
+
+<!-- Page 39 -->
+
+Published as a conference paper at ICLR 2026
+
+• Novelty. Assessed by calculating the maximum TM-score of each designable sample against reference structures in the PDB and AFDB databases.
+
+We also adopt the novel probabilistic metrics introduced by Geffner et al. (2025), to measure how well our model captures the true distribution of protein structures:
+
+• FPSD. Measured the distributional similarity between generated and reference structures in the feature space of a pre-trained fold class predictor.
+
+• fS. Evaluated both the quality and diversity of samples based on the confidence and entropy of fold class predictions.
+
+• fJSD. Quantified the similarity between the categorical fold class distributions of generated and reference sets.
+
+It is noteworthy that we have omitted the Diversity and Novelty metrics from our main text to avoid comparisons with potentially inaccurate results in the literature. This decision is based on a bug recently identified in the alntmscore output of FoldSeek versions prior to v10 (release 10-941cd33), which renders many previously reported TM-based metrics incorrect (also found in (Daras et al., 2025)). To provide a controlled and accurate benchmark, we conducted our own analysis using the FoldSeek v10 (release 10-941cd33). We limited this re-evaluation to the released small Prote´ına model and our corresponding model trained in the quotient space. The full results of this comparison are summarized in Table F.2.2.
+
+Table F.2.2: Complete performance comparison of the released Prote´ına checkpoints against models using quotient-space diffusion. Best results are marked in bold.
+
+## Model
+
+Designability (%) ↑ Diversity Novelty ↓vs. FPSD ↓vs. fS ↑in fJSD ↓vs.
+
+Cluster ↑TM-Sc. ↓ PDB AFDB PDB AFDB C/A/T PDB AFDB
+
+SDE Sampling
+
+Prote´ına Msmall
+
+FS, γ = 0.35 96.0 0.44 (209) 0.50 0.86 0.91 386.5 378.2 1.77/4.97/17.78 2.17 1.73 + Quotient-space diffusion 97.6 0.40 (197) 0.48 0.86 0.91 274.7 277.1 2.24/6.69/20.99 1.68 1.55 Prote´ına Msmall
+
+FS, γ = 0.45 92.2 0.55 (253) 0.49 0.84 0.90 332.9 320.4 1.83/5.01/20.22 1.93 1.49 + Quotient-space diffusion 92.6 0.51 (253) 0.47 0.85 0.90 244.5 246.3 2.24/6.68/23.47 1.43 1.28 Prote´ına Msmall
+
+FS, γ = 0.50 89.2 0.57 (255) 0.48 0.83 0.89 306.2 290.8 1.86/4.92/21.15 1.81 1.36 + Quotient-space diffusion 90.2 0.51 (231) 0.47 0.84 0.90 228.0 228.7 2.25/6.59/25.24 1.32 1.17
+
+ODE Sampling
+
+Prote´ına Msmall
+
+FS 13.8 0.90 (62) 0.43 0.80 0.87 83.18 21.93 2.45/5.63/31.76 0.58 0.12 + Quotient-space diffusion 15.6 0.87 (68) 0.43 0.80 0.86 69.94 17.56 2.57/6.40/32.14 0.41 0.11
+
+G ADDITIONAL EXPERIMENTAL RESULTS AND DISCUSSIONS
+
+G.1 EFFICIENCY AND COMPLEXITY ANALYSIS
+
+Complexity analysis. In this subsection, we give a detailed discussion on the computational cost of our method. As mentioned in Thm. 4, we need to compute the inversion of the matrix K and the cross product for the horizontal projection operator Px and the mean curvature vector ˜h(x). For the calculation of K−1, notice that K is always a 3 × 3 matrix, so construction cost of K−1 is only linear O(N), where N is the number of atoms (linear O(N) cost for constructing K, and constant O(1) cost for inversion). The cross product is conducted atom-wise, so its computational cost is also linear O(N). So we can conclude that the overall computational complexity is O(N) for both Px and ˜h(x).
+
+We would like to mention that the alignment operation adopted in the heuristic alignment-based diffusion strategies also has the same complexity. To see this, for aligning x ∈R3×N towards y ∈ R3×N, the Kabsch-Umeyama algorithm constructs the optimal rotation matrix as (H⊤H)
+
+1 2 H−1, where H:= yx⊤∈R3×3 requires a linear O(N) cost. In practice, the O(N) computational cost is negligible compared to the cost of gradient back-propagation through the neural network. A comparison of practical training times is shown in the following table.
+
+All the results are tested on a single Nvidia A100 GPU. From the results, we can see that the additional computational cost brought by the alignment and projection is negligible.
+
+<!-- Page 40 -->
+
+Published as a conference paper at ICLR 2026
+
+Table G.1.1: Training speed comparison on QM9.
+
+## Methods
+
+Original diffusion
+
+GeoDiff alignment
+
+AF3 alignment
+
+Quotient-space diffusion training speed (iters/s) 4.19 4.07 4.08 4.10
+
+Figure G.1.1: Training loss vs. training epochs. We find that our training is stable in practice.
+
+Numerical stability. In our quotient-space diffusion model framework, we need to calculate the matrix inversion of K, which may have numerical issues for near-collinear systems of points. In practice, we add an ϵI term before conducting matrix inversion, that is, we calculate (ϵI + K)−1 in practice, where I is the 3 × 3 identity matrix. This treatment is widely adopted in algorithms facing similar situations, e.g., the practical implementation of the Kabsch-Umeyama algorithm for alignment. Our typical choice of ϵ is 1e-8, and we found that the training process is stable under this setting. We have shown the training curve of the model on the protein structure generation task in Fig. G.1.1, which indicates no numerical issues arise during the training process.
+
+G.2 THE IMPLEMENTATION OF G-EQUIVARIANT VECTOR FIELD
+
+In Thm. 4, we require that the vector field is SO(3)-equivariant. In practice, this can be implemented by using a SO(3)-equivariant network architecture or applying data augmentation. In this subsection, we justify that both of these choices are valid, such that the diffusion model can generate a SO(3)-invariant distribution.
+
+Diffusion model with data augmentation. The optimal solution of the Euclidean diffusion model is given by D∗ θ(xt) = E[x1|xt] (Song et al., 2021; Karras et al., 2022). When the data distribution is augmented by random rotation, the data distribution becomes SO(3)-invariant. Thus, the optimal diffusion model can recover the SO(3)-invariant data distribution. When the transition density p(xt|x1) is SO(3)-equivariant, i.e. p(xt|x1) = p(g · xt|g · x1), ∀g ∈SO(3), the optimal network is SO(3)-equivariant. To see this, let g ∈SO(3) be an arbitrary rotation matrix. Since D∗ θ(g · xt) = E[x1|g · xt], by the Bayes formula,
+
+E[x1|g · xt] = Eptarget(x1)[x1p(g · xt|x1)]
+
+Eptarget(x1)[p(g · xt|x1)] = Eptarget(x1)[x1p(xt|g−1 · x1)]
+
+Eptarget(x1)[p(xt|g−1x1)]
+
+= g · Eptarget(g−1x1)[g−1x1p(xt|g−1 · x1)]
+
+Eptarget(g−1x1)[p(xt|g−1x1)] = g · E[x1|xt], where we use the equivariance property of the transition density to get the second equality and the invariance property of ptarget to get the third equality. Thus, we can conclude that the optimal solution under these conditions is SO(3)-equivariant. Geffner et al. (2025) also gives an empirical validation that a well-trained neural network becomes nearly equivariant even if its architecture is not equivariant.
+
+Equivariant architecture. When the model is required to be SO(3)-equivariant, the optimal solution of the diffusion model is not E[x1|xt]. To figure out the optimal solution, we consider the training loss at time t. The loss function at t is given by
+
+Lt(θ) = E∥Dθ(xt, t) −x1∥2
+
+![Figure extracted from page 40](2026-ICLR-quotient-space-diffusion-models/page-040-figure-01.svg)
+
+AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
+
+<!-- Page 41 -->
+
+Published as a conference paper at ICLR 2026
+
+=
+
+Z d3Nx1
+
+Z d3Nxt p(x1, xt)
+
+∥Dθ(xt, t)∥2 + ∥x1∥2 −2⟨Dθ(xt, t), x1⟩
+
+.
+
+The optimal solution satisfies
+
+D∗ θ(xt, t) = argmin Dθ is SO(3)-equivariant
+
+Lt(θ).
+
+The training loss can be simplified using the equivariant constraint: Lt(θ)
+
+=
+
+Z d3Nx1
+
+Z d3Nxt p(x1, xt)
+
+∥Dθ(xt)∥2 + ∥x1∥2 −2⟨Dθ(xt), x1⟩
+
+=
+
+Z
+
+R3N
+
+CoM◦/SO(3)
+
+drt
+
+Z
+
+SO(3)
+
+dg
+
+Z d3Nx1 p(x1, g · rt)
+
+∥Dθ(g · rt)∥2 + ∥x1∥2 −2⟨Dθ(g · rt), x1⟩
+
+, where R3N
+
+CoM◦is defined in Appx. C.3, and rt ∈R3N is a representation of a quotient-space element in the original Euclidean space. Since Dθ is SO(3)-equivariant, Dθ(g · rt) = g · Dθ(rt), then we have: Lt(θ)
+
+=
+
+Z
+
+R3N
+
+CoM◦/SO(3)
+
+drt
+
+Z
+
+SO(3)
+
+dg
+
+Z d3Nx1 p(x1, g · rt)
+
+∥Dθ(rt)∥2 + ∥x1∥2 −2⟨g · D1θ(rt), x1⟩
+
+.
+
+Define p(rt) =
+
+R
+
+SO(3) dg
+
+R d3Nx1 p(x1, g · rt), and p(x1, g | rt) = p(x1,g·rt)
+
+p(rt). Then we have: Lt(θ)
+
+=
+
+Z
+
+R3N
+
+CoM◦/SO(3)
+
+drt
+
+" p(rt)∥Dθ(rt)∥2 −2⟨Dθ(rt),
+
+Z
+
+SO(3)
+
+dg
+
+Z d3Nx1 p(x1, g · rt)g−1 · x1⟩
+
+#
+
++
+
+Z
+
+R3N
+
+CoM◦/SO(3)
+
+drt
+
+Z
+
+SO(3)
+
+dg
+
+Z d3Nx1 p(x1, grt)∥x1∥2.
+
+So we can conclude that
+
+D∗ θ(rt, t) =
+
+Z
+
+SO(3)
+
+dg
+
+Z d3Nx1 p(x1, g | rt) g−1 · x1,
+
+D∗ θ(g′ · rt) =
+
+Z
+
+SO(3)
+
+dg
+
+Z d3Nx1 p(x1, g | rt) g′ · g−1 · x1, ∀g ∈SO(3).
+
+Notice that
+
+D∗ θ(rt) =
+
+Z
+
+SO(3)
+
+dg
+
+Z d3Nx1 p(x1, g | rt) g−1 · x1
+
+=
+
+R
+
+SO(3) dg
+
+R d3Nx1 p(g · x1)p(g · rt | g · x1)x1 R
+
+SO(3) dg
+
+R d3Nx1 p(g · x1)p(g · rt | g · x1)
+
+=
+
+R
+
+SO(3) dg
+
+R d3Nx1 p(g · x1)p(rt | x1)x1 R
+
+SO(3) dg
+
+R d3Nx1 p(g · x1)p(rt | x1), which is equivalent to the case ptarget =
+
+R
+
+SO(3) dg p(g ·x1), i.e. using the augmentation by random SO(3) rotation.
+
+G.3 TRAINING AND SAMPLING ACCELERATION
+
+In this subsection, we study the training and sampling convergence speed of different methods. For the training convergence speed comparison, we plot the generation performance measured by the precision AMR median metric with respect to the training epochs for previous heuristic alignment methods and our quotient-space diffusion model in Fig. G.3.1(Left). We only focus on the first 100 epochs for all the methods. These models are trained with the same architecture ET-Flow(SO(3)) and training configurations on the GEOM-DRUGS dataset. The results indicate that our method achieves a similar convergence speed to the AF3 heuristic method, because both methods reduce the learning difficulty of the model, and our method leads to a faster convergence than the GeoDiff alignment method since the latter only reduces the variance in learning a target in the equivalence class but has not removed this learning task, as shown in Table 1. We also notice that the AF3
+
+<!-- Page 42 -->
+
+Published as a conference paper at ICLR 2026
+
+Figure G.3.1: Training and sampling convergence speed comparison among different symmetry training strategies using the ET-Flow(SO(3)) architecture on the GEOM-DRUGS dataset. (Left) The relationship between training epochs and generation performance measured by the precision AMR median metric. (Right) The relationship between the number of function evaluations (NFE) for sampling and generation performance measured by the precision AMR median metric.
+
+alignment method starts to get worse generation performance after 80 training epochs. This happens due to the incompatibility between the modified learning target and the original sampling process.
+
+For the sampling convergence speed comparison, we plot the generation performance measured by the precision AMR median metric with respect to the number of function evaluations (NFE) for the sampling process in Fig. G.3.1(Right). For all these methods trained on the GEOM-DRUGS dataset, we use the Flow Matching ODE sampler (Lipman et al., 2023) with Euler discretization. From the results, we can observe that models trained with different strategies exhibit similar convergence trends (performance gradually degrades as NFE decreases), our quotient-space diffusion framework consistently outperforms all baselines across every NFE setting.
+
+G.4 QUOTIENT SPACE BEYOND R3N/SE(3)
+
+Our framework can generalize to quotient spaces generated by symmetry groups beyond the special Euclidean group SE(3). Possible examples include the U(1) symmetry in quantum wavefunctions, the SU(2) symmetry in particle physics, and the SO(3) symmetry in higher (> 3) representation spaces for tasks including the mean-field electron Hamiltonian matrix prediction. In this work, we focus on the SE(3) case for its significant relevance to scientific research (Abramson et al., 2024). Applications of our framework on the mentioned more diverse systems above are left as future work.
+
+G.5 DISCUSSION ON TRANSITION PROBABILITY FOR REWARD-GUIDED GENERATION
+
+Calculating transition probability is required in sampling from a reward-tilted distribution. It is a common need with significant practical relevance, e.g., inference-time scaling for image generation (Singhal et al., 2025) and for protein structure generation (Wohlwend et al., 2025). We treat it also as an important future extension of our quotient-diffusion framework.
+
+Regarding the transition probability calculation corresponding to the stochastic process in Eq. (9), we would like to first point out that an infinitesimal update step under say, Euler-Maruyama discretization, happens on a linear subspace at the current position defined by the projection operator P˜xt (note that ˜h(˜xt) already lives in the subspace by definition); specifically, the Gaussian noise rising from the Wiener process is projected onto the subspace. A consequence of this operation is that the transition probability density function would be ill-defined if viewed as a distribution on the total space M (i.e., it is not absolutely continuous with respect to the Lebesgue measure of the total space; it is infinite on the linear subspace and is zero outside). For an appropriate formulation in sequential-Monte-Carlo/reweighting-based tilting sampling, the distribution should be viewed on the subspace, and its density function be defined with respect to the Lebesgue measure on the subspace.
+
+![Figure extracted from page 42](2026-ICLR-quotient-space-diffusion-models/page-042-figure-01.svg)
+
+AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
+
+![Figure extracted from page 42](2026-ICLR-quotient-space-diffusion-models/page-042-figure-02.svg)
+
+AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
+
+<!-- Page 43 -->
+
+Published as a conference paper at ICLR 2026
+
+More concretely, using simplified symbols, the one-step transition can be seen as projecting the Gaussian random variable in the M-dimensional total space, x ∼N(µ, Σ), using the projection in matrix form P. This operation can be seen as marginalizing out the component orthogonal to the projected linear subspace. To leverage this view, we can first conduct a coordinate transformation that decouples the two components. This can be done from the diagonalization P = Q−1ΛQ. Since P is a projection matrix satisfying P2 = P, Λ is a diagonal matrix consisting only 1 and 0; denote the number of 1’s as Q, which is the dimensionality of the linear subspace. Then written under the new coordinate system transformed by Q, the projected coordinates is ΛQ−1x, which essentially omitting the last M −Q components corresponding to the coordinates orthogonal to the linear subspace, so the distribution of the projected vector viewed in the Q-dimensional linear subspace is the distribution of Q−1x marginalized over the last M −Q coordinates. Explicitly, Q−1x ∼N(Q−1µ, Q−1ΣQ−⊤), and its marginalized distribution for the first Q coordinates is a Gaussian with mean vector taking the first Q components of Q−1µ, and the covariance matrix as the top-left Q × Q block of the M × M matrix Q−1ΣQ−⊤. This is how the transition probability is calculated.
+
+We would like to mention that Thm. 2 and Cor. 3 guarantee that this generation process still produces the same target distribution at the end when viewed on the quotient space (which is sufficient since we do not need to care about the distribution on the equivalent class).
+
+As for the application of sequential-Monte-Carlo/reweighting-based approaches, the proposal distribution (if different from the transition distribution) must also be a distribution on the linear subspace, whose probability density should also be written in that space. The step-wise importance weight would be relatively flexible to choose as long as they accumulate to the desired reward at the end.

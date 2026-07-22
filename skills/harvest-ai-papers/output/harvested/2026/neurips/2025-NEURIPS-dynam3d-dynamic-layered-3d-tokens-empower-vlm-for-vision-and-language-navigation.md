@@ -31,7 +31,6 @@ Preprint. Under review.
 
 arXiv:2505.11383v1 [cs.CV] 16 May 2025
 
-
 <!-- Page 2 -->
 
 Instruction: “Please go to the kitchen and take the bread out of the microwave for me.”
@@ -74,21 +73,17 @@ In summary, our main contributions include:
 
 • Our monocular VLN system achieves state-of-the-art performance on benchmarks including R2R-CE, REVERIE-CE, and NavRAG-CE. The results also demonstrate our strong capabilities in pre-exploration, lifelong memory and real-world experiments.
 
-
 ![Figure extracted from page 2](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-002-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 2](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-002-figure-02.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 2](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-002-figure-06.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 3 -->
 
@@ -107,7 +102,6 @@ Overview. Figure 2 shows the framework of our Dynam3D for vision-and-language na
 We first design and pre-train a multi-level 3D representation model to acquire language-aligned 3D representations encompassing both fine-grained details and global layouts.
 
 Encoding the Patch Feature Points. To memorize the geometry and semantics of 3D environments, we follow HNR [41] and g3D-LF [14] in using CLIP-ViT-L/14@336px [11] as the encoder for RGB images to extract 2D patch features {gt,i ∈R768}I i=1. gt,i denotes the i-th patch feature of the 2D feature map extracted from t-th frame observed by the agent and I = 24 × 24. The patch features {gt,i}I i=1 are then project to the corresponding 3D world coordinates {Pt,i}I i=1 using the depth map
-
 
 <!-- Page 4 -->
 
@@ -207,41 +201,33 @@ dh,w denotes the depth value in row h and column w of the depth image Dt ∈RH×
 
 Dynamically Encoding 3D Instance Representations. Due to the overwhelming volume of 3D patch features, a direct employment as visual input to 3D-VLM is computationally and economically impractical. In contrast to voxel-level pooling approaches, e.g. LLaVA-3D [40], our Dynam3D encodes features at the 3D instance level since target localization in navigation instructions is mostly described in terms of object instances. As illustrated in Figure 2, FastSAM [12] rapidly segments
 
-
 ![Figure extracted from page 4](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-004-figure-24.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 4](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-004-figure-36.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 4](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-004-figure-37.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 4](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-004-figure-38.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 4](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-004-figure-39.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 4](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-004-figure-41.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 4](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-004-figure-46.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 5 -->
 
@@ -309,31 +295,25 @@ The function MergingDiscriminator(·) is an MLP network which takes as input the
 
 Feature Distillation and Language Alignment for 3D Instances. To align 3D instances with language semantics, we leverage contrastive learning on large-scale 3D-language pairs from SceneVerse [46] and g3D-LF [14]. Given a 3D instance feature Oi and its corresponding annotated language description feature Ti extracted from CLIP text encoder, we treat Ti as the positive sample
 
-
 ![Figure extracted from page 5](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-005-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 5](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-005-figure-05.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 5](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-005-figure-09.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 5](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-005-figure-10.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 5](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-005-figure-13.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 6 -->
 
@@ -379,7 +359,6 @@ Encoding Panoramic 3D Patch Tokens via Generalizable Feature Fields. To effectiv
 
 Multimodal Reasoning and Action Prediction. To balance multimodal reasoning capabilities with computational efficiency, the 3.8 billion-parameter LLaVA-Phi-3-mini [48, 49] is integrated into
 
-
 <!-- Page 7 -->
 
 the proposed 3D-VLM framework. Since the 3D tokens (patch-instance-zone) are aligned with the semantic space of CLIP-ViT-L/14@336px [11], the strong multimodal understanding and reasoning abilities of this 2D-VLM can be effectively transferred to the 3D domain.
@@ -400,24 +379,29 @@ To ensure a fair comparison on the more challenging and realistic benchmarks suc
 
 **Table 1.** Evaluation of VLN on R2R-CE with monocular setting. ∗denotes zero-shot method.
 
-Methods LLM Scene Representation R2R-CE Val R2R-CE Test NE↓OSR↑SR↑SPL↑NE↓OSR↑SR↑SPL↑ CM2 [50] × Semantic Map 7.02 41.5 34.3 27.6 7.7 39 31 24 WS-MGMap [51] × Multi-Granularity Semantic Map 6.28 47.6 38.9 34.3 7.11 45 35 28 InstructNav∗[52] ✓ Semantic Value Map 6.89 - 31 24 - - - - AO-Planner∗[53] ✓ Visual Affordance Prompts 6.95 38.3 25.5 16.6 - - - - NaVid [5] ✓ Video Frames 5.47 49.1 37.4 35.9 - - - - VLN-3DFF [27] × Feature Fields 5.95 55.8 44.9 30.4 6.24 54.4 43.7 28.9 g3D-LF [14] × Feature Fields 5.70 59.5 47.2 34.6 6.00 57.5 46.3 32.2 Uni-NaVid [6] ✓ Multi-Granularity Video Frames 5.58 53.3 47.0 42.7 - - - - Dynam3D (Ours) ✓ 3D Patch-Instance-Zone Tokens 5.34 62.1 52.9 45.7 5.53 60.4 51.4 44.8
+## Methods
+
+LLM Scene Representation R2R-CE Val R2R-CE Test NE↓OSR↑SR↑SPL↑NE↓OSR↑SR↑SPL↑ CM2 [50] × Semantic Map 7.02 41.5 34.3 27.6 7.7 39 31 24 WS-MGMap [51] × Multi-Granularity Semantic Map 6.28 47.6 38.9 34.3 7.11 45 35 28 InstructNav∗[52] ✓ Semantic Value Map 6.89 - 31 24 - - - - AO-Planner∗[53] ✓ Visual Affordance Prompts 6.95 38.3 25.5 16.6 - - - - NaVid [5] ✓ Video Frames 5.47 49.1 37.4 35.9 - - - - VLN-3DFF [27] × Feature Fields 5.95 55.8 44.9 30.4 6.24 54.4 43.7 28.9 g3D-LF [14] × Feature Fields 5.70 59.5 47.2 34.6 6.00 57.5 46.3 32.2 Uni-NaVid [6] ✓ Multi-Granularity Video Frames 5.58 53.3 47.0 42.7 - - - - Dynam3D (Ours) ✓ 3D Patch-Instance-Zone Tokens 5.34 62.1 52.9 45.7 5.53 60.4 51.4 44.8
 
 ## 4.2 Experiments on Pre-exploration and Lifelong Memory
 
 As shown in Table 3, we additionally evaluate the performance under the Pre-exploration and Lifelong Memory settings to further demonstrate the advantages of our Dynam3D. The pre-explored panoramic
 
-
 <!-- Page 8 -->
 
 **Table 2.** Evaluation of VLN on REVERIE-CE and NavRAG-CE with monocular setting. ∗denotes zero-shot method.
 
-Methods LLM Scene Representation REVERIE-CE Val NavRAG-CE Val NE↓OSR↑SR↑SPL↑NE↓OSR↑SR↑SPL↑ InstructNav∗[52] ✓ Semantic Value Map 7.44 31.5 25.2 19.1 9.83 24.1 17.4 10.9 NaVid [5] ✓ Video Frames 6.74 36.3 26.6 20.8 9.35 29.6 19.4 13.9 g3D-LF [14] × Feature Fields 6.50 41.6 34.4 23.8 8.85 31.8 21.4 13.5 Dynam3D (Ours) ✓ 3D Patch-Instance-Zone Tokens 6.22 48.9 40.1 28.5 8.12 38.4 24.7 18.8 images from the Pre-exploration setting are collected at the navigable viewpoints annotated in the Matterport3D [21] dataset, which are then used to construct the Patch-Instance-Zone representations of the entire scene. For the Lifelong Memory setting, we group the evaluation episodes by scene with navigation samples from the same scene evaluated consecutively within a group. For each scene, previously stored 3D representations can be leveraged in subsequent episodes to simulate gradual familiarization of the agent with the environment during task execution.
+## Methods
+
+LLM Scene Representation REVERIE-CE Val NavRAG-CE Val NE↓OSR↑SR↑SPL↑NE↓OSR↑SR↑SPL↑ InstructNav∗[52] ✓ Semantic Value Map 7.44 31.5 25.2 19.1 9.83 24.1 17.4 10.9 NaVid [5] ✓ Video Frames 6.74 36.3 26.6 20.8 9.35 29.6 19.4 13.9 g3D-LF [14] × Feature Fields 6.50 41.6 34.4 23.8 8.85 31.8 21.4 13.5 Dynam3D (Ours) ✓ 3D Patch-Instance-Zone Tokens 6.22 48.9 40.1 28.5 8.12 38.4 24.7 18.8 images from the Pre-exploration setting are collected at the navigable viewpoints annotated in the Matterport3D [21] dataset, which are then used to construct the Patch-Instance-Zone representations of the entire scene. For the Lifelong Memory setting, we group the evaluation episodes by scene with navigation samples from the same scene evaluated consecutively within a group. For each scene, previously stored 3D representations can be leveraged in subsequent episodes to simulate gradual familiarization of the agent with the environment during task execution.
 
 **Table 3.** shows that the Pre-exploration strategy enables our Dynam3D to achieve over a 5% improvement in Success Rate (SR) on R2R-CE and an 8% improvement on REVERIE-CE. Under the Lifelong Memory setting, our Dynam3D also achieves performance gains, with a 2.7% SR improvement on R2R-CE and a 4.9% SR improvement on REVERIE-CE. Compared to NaVid [5] which uses a video-based large model, our Dynam3D employing both the Pre-exploration and Lifelong Memory achieves over a 20% increase in navigation success rate (SR).
 
 **Table 3.** Evaluation of VLN for Pre-exploration and Lifelong Memory. Pre-exploration allows agents to scan and encode environmental representations before evaluation, while Lifelong Memory enables agents to retain the environmental representations of previous episodes for subsequent episodes.
 
-Methods Pre-exploration Lifelong Memory R2R-CE Val REVERIE-CE Val NE↓OSR↑SR↑SPL↑NE↓OSR↑SR↑SPL↑ NaVid [5] × × 5.47 49.1 37.4 35.9 6.74 36.3 26.6 20.8 g3D-LF [14] × × 5.70 59.5 47.2 34.6 6.50 41.6 34.4 23.8 g3D-LF [14] ✓ ✓ 5.46 62.5 51.8 39.9 6.44 43.3 37.1 25.9 Dynam3D (Ours) × × 5.34 62.1 52.9 45.7 6.22 48.9 40.1 28.5 Dynam3D (Ours) ✓ × 5.04 66.2 57.1 52.7 6.09 56.8 48.1 37.3 Dynam3D (Ours) × ✓ 5.21 64.4 55.6 48.1 6.31 52.8 45.0 32.7 Dynam3D (Ours) ✓ ✓ 5.11 67.2 58.4 50.4 6.02 56.4 49.5 38.1
+## Methods
+
+Pre-exploration Lifelong Memory R2R-CE Val REVERIE-CE Val NE↓OSR↑SR↑SPL↑NE↓OSR↑SR↑SPL↑ NaVid [5] × × 5.47 49.1 37.4 35.9 6.74 36.3 26.6 20.8 g3D-LF [14] × × 5.70 59.5 47.2 34.6 6.50 41.6 34.4 23.8 g3D-LF [14] ✓ ✓ 5.46 62.5 51.8 39.9 6.44 43.3 37.1 25.9 Dynam3D (Ours) × × 5.34 62.1 52.9 45.7 6.22 48.9 40.1 28.5 Dynam3D (Ours) ✓ × 5.04 66.2 57.1 52.7 6.09 56.8 48.1 37.3 Dynam3D (Ours) × ✓ 5.21 64.4 55.6 48.1 6.31 52.8 45.0 32.7 Dynam3D (Ours) ✓ ✓ 5.11 67.2 58.4 50.4 6.02 56.4 49.5 38.1
 
 ## 4.3 Experiments on Real World and Dynamic Environment
 
@@ -425,16 +409,19 @@ As shown in Tables 4, 5 and Figure 4, we evaluate our Dynam3D on both real-world
 
 **Table 4.** Real-world navigation experiments in static environments.
 
-Methods NE↓OSR↑SR↑ NaVid 2.2 45 35 g3D-LF 3.1 40 30 Dynam3D 1.4 65 55 + Pre-exploration 0.8 75 70
+## Methods
+
+NE↓OSR↑SR↑ NaVid 2.2 45 35 g3D-LF 3.1 40 30 Dynam3D 1.4 65 55 + Pre-exploration 0.8 75 70
 
 **Table 5.** Real-world navigation experiments in dynamic environments.
 
-Methods NE↓OSR↑SR↑ NaVid 3.6 45 20 g3D-LF 4.6 35 10 Dynam3D 1.9 60 45 + Pre-exploration 1.4 75 45
+## Methods
+
+NE↓OSR↑SR↑ NaVid 3.6 45 20 g3D-LF 4.6 35 10 Dynam3D 1.9 60 45 + Pre-exploration 1.4 75 45
 
 ## 4.4 Computational Cost and Real-Time Analysis
 
 We evaluate computational cost on the R2R-CE dataset using a single NVIDIA RTX 4090 GPU. During training, each navigation step takes 455ms (∼0.46 seconds) on average: 83ms for 3D representation updates, 315ms for large language model, and 57ms for other operations. During
-
 
 <!-- Page 9 -->
 
@@ -470,31 +457,25 @@ We introduce Dynam3D, a dynamic hierarchical 3D representation framework for mon
 
 Limitations. Our Dynam3D predicts navigation actions without explicitly outputting the coordinate of target instance, limiting its applicability to some tasks such as mobile manipulation. Moreover, it lacks capabilities for question answering, dialogue, and task updates, showing potential directions for better navigation agents.
 
-
 ![Figure extracted from page 9](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-009-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 9](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-009-figure-02.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 9](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-009-figure-03.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 ![Figure extracted from page 9](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-009-figure-04.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
 
-
 ![Figure extracted from page 9](2025-NEURIPS-dynam3d-dynamic-layered-3d-tokens-empower-vlm-for-vision-and-language-navigation/page-009-figure-05.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 10 -->
 
@@ -548,7 +529,6 @@ Wang. Fast segment anything. arXiv preprint arXiv:2306.12156, 2023.
 
 [15] Yicong Hong, Qi Wu, Yuankai Qi, Cristian Rodriguez-Opazo, and Stephen Gould. Vln bert: A recurrent vision-and-language bert for navigation. In Proceedings of the IEEE/CVF conference on Computer Vision and Pattern Recognition, pages 1643–1653, 2021.
 
-
 <!-- Page 11 -->
 
 [16] Shizhe Chen, Pierre-Louis Guhur, Cordelia Schmid, and Ivan Laptev. History aware multimodal transformer for vision-and-language navigation. Advances in neural information processing systems, 34:5834–5847, 2021.
@@ -592,7 +572,6 @@ Bevbert: Multimodal map pre-training for language-guided navigation. In Proceedi
 [30] Jiaqi Chen, Bingqian Lin, Ran Xu, Zhenhua Chai, Xiaodan Liang, and Kwan-Yee K. Wong.
 
 Mapgpt: Map-guided prompting with adaptive path planning for vision-and-language navigation. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics, 2024.
-
 
 <!-- Page 12 -->
 
@@ -648,7 +627,6 @@ Aaron Gokaslan, Noah Maestre, Angel Xuan Chang, Dhruv Batra, Manolis Savva, et a
 
 [46] Baoxiong Jia, Yixin Chen, Huangyue Yu, Yan Wang, Xuesong Niu, Tengyu Liu, Qing Li, and Siyuan Huang. Sceneverse: Scaling 3d vision-language learning for grounded scene understanding. In European Conference on Computer Vision (ECCV), 2024.
 
-
 <!-- Page 13 -->
 
 [47] Ri-Zhao Qiu, Ge Yang, Weijia Zeng, and Xiaolong Wang. Feature splatting: Language-driven physics-based scene synthesis and editing. arXiv preprint arXiv:2404.01223, 2024.
@@ -696,7 +674,6 @@ A large photo-realistic dataset for structured 3d modeling. In Proceedings of Th
 [60] Peiqi Liu, Zhanqiu Guo, Mohit Warke, Soumith Chintala, Chris Paxton, Nur Muhammad Mahi
 
 Shafiullah, and Lerrel Pinto. Dynamem: Online dynamic spatio-semantic memory for open world mobile manipulation. In CoRL 2024 Workshop on Mastering Robot Manipulation in a World of Abundant Data.
-
 
 <!-- Page 14 -->
 

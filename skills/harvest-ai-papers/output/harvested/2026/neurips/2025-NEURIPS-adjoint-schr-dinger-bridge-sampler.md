@@ -47,7 +47,6 @@ dt + σtdWt, X0 ∼µ(X0), (2)
 
 arXiv:2506.22565v2 [stat.ML] 24 Nov 2025
 
-
 <!-- Page 2 -->
 
 **Table 1.** Compared to prior diffusion samplers, Adjoint Schrödinger Bridge Sampler (ASBS) offers the most flexible design for diffusion samplers (2), while learning the drift uθ
@@ -56,7 +55,9 @@ t via scalable matching objectives that do not rely on computation of importance
 
 Design condition for (2) Learning method for uθ t
 
-Method Non-memoryless Arbitrary prior Matching objective1 No reliance on IWs
+## Method
+
+Non-memoryless Arbitrary prior Matching objective1 No reliance on IWs
 
 PIS (Zhang and Chen, 2022) DDS (Vargas et al., 2023) ✗ ✗ ✗ ✓ LV-PIS & LV-DDS (Richter and Berner, 2024) ✗ ✗ ✗ ✗ PDDS (Phillips et al., 2024) iDEM (Akhound-Sadegh et al., 2024) ✗ ✗ ✓ ✗ AS (Havens et al., 2025) ✗ ✗ ✓ ✓ Sequential SB (Bernton et al., 2019) ✓ ✓ ✗ ✗
 
@@ -89,7 +90,6 @@ dt + σtdWt, X0 ∼µ(X0), X1 ∼ν(X1). (3b)
 Here, pu denotes the path distribution induced by the SDE in (3b), whereas pbase:= pu:=0 denotes the path distribution induced by the “base” SDE when ut:= 0. By minimizing their KL divergence, the SB problem (3) seeks the kinetic-optimal drift u⋆ t —an optimality structure well correlated with sampling efficiency in
 
 1The matching objective is a simple regression loss, E∥uθ t (Xt) −vt(Xt, X1)∥2, w.r.t. some tractable vt.
-
 
 <!-- Page 3 -->
 
@@ -143,7 +143,6 @@ Z pbase(X0)pbase(X1)e−g(X1)+V0(X0)dX0 ∝pbase(X1)e−g(X1) = ν(X1),
 
 R pbase(X1|X0)e−g(X1)dX1 = e−V0(X0). See Section A.1 for details.
 
-
 <!-- Page 4 -->
 
 time t
@@ -166,7 +165,9 @@ s.t. dXt = σtut(Xt)dt + σtdWt, X0=0. (7)
 
 Based on the aforementioned reasoning, solving (7) results in a diffusion sampler that transports samples to the target distribution at t=1, with Adjoint Sampling (Havens et al., 2025) as the only scalable method of this class. Despite encouraging, the SOC problem in (7) is nevertheless limited by its trivial source, precluding potentially more effective options for sampling Boltzmann distributions.
 
-3 Adjoint Schrödinger Bridge Sampler
+## 3 Adjoint
+
+Schrödinger Bridge Sampler
 
 We introduce a new diffusion sampler by solving the SB problem (3), where the target distribution ν(x) is given by its energy function E(x) rather than explicit samples. All proofs are left in Section B.
 
@@ -195,7 +196,6 @@ Z pbase t|0 (x|y) ˆφ0(y)dy, φ1(x) ˆφ1(x) = ν(x)
 and pbase t|s (y|x):= pbase(Xt=y|Xs=x) is the transition kernel of the base process for observing y at time t given x at time s. The SB potentials φt(x), ˆφt(x) ∈C1,2([0, 1], Rd) are then defined (up to some multiplicative constant) as solutions to forward and backward time integrations w.r.t. pbase t|s.
 
 Equation (8) are computationally challenging to solve—even when pbase t|s has an analytical solution—due to the intractable integration and coupled boundaries at t = 0 and 1. Our key observation is that the first equation (8a) resembles the optimality condition of the SOC problem (4) (see Section A.1). This implies that the optimality conditions of SB hints an SOC reinterpretation, which, as we will demonstrate, is more tractable than solving (8) directly. We formalize our finding below.
-
 
 <!-- Page 5 -->
 
@@ -273,10 +273,13 @@ To summarize, Equations (12) and (13) characterize two distinct matching objecti
 
 3Formally, ∇log ˆφt(x) is the kinetic-optimal drift along the reversed time coordinate s:= 1 −t, and (13) is its variational formulation, i.e., the Markovian projection at s = 0; see Section A.2 for details.
 
-
 <!-- Page 6 -->
 
-Algorithm 1 Adjoint Schrödinger Bridge Sampler (ASBS)
+## Algorithm
+
+## 1 Adjoint
+
+Schrödinger Bridge Sampler (ASBS)
 
 Require: Sample-able source X0 ∼µ, differentiable energy E(x), parametrized uθ(t, x) and hϕ(x)
 
@@ -333,7 +336,6 @@ Equation (15) should be distinguish from the bridge-matching objectives in data-
 θ (X1|X0), hence can be used to learn SB-based diffusion samplers at scale.
 
 The alternating optimization between (14) and (15) creates a sequence of updates, (u(0), h(0)) →· · · (u(k), h(k)) → · · ·, that may be thought of as running coordinate descent between the control u and the corrector h. Intuitively, at each stage k, we first find the control u(k) that best aligns with the corrector from previous stage, h(k−1), then update the corrector h(k) accordingly to reflect the “memorylessness” of the current control u(k).
-
 
 <!-- Page 7 -->
 
@@ -395,7 +397,6 @@ Unlike (16), the objective in (18) disregards the source boundary constraint µ 
 
 Data-driven Schrödinger Bridges The SB problem has attracted notable interests in machine learning due to its connection to diffusion-based generative models (Wang et al., 2021). Earlier methods implemented classical IPF algorithms (De Bortoli et al., 2021; Vargas et al., 2021; Chen et al., 2022), with scalability later enhanced by bridge matching-based methods (Shi et al., 2023; Liu et al., 2024). Unlike ASBS, all of them
 
-
 <!-- Page 8 -->
 
 focus on generative modeling and assume access to extensive target samples during training, making them unsuitable for sampling from Boltzmann distributions.
@@ -416,7 +417,6 @@ Benchmarks We evaluate our ASBS on three classes of multi-particle energy functi
 
 • Amortized conformer generation Finally, we consider a new benchmark proposed in (Havens et al., 2025) for large-scale conformer generation. Conformers are locally stable configurations located at the local minima of the molecule’s potential energy surface (Hawkins, 2017). Sampling conformers is essentially a conditional generation task, targeting a Boltzmann distribution ν(x|g) ∝e−1 τ E(x|g) at a low temperature τ ≪1, conditioned on the molecular topology g ∈G. The training set Gtrain contains 24,477 molecular topologies from SPICE (Eastman et al., 2023), represented by the SMILES strings (Weininger, 1988), whereas the test set Gtest contains 80 topologies from SPICE and another 80 from GEOM-DRUGS (Axelrod and Gomez-Bombarelli, 2022). As with (Havens et al., 2025), we consider E(x|g) a foundation model
 
-
 <!-- Page 9 -->
 
 **Table 2.** Results on the synthetic energy functions for n-particle bodies with their corresponding dimensions d. Following (Chen et al., 2025; Havens et al., 2025), we report Sinkhorn for MW-5 and the Wasserstein-2 distances w.r.t samples,
@@ -425,7 +425,9 @@ W2, and energies, E(·)W2, for the rest. All values are averaged over three rand
 
 MW-5 (d=5) DW-4 (d = 8) LJ-13 (d = 39) LJ-55 (d = 165)
 
-Method Sinkhorn ↓ W2 ↓ E(·) W2 ↓ W2 ↓ E(·) W2 ↓ W2 ↓ E(·) W2 ↓
+## Method
+
+Sinkhorn ↓ W2 ↓ E(·) W2 ↓ W2 ↓ E(·) W2 ↓ W2 ↓ E(·) W2 ↓
 
 PDDS (Phillips et al., 2024) — 0.92±0.08 0.58±0.25 4.66±0.87 56.01±10.80 — — SCLD (Chen et al., 2025) 0.44±0.06 1.30±0.64 0.40±0.19 2.93±0.19 27.98± 1.26 — — PIS (Zhang and Chen, 2022) 0.65±0.25 0.68±0.28 0.65±0.25 1.93±0.07 18.02± 1.12 4.79±0.45 228.70±131.27 DDS (Vargas et al., 2023) 0.63±0.24 0.92±0.11 0.90±0.37 1.99±0.13 24.61± 8.99 4.60±0.09 173.09± 18.01 LV-PIS (Richter and Berner, 2024) — 1.04±0.29 1.89±0.89 — — — — iDEM (Akhound-Sadegh et al., 2024) — 0.70±0.06 0.55±0.14 1.61±0.01 30.78±24.46 4.69±1.52 93.53± 16.31 AS (Havens et al., 2025) 0.32±0.06 0.62±0.06 0.55±0.12 1.67±0.01 2.40± 1.25 4.04±0.05 30.83± 8.19 ASBS (Ours) 0.15±0.02 0.43±0.05 0.20±0.11 1.59±0.03 1.99± 1.01 4.00±0.03 28.10± 8.15
 
@@ -493,8 +495,9 @@ ASBS models For all tasks, we consider a degenerate base drift ft:= 0, as discus
 
 For other energy functions, we use standard fully-connected neural networks and consider Gaussian priors. All models are trained with Adam (Kingma and Ba, 2015) and, following standard practices (Havens et al., 2025; Akhound-Sadegh et al., 2024), utilize replay buffers; see Section C for details.
 
-Results Table 2 presents the results on synthetic energy functions. Notably, ASBS consistently outperforms prior diffusion samplers across all energy functions. In Figure 3, we compare the energy histograms of DW-4 and LJ-13 potentials between the ground-truth MCMC samples and those from ASBS. It is evident that ASBS generates samples that closely resemble the target Boltzmann distribution ν(x) ∝e−E(x), resulting in energy profiles E(x) that are almost indistinguishable from the ground truth. Computationally, Figure 4
+## Results
 
+Table 2 presents the results on synthetic energy functions. Notably, ASBS consistently outperforms prior diffusion samplers across all energy functions. In Figure 3, we compare the energy histograms of DW-4 and LJ-13 potentials between the ground-truth MCMC samples and those from ASBS. It is evident that ASBS generates samples that closely resemble the target Boltzmann distribution ν(x) ∝e−E(x), resulting in energy profiles E(x) that are almost indistinguishable from the ground truth. Computationally, Figure 4
 
 <!-- Page 10 -->
 
@@ -502,7 +505,9 @@ Results Table 2 presents the results on synthetic energy functions. Notably, ASB
 
 DKL on each torsion’s marginal ↓ W2 on joint ↓
 
-Method ϕ ψ γ1 γ2 γ3 (ϕ, ψ)
+## Method
+
+ϕ ψ γ1 γ2 γ3 (ϕ, ψ)
 
 PIS (Zhang and Chen, 2022) 0.05±0.03 0.38±0.49 5.61±1.24 4.49±0.03 4.60±0.03 1.27±1.19 DDS (Vargas et al., 2023) 0.03±0.01 0.16±0.07 2.44±0.96 0.03±0.00 0.03±0.00 0.68±0.09 AS (Havens et al., 2025) 0.09±0.09 0.04±0.04 0.17±0.17 0.56±0.09 0.51±0.06 0.65±0.52
 
@@ -514,7 +519,9 @@ without relaxation with relaxation
 
 SPICE GEOM-DRUGS SPICE GEOM-DRUGS
 
-Method Coverage ↑ AMR ↓ Coverage ↑ AMR ↓ Coverage ↑ AMR ↓ Coverage ↑ AMR ↓
+## Method
+
+Coverage ↑ AMR ↓ Coverage ↑ AMR ↓ Coverage ↑ AMR ↓ Coverage ↑ AMR ↓
 
 RDKit ETKDG (Riniker and Landrum, 2015) 56.94±35.82 1.04±0.52 50.81±34.69 1.15±0.61 70.21±31.70 0.79±0.44 62.55±31.67 0.93±0.53
 
@@ -538,11 +545,9 @@ shows the average number of evaluation required on the energy E(x) and the model
 
 **Table 4.** presents the recall for amortized conformer generation compared to ground-truth samples. For prior diffusion samplers, we primarily compare to AS (Havens et al., 2025) due to the benchmark’s scale. Following AS, we ablate a warm-start stage using RDKit conformers, which are close but not identical to ground-truth
 
-
 ![Figure extracted from page 10](2025-NEURIPS-adjoint-schr-dinger-bridge-sampler/page-010-figure-01.svg)
 
 AI-readable visual equivalent, added: Figure extracted from the paper PDF and converted to an SVG wrapper asset. Use the surrounding page text and caption for interpretation.
-
 
 <!-- Page 11 -->
 
@@ -634,7 +639,6 @@ Simon Axelrod and Rafael Gomez-Bombarelli. GEOM: energy-annotated molecular conf
 
 Richard Bellman. The theory of dynamic programming. Technical report, Rand corp santa monica ca, 1954.
 
-
 <!-- Page 12 -->
 
 Julius Berner, Lorenz Richter, and Karen Ullrich. An optimal control perspective on diffusion-based generative modeling. Transactions on Machine Learning Research (TMLR), 2024.
@@ -694,7 +698,6 @@ Chris Finlay, Jörn-Henrik Jacobsen, Levon Nurbekyan, and Adam Oberman. How to t
 Robert Fortet. Résolution d’un système d’équations de M. Schrödinger. Journal de Mathématiques Pures et Appliquées,
 
 19(1-4):83–105, 1940.
-
 
 <!-- Page 13 -->
 
@@ -764,7 +767,6 @@ Guan-Horng Liu, Arash Vahdat, De-An Huang, Evangelos A Theodorou, Weili Nie, and
 
 Image-to-Image Schrödinger bridge. In International Conference on Machine Learning (ICML), 2023.
 
-
 <!-- Page 14 -->
 
 Guan-Horng Liu, Yaron Lipman, Maximilian Nickel, Brian Karrer, Evangelos A Theodorou, and Ricky T. Q. Chen.
@@ -829,7 +831,6 @@ Erwin Schrödinger. Sur la théorie relativiste de l’électron et l’interpr�
 
 Neta Shaul, Ricky T. Q. Chen, Maximilian Nickel, Matthew Le, and Yaron Lipman. On kinetic optimal probability paths for generative models. In International Conference on Machine Learning (ICML), 2023.
 
-
 <!-- Page 15 -->
 
 Yuyang Shi, Valentin De Bortoli, Andrew Campbell, and Arnaud Doucet. Diffusion Schrödinger bridge matching. In
@@ -875,7 +876,6 @@ Systems (NeurIPS), 2020.
 Qinsheng Zhang and Yongxin Chen. Path integral sampler: A stochastic control approach for sampling. In International
 
 Conference on Learning Representations (ICLR), 2022.
-
 
 <!-- Page 16 -->
 
@@ -954,7 +954,6 @@ Z pbase(X1|X0)e−g(X1)dX1 (24)
 which is exactly e−V (X0) due to (21). Combing (23) and (24) leads to the the optimal distribution in (5), which we restate below for completeness:
 
 p⋆(X) = pbase(X)e−g(X1)+V0(X0) =⇒p⋆(X0, X1) = pbase(X0, X1)e−g(X1)+V0(X0) (25)
-
 
 <!-- Page 17 -->
 
@@ -1043,7 +1042,6 @@ AS with linear base drift and Gaussian prior (Figure 1) Here, we discuss an alte
 2βtx, µ(x):= N(x; 0, I), σt:= p βt, g(x):= log pbase
 
 1 (x) ν(x). (35)
-
 
 <!-- Page 18 -->
 
@@ -1165,7 +1163,6 @@ Z
 
 0|t(y|x)dy, (44)
 
-
 <!-- Page 19 -->
 
 where the last equality follows by p⋆
@@ -1245,7 +1242,6 @@ One can verify that the value function Vt(x) defined in (21) can be rewritten as
 Z pbase
 
 1|t (y|x)φ1(y)dy.
-
 
 <!-- Page 20 -->
 
@@ -1330,7 +1326,6 @@ On the other hand, the dynamics of ∂tq follows the Fokker Plank equation (Øks
 −1
 
 2σ2 t ∆qt,
-
 
 <!-- Page 21 -->
 
@@ -1458,7 +1453,6 @@ Proof of Theorem 4.2 For notational simplicity, we will denote p(k) ≡pu(k) thr
 
 dYs = [−fs(Ys) + σsvs(Ys)] ds + σsdWs, Y0 ∼ν.
 
-
 <!-- Page 22 -->
 
 Next, rewrite the forward SDE p(k) in the backward direction:
@@ -1557,7 +1551,9 @@ Ep(k)
 
 C Practical Implementation of ASBS
 
-Algorithm 2 summarizes the practical implementation of ASBS, where we expand the adjoint and corrector matching steps (i.e., lines 3 and 4 in Algorithm 1) to full details. Table 5 provides the hyper-parameters for each task. We break down each component as follows:
+## Algorithm
+
+2 summarizes the practical implementation of ASBS, where we expand the adjoint and corrector matching steps (i.e., lines 3 and 4 in Algorithm 1) to full details. Table 5 provides the hyper-parameters for each task. We break down each component as follows:
 
 Harmonic prior µharmonic Recall the harmonic prior in (19):
 
@@ -1593,10 +1589,13 @@ In practice, we set α = 1 and implement (65) as an anisotropic Gaussian. For in
 
 , (66)
 
-
 <!-- Page 23 -->
 
-Algorithm 2 Adjoint Schrödinger Bridge Sampler (ASBS)
+## Algorithm
+
+## 2 Adjoint
+
+Schrödinger Bridge Sampler (ASBS)
 
 Require: Sample-able source X0 ∼µ, differentiable energy E(x), parametrized drift uθ(t, x) and corrector hϕ(x), replay buffers Badj and Bcrt, number of stages K, numbers of AM and CM epochs Madj and Mcrt, number of resamples N, number of gradient steps L, time scaling λt, maximum energy gradient norm αmax. 1: Initialize h(0) ϕ:= 0 ▷IPF initialization
 
@@ -1696,7 +1695,6 @@ When f:= 0, the base SDE is effectively a standard Brownian motion whose conditi
 
 pbase(Xt|X0, X1) = N(Xt; (1 −t)X0 + tX1, σ2t(1 −t)I) (71b)
 
-
 <!-- Page 24 -->
 
 Replay buffers Badj and Bcrt Similar to many previous diffusion samplers (Havens et al., 2025; Akhound- Sadegh et al., 2024; Chen et al., 2025), we employ replay buffers B in computation of both adjoint (14) and corrector (15) matching objectives. Specifically, we rebase the expectation over model samples pu(k) onto a replay buffer B, which stores the most latest |B| samples. We update the buffer with N new samples every L gradient steps. Note that the use of replay buffers effectively render ASBS a hybrid method between on-policy and off-policy.
@@ -1738,7 +1736,6 @@ where ⊗is the Kronecker product, In ∈Rn×n is an identity matrix, and 1n ∈
 Initialization and alternate procedure As ASBS is an instantiation of the IPF algorithm (see Theorem 3.2), it must adhere to the IPF initialization protocol to ensure theoretical convergence to the global solution. Specifically, the IPF initialization can be implemented in two ways
 
 • Initialize with h(0) ϕ:= 0 and run AM, CM,... until convergence. We adopt this setup for all tasks.
-
 
 <!-- Page 25 -->
 
@@ -1844,7 +1841,6 @@ E(x) =
 
 (x2 i −δ)2 (77)
 
-
 <!-- Page 26 -->
 
 **Table 5.** Hyperparameters of ASBS for the each task.
@@ -1915,7 +1911,6 @@ Here, we outline the procedure used to obtain the values reported in Table 2 for
 
 For PIS (Zhang and Chen, 2022), DDS (Vargas et al., 2023), and LV-PIS (Richter and Berner, 2024), iDEM (Akhound-Sadegh et al., 2024), and AS (Havens et al., 2025), we reuse the values reported in AS (Havens et al., 2025, Table 1) for DW-4, LJ-13, and LJ-55 energy functions. As for MW-5, which is not included in AS, we run iDEM using their official implementation and the rest of baseline methods using our own implementation in PyTorch (Paszke et al., 2019). We were unable to obtain reportable results for LV-PIS and iDEM on this energy function.
 
-
 <!-- Page 27 -->
 
 For PDDS (Phillips et al., 2024) and SCLD (Chen et al., 2025), we run their official implementations in JAX (Bradbury et al., 2018) using the default hyperparameter settings specified for the Log-Gaussian Cox Process experiment in their respective papers. To enhance stability and convergence on synthetic energy functions, we tune the gradient clipping parameters. For PDDS, we apply clipping to the gradient of the energy function. For SCLD, we clip both the energy gradient and the Langevin norm. In both cases, the clipping magnitude is selected from the set {1, 10, 100, 1000} based on the best validation performance. Training is performed for 100,000 iterations across all runs. For SCLD, we use subtrajectory splitting with the default value of 4, so that it does not degenerate to CMCD (Vargas et al., 2024). In practice, we find that using subtrajectories yields better results.
@@ -1950,14 +1945,15 @@ D.2 Alanine dipeptide
 
 Benchmark description We adopt the experiment setup primarily from (Midgley et al., 2023). Given a configuration of alanine dipeptide, which consists of 22 particles in 3D, i.e., x = [x1; · · ·; x22] ∈R66 where xi ∈R3, we apply the same coordinate transform T proposed by Midgley et al. (2023). This coordinate transform maps the Cartesian coordinates to internal coordinates, T (x) =: z ∈R60, which include bond lengths, bond angles, and dihedral angles (Stimper et al., 2022). This process effectively removes six degrees of freedom—three for translation and three for rotation—thereby enforcing structural invariance. Non-angular coordinates are further normalized using samples with minimal energies. We refer readers to (Midgley et al.,
 
-
 <!-- Page 28 -->
 
 2023, Appendix F.1) for further details. Note that the internal coordinate transformation is bijective. Hence, we can compute the energy via
 
 E(x) = E(T −1(z)) (82)
 
-Evaluation and baselines For each sample x = T −1(z) ∈R66, we extract five torsion angles, including the backbone angles ϕ, ψ and methyl rotation angles γ1, γ2, γ3. We report two divergence metrics with respect to the ground-truth distribution, which contains 107 samples simulated by Molecular Dynamics. We implement the baseline methods, including PIS (Zhang and Chen, 2022), DDS (Vargas et al., 2023), AS (Havens et al., 2025), using PyTorch (Paszke et al., 2019).
+## Evaluation
+
+and baselines For each sample x = T −1(z) ∈R66, we extract five torsion angles, including the backbone angles ϕ, ψ and methyl rotation angles γ1, γ2, γ3. We report two divergence metrics with respect to the ground-truth distribution, which contains 107 samples simulated by Molecular Dynamics. We implement the baseline methods, including PIS (Zhang and Chen, 2022), DDS (Vargas et al., 2023), AS (Havens et al., 2025), using PyTorch (Paszke et al., 2019).
 
 For the KL divergences, we adopt setup from (Wu et al., 2020) and compute the divergence of the ground-truth marginal to model marginal for each torsion angle:
 
@@ -1983,7 +1979,9 @@ Benchmark description Conformers are atomic representations of molecules in cart
 
 The task in this benchmark is to take a representation of the molecular graph, usually a SMILES string (Weininger, 1988), and comprehensively sample the conformational configuration space. In flexible molecules, there can be a large number of conformers with many separated modes in a 3n−6 dimensional space. (Where n represents the number of atoms and 6 comes from the irrelevance of rotation and translation of the conformer.) We quantify the notion of comprehensively sampling the space by comparing generated structures to a set of conformers sampled using expensive, standard search techniques (Pracht et al., 2024) that were further relaxed using extremely precise density function theory-based, quantum chemistry methods (Neese, 2012; Levine et al., 2025). A detailed description of this benchmark can be found in its source (Havens et al., 2025, Appendix F.).
 
-Evaluation and baselines The method of comparison between proposed structure and reference conformer is to use RDKit’s (Landrum, 2006) implementation of Root Mean Squared Displacement (RMSD), a measure of distance between atomic structures that is invariant to translation and rotation. We set a threshold RMSD for two structures to match and computed the Recall Coverage and Recall Average Minimum RMSD (AMR). The experiment was performed with both generated structures and with generated structures after a so-called relaxation, i.e. geometry optimization of energy, using eSEN (Fu et al., 2025). The equations for computing these metrics are:
+## Evaluation
+
+and baselines The method of comparison between proposed structure and reference conformer is to use RDKit’s (Landrum, 2006) implementation of Root Mean Squared Displacement (RMSD), a measure of distance between atomic structures that is invariant to translation and rotation. We set a threshold RMSD for two structures to match and computed the Recall Coverage and Recall Average Minimum RMSD (AMR). The experiment was performed with both generated structures and with generated structures after a so-called relaxation, i.e. geometry optimization of energy, using eSEN (Fu et al., 2025). The equations for computing these metrics are:
 
 COV-R(δ):= 1
 
@@ -1997,7 +1995,6 @@ X l∈{1,...,L}
 
 min k∈{1,...,K} RMSD(Ck, C∗ l) (85)
 
-
 <!-- Page 29 -->
 
 **Table 6.** Ablation study on amortized conformer generation using the same EGNN architecture as in AS (Havens et al., 2025). We report the recall at the thresholds 1.0Å and 1.25Å, where the latter was reported in AS.
@@ -2006,7 +2003,9 @@ without relaxation with relaxation
 
 SPICE GEOM-DRUGS SPICE GEOM-DRUGS
 
-Method Coverage ↑ AMR ↓ Coverage ↑ AMR ↓ Coverage ↑ AMR ↓ Coverage ↑ AMR ↓
+## Method
+
+Coverage ↑ AMR ↓ Coverage ↑ AMR ↓ Coverage ↑ AMR ↓ Coverage ↑ AMR ↓
 
 Threshold 1.0Å
 
@@ -2112,7 +2111,6 @@ Ability of ASBS in finding modes We conduct additional experiments on the 40-mod
 
 **Figure 9.** represents the quantitative results. Notably, ASBS is able to identify almost all modes. In contrast, the vanilla Langevin baseline appears to suffer from a slow mixing rate, recovering less than half of the total
 
-
 <!-- Page 30 -->
 
 40 20 0 20 40
@@ -2139,7 +2137,9 @@ ASBS (ours)
 
 modes even after 1 million steps. We highlight this distinction as an advantage of constructing diffusion samplers from the stochastic control and Schrödinger Bridge frameworks, which allows theoretical convergence to target distribution within a finite horizon. Finally, we believe that with proper tuning of the ASBS noise schedule, its performance can be further enhanced.
 
-Discussion on important weights Finally, we discuss the potential integration of ASBS with importance weights, emphasizing that our theoretical and algorithmic frameworks do not preclude the use of importance weights to further enhance performance or robustness.
+## Discussion
+
+on important weights Finally, we discuss the potential integration of ASBS with importance weights, emphasizing that our theoretical and algorithmic frameworks do not preclude the use of importance weights to further enhance performance or robustness.
 
 Formally, the importance weights over model path X ∼pu admit the following representation:
 
