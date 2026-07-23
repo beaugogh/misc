@@ -71,24 +71,35 @@ install_out="$(opencli plugin install "$PLUGIN_DIR" 2>&1)" || {
 }
 ok "plugin installed"
 
-# --- 4. Ensure the @jackwener/opencli peer-dep symlink ---------------------
-# `opencli plugin install` normally symlinks node_modules/@jackwener/opencli ->
-# <global opencli> so the plugin's `import` resolves. On some clean-checkout
-# reinstalls the loader complains before install finishes wiring it, so we
-# ensure the symlink exists explicitly. (node_modules/ is gitignored and
-# platform-specific, so it is never committed.)
+# --- 4. Ensure the @jackwener/opencli peer-dep resolves --------------------
+# The plugin imports @jackwener/opencli/registry. Node's ESM resolver walks UP
+# from the importing file, so the peer-dep does NOT need to live inside the
+# plugin dir — it resolves from any ancestor node_modules. We hoist it to the
+# REPO ROOT so the plugin dir stays clean (no per-plugin node_modules, which is
+# an anti-pattern when several plugins could share one resolution).
+#
+# `opencli plugin install` symlinks the plugin into ~/.opencli/plugins/, which
+# points back here, so the root node_modules is still on the upward walk.
+# (node_modules/ is gitignored, so it is never committed.)
+REPO_ROOT="$(cd "$PLUGIN_DIR/../.." && pwd)"
 GLOBAL_OPENCLI="$(npm root -g 2>/dev/null)/@jackwener/opencli"
-LINK_TARGET="$PLUGIN_DIR/node_modules/@jackwener/opencli"
+LINK_TARGET="$REPO_ROOT/node_modules/@jackwener/opencli"
 if [ ! -e "$LINK_TARGET" ]; then
-  mkdir -p "$PLUGIN_DIR/node_modules/@jackwener"
+  mkdir -p "$REPO_ROOT/node_modules/@jackwener"
   if [ -e "$GLOBAL_OPENCLI" ]; then
     ln -s "$GLOBAL_OPENCLI" "$LINK_TARGET"
-    ok "linked @jackwener/opencli -> $GLOBAL_OPENCLI"
+    ok "linked @jackwener/opencli -> $GLOBAL_OPENCLI (at repo root)"
   else
     die "global @jackwener/opencli not found at $GLOBAL_OPENCLI — run 'npm install -g @jackwener/opencli' and re-run setup."
   fi
 else
-  ok "peer-dep symlink already present"
+  ok "peer-dep symlink already present (at repo root)"
+fi
+# Remove any stale per-plugin node_modules from older setup.sh runs — keeping
+# it would shadow the root symlink and recreate the anti-pattern we just fixed.
+if [ -e "$PLUGIN_DIR/node_modules/@jackwener" ]; then
+  rm -rf "$PLUGIN_DIR/node_modules"
+  ok "removed stale per-plugin node_modules (now resolved from repo root)"
 fi
 
 # --- 5. Verify the command is registered ----------------------------------

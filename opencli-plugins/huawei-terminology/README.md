@@ -32,8 +32,11 @@ npm install -g @jackwener/opencli          # Node >= 20
 opencli doctor                               # must be green — Browser Bridge connected
 opencli plugin install D:/workspace/misc/opencli-plugins/huawei-terminology
 
-# Ensure the peer-dep symlink (opencli plugin install usually makes this, but
-# not always on a fresh checkout — without it the plugin fails to load):
+# Ensure the peer-dep symlink. Hoist it to the REPO ROOT (not the plugin dir)
+# so the plugin folder stays clean — Node's resolver walks up from search.js,
+# so <repo>/node_modules/@jackwener/opencli resolves the import. Run from the
+# repo root:
+cd D:/workspace/misc
 mkdir -p node_modules/@jackwener
 ln -s "$(npm root -g)/@jackwener/opencli" node_modules/@jackwener/opencli
 
