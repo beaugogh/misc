@@ -116,7 +116,18 @@ def extract_frames_scene(src, frames_dir, threshold, max_frames):
             os.remove(os.path.join(frames_dir, fname))
             continue
         new_name = f"frame_{fmt_ts(t)}.png"
-        os.rename(os.path.join(frames_dir, fname), os.path.join(frames_dir, new_name))
+        new_path = os.path.join(frames_dir, new_name)
+        # Disambiguate when two scene-changes land in the same whole second:
+        # os.rename raises WinError 183 if the target exists. The manifest still
+        # stores the precise float timestamp, so alignment is preserved.
+        if os.path.exists(new_path):
+            stem, ext = os.path.splitext(new_name)
+            k = 2
+            while os.path.exists(new_path):
+                new_path = os.path.join(frames_dir, f"{stem}_{k}{ext}")
+                k += 1
+            new_name = os.path.basename(new_path)
+        os.rename(os.path.join(frames_dir, fname), new_path)
         result.append((new_name, t))
     return result
 
