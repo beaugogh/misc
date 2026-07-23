@@ -40,6 +40,7 @@ The output must be useful both to humans and agents:
 - Keep paragraphs readable: repair excessive whitespace, unwrap broken lines, and avoid giant wall-of-text paragraphs.
 - Preserve links as Markdown links, resolving relative URLs against the source URL.
 - Preserve images, figures, charts, and diagrams as local SVG assets when they can be fetched or are embedded inline. Raster images are wrapped in SVG with embedded data so the Markdown can reference a stable local asset.
+- Images may be embedded as `<img>`, inline `<svg>`, or inline `style="background-image:url(...)"` on any element. The extractor handles all three from static HTML. Sites that apply `background-image` via JavaScript at runtime (x.com article pages) leave no URL in the serialized HTML — those require the browser-bridge computed-style capture in Workflow step 6, not the `--html` path.
 - SVG preservation does not require a multimodal model. The extractor either saves inline SVG directly or wraps fetched raster image bytes in an SVG container.
 - Add a machine-scannable visual note next to every preserved image with asset path, original source URL, type, extracted size, alt text, transcription status, multimodal status, and text-only fallback status.
 - For non-multimodal readers, provide every visual's surrounding evidence in text: alt text, caption if available, source URL, dimensions, and a clear statement when the visual content itself has not been inspected or transcribed.
@@ -57,14 +58,29 @@ Do not summarize or omit sections unless the user explicitly asks for a summary 
 
 1. Use the script first for deterministic extraction.
 2. Inspect the generated Markdown when quality matters.
-3. If the page is JavaScript-rendered, challenge-gated, or the script output is too thin, use an available browser/fetch tool to render the page, save HTML, then rerun with `--html`.
+3. If the page is JavaScript-rendered, challenge-gated, or the script output is too thin, use an available browser/fetch tool to render the page, save HTML, then rerun with `--html`. For login-gated sites (e.g. x.com articles), drive a live authenticated browser session — the `opencli` browser bridge (`opencli browser <session> open <url>` then `opencli browser <session> eval "document.documentElement.outerHTML"`) works when headless Chrome and copied profiles hit the login wall.
 4. If the source is a PDF or a paper page, use a specialized PDF/paper skill when available. This skill is for generic web pages.
 5. Inspect any generated visual notes. If a visual is a clear process diagram, architecture diagram, timeline, tree, or simple chart and you can accurately infer it, add a fenced `mermaid` block immediately after the visual note. Otherwise leave the note's Mermaid status as not inferred.
-6. Validate the output before calling it final:
+6. **Verify image completeness before declaring done.** If the extractor reports 0 images on a page that visibly has them, do not report "no images" — dig. The script handles `<img>`, inline `<svg>`, and inline `style="background-image:url(...)"`. But many SPA sites (x.com especially) apply `background-image` imperatively via JavaScript, so the URL is **absent from the serialized HTML entirely** — `outerHTML` will show 0 `background-image` and 0 media URLs. For those, query the live DOM's computed styles from the browser bridge:
+
+```bash
+# Find images that exist only as JS-applied background-image (not in static HTML)
+opencli browser <session> eval 'JSON.stringify([...document.querySelectorAll("div")]
+  .filter(e => { const b = getComputedStyle(e).backgroundImage;
+                 return b && b !== "none" && b.includes("pbs.twimg.com/media"); })
+  .map(e => (getComputedStyle(e).backgroundImage.match(/url\("([^"]+)"\)/) || [])[1]))'
+```
+
+   These elements are often virtualized (created on scroll-into-view, removed on scroll-away), so scroll the page gradually before sampling. Fetch each resolved URL through the proxy and preserve as an SVG asset, then splice the `![alt](asset)` + visual-asset note into the Markdown at the matching section.
+
+7. Validate the output before calling it final:
 
 ```bash
 python3 skills/webpage-to-markdown/scripts/extract_url_markdown.py "<url>" --check-only <path/to/file.md>
 ```
+
+A 0-image result is a signal to investigate (step 6), not a finding to report. Never imply a visual capture is complete unless the image sources were actually inspected.
+
 
 ## Output Naming
 

@@ -181,6 +181,17 @@ class MarkdownHTMLParser(HTMLParser):
             self.flush_text()
             self.skip_depth = 1
             return
+        # Capture images embedded as inline CSS background-image (e.g. x.com article
+        # section images on <div style="background-image:url(...)">). Applies to any
+        # element; the chunk is emitted before normal tag handling so it sits in source
+        # order. JS-applied background-image (absent from static HTML) is not reachable
+        # here — see SKILL.md for the browser-bridge render path.
+        if self.preserve_images:
+            bg_url = background_image_url(attr_value(attrs, "style"))
+            if bg_url and not bg_url.startswith("data:image/svg"):
+                alt = clean_inline(attr_value(attrs, "aria-label") or attr_value(attrs, "title") or "image")
+                self.flush_text()
+                self.chunks.append(Chunk("image", text=alt, url=resolve_url(self.base_url, bg_url)))
         if tag == "html":
             self.meta.language = attr_value(attrs, "lang")
         elif tag == "title":
@@ -327,6 +338,10 @@ class MarkdownHTMLParser(HTMLParser):
             self.svg_parts.append(format_start_tag(tag, attrs, close=True))
             return
         if tag == "img" and self.preserve_images:
+            self.handle_starttag(tag, attrs)
+            return
+        # Self-closing element carrying an inline background-image style.
+        if self.preserve_images and background_image_url(attr_value(attrs, "style")):
             self.handle_starttag(tag, attrs)
 
     def add_text(self, text: str) -> None:
@@ -671,6 +686,31 @@ def first_srcset_url(srcset: str) -> str:
     if not srcset:
         return ""
     return srcset.split(",", 1)[0].strip().split(" ", 1)[0]
+
+
+def background_image_url(style: str) -> str:
+    """Extract the first url(...) from a CSS ``background``/``background-image`` declaration.
+
+    Many sites (notably x.com article pages, and various SPA image galleries) embed
+    section images as ``style="background-image:url(...)"`` on a ``<div>`` rather than
+    via ``<img>``. The static-HTML parser only sees inline ``style`` attributes, so this
+    covers that case. Returns "" when no usable url() is present.
+
+    Note: this only captures URLs that are present in the serialized HTML. Sites that
+    apply ``background-image`` imperatively via JavaScript at runtime (x.com does this)
+    leave no trace in ``outerHTML``; for those, render the page in a browser and capture
+    computed styles, then pass the HTML or a pre-resolved image list — see SKILL.md.
+    """
+    if not style:
+        return ""
+    match = re.search(r"url\(\s*(['\"]?)([^'\")]+)\1\s*\)", style, re.I)
+    if not match:
+        return ""
+    url = match.group(2).strip()
+    # Skip data: URIs that are not images and obviously non-image schemes; the caller
+    # resolves and fetches. Keep http(s) and protocol-relative and data: image URIs.
+    return url
+
 
 
 def output_path_for(url: str, title: str, output_dir: Path, name_chars: int) -> Path:
