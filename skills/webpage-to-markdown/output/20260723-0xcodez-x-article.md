@@ -35,11 +35,21 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/jpeg wrapped in svg
 Extracted size: 1660x933; 316815 bytes
 Alt text: Intro diagram: the shift from prompt to loop to harness to graph
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "Intro diagram: the shift from prompt to loop to harness to graph". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph LR
+    A[Prompt] --> B[Loop]
+    B --> C[Harness]
+    C --> D[Graph]
+    style A fill:#e1f5ff
+    style B fill:#fff4e1
+    style C fill:#ffe1f5
+    style D fill:#e1ffe1
+```
+
+**Concept**: The progression from simple to complex agent architectures. A **prompt** is a single instruction. A **loop** adds iteration. A **harness** provides the execution environment. A **graph** orchestrates multiple nodes with dependencies and parallelism.
 
 ![Intro diagram: linear vs graph agent topology](20260723-0xcodez-x-article_assets/to-view-keyboard-shortcuts-press-questi-9a565023854c.svg)
 
@@ -50,11 +60,29 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/jpeg wrapped in svg
 Extracted size: 1983x793; 112452 bytes
 Alt text: Intro diagram: linear vs graph agent topology
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "Intro diagram: linear vs graph agent topology". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph LR
+    subgraph "Linear topology (chain)"
+        A1[A] --> B1[B] --> C1[C] --> D1[D]
+    end
+```
+
+```mermaid
+graph LR
+    subgraph "Graph topology (parallel)"
+        A2[A] --> B2[B]
+        A2 --> C2[C]
+        A2 --> D2[D]
+        B2 --> E[merge]
+        C2 --> E
+        D2 --> E
+    end
+```
+
+**Concept**: Linear topology chains steps sequentially — every step waits for the previous. Graph topology fans out independent work in parallel and merges results — faster, more resilient, and scalable.
 
 Most people who try to build a multi-step agent end up with a straight line. Step one, step two,
 step three - each waiting politely for the last to finish before it starts.
@@ -93,11 +121,24 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/png wrapped in svg
 Extracted size: 1024x464; 66093 bytes
 Alt text: 01. Nodes are jobs. Edges are what flows.
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "01. Nodes are jobs. Edges are what flows.". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph LR
+    subgraph Node
+        N[agent call — one bounded job]
+    end
+    subgraph Edge
+        E[variable passed between calls]
+    end
+    A[agent 1] -- "output variable" --> B[agent 2]
+    C[agent 3] -. "no shared variable" .-> D[agent 4]
+    style C fill:#fdd
+    style D fill:#fdd
+```
+
+**Concept**: A node is a unit of work (one agent, one input, one output). An edge is a data dependency — a variable passed from one call's return into another's prompt. If no variable crosses between two steps, there is no edge — they are independent and can run in parallel.
 
 A graph has exactly two things, and getting them straight fixes most of the confusion. A node is a
 unit of work - one agent, one bounded job, one input in and one output out.
@@ -133,11 +174,24 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/png wrapped in svg
 Extracted size: 696x272; 20849 bytes
 Alt text: 02. Your linear script is a degenerate graph
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "02. Your linear script is a degenerate graph". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph LR
+    subgraph "Linear chain (degenerate graph)"
+        A --> B --> C --> D
+    end
+    subgraph "Redrawn as a wider graph"
+        A2[A] --> D2[D]
+        B2[B] --> D2
+        C2[C] --> D2
+        A2 -. "no data edge" .-> B2
+        A2 -. "no data edge" .-> C2
+    end
+```
+
+**Concept**: A linear chain A→B→C→D is a graph where every node has exactly one edge in and one edge out. Cut the arrows that don't carry data and the chain collapses into something wider — independent nodes running in parallel, feeding a single node that needs them all.
 
 When you write an agent as “do A, then B, then C, then D,” you’ve drawn a graph - a single
 unbranching chain. Every node has exactly one edge in and one edge out.
@@ -164,11 +218,17 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/jpeg wrapped in svg
 Extracted size: 1004x556; 29211 bytes
 Alt text: 03. Give every node a contract
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "03. Give every node a contract". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph LR
+    subgraph "Node with contract"
+        Input[bounded input] --> Node[agent call] --> Output[validated output / schema]
+    end
+```
+
+**Concept**: Every node needs a contract: bounded input (explicit, never assumed from shared state), bounded output (defined shape, ideally validated with a JSON schema), and exactly one job. The schema forces the subagent to return validated structured data — the difference between a node that can be wired into a graph and one that only works when a human reads its output.
 
 A node you can’t reason about is a node you can’t parallelize. The fix is a contract: bounded input,
 bounded output, exactly one job.
@@ -214,11 +274,19 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/png wrapped in svg
 Extracted size: 850x578; 107070 bytes
 Alt text: 04. Treat the edge as a data contract
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "04. Treat the edge as a data contract". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph LR
+    A[Node A] -- “shape: items[]” --> B[Node B]
+    B -- “shape: ranked[]” --> C[Node C]
+    style A fill:#e1f5ff
+    style B fill:#fff4e1
+    style C fill:#e1ffe1
+```
+
+**Concept**: An edge is a promise about what data shape crosses: A produces this shape, B consumes this shape. Name the edge by its data, not its order. When combining results is just flatten-and-dedupe, that’s `results.flatMap(...)` and a `Set` — deterministic, instant, zero tokens. Save agents for judgment, not plumbing.
 
 An edge isn’t just “B comes after A.” It’s a promise about what crosses: A produces this shape, and
 B is built to consume this shape. When you name the edge by its data - not its order - two things
@@ -251,11 +319,25 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/jpeg wrapped in svg
 Extracted size: 2048x779; 114588 bytes
 Alt text: 05. Fan out with parallel()
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "05. Fan out with parallel()". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph TD
+    Start[Start] --> FanOut[parallel]
+    FanOut --> A[Agent 1]
+    FanOut --> B[Agent 2]
+    FanOut --> C[Agent 3]
+    A --> Merge[Collect results]
+    B --> Merge
+    C --> Merge
+    style FanOut fill:#fff4e1
+    style A fill:#e1f5ff
+    style B fill:#e1f5ff
+    style C fill:#e1f5ff
+```
+
+**Concept**: When you have N independent nodes, don't chain them—fan them out with `parallel()`. Claude spawns one subagent per thunk, all executing concurrently. The barrier waits for every thunk before returning. A thunk that throws resolves to `null`, so one failure doesn't sink the run. Always `.filter(Boolean)` the results.
 
 This is the move that pays for everything. When you have N independent nodes - N sources to check, N
 files to review, N routes to audit - you don’t chain them.
@@ -305,11 +387,20 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/jpeg wrapped in svg
 Extracted size: 1920x578; 84573 bytes
 Alt text: 06. Fan in at a barrier
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "06. Fan in at a barrier". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph TD
+    A[Agent 1] --> Barrier[Barrier node]
+    B[Agent 2] --> Barrier
+    C[Agent 3] --> Barrier
+    Barrier --> Process[Process: needs ALL results]
+    style Barrier fill:#ffe1f5
+    style Process fill:#e1ffe1
+```
+
+**Concept**: A fan-in barrier is where edges converge—one node sees all upstream results at once and does something requiring the whole set: dedupe across sources, rank by impact, early-exit if empty. Use a barrier only when a stage genuinely needs every prior result together. If you're just flattening a list, that's an edge—do it inline.
 
 A fan-out is only useful if something gathers it. The fan-in is the node where edges converge -
 where one agent (or one piece of code) sees all the upstream results at once and does something that
@@ -346,11 +437,22 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/png wrapped in svg
 Extracted size: 695x324; 22827 bytes
 Alt text: 07. The diamond: split → work → merge
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "07. The diamond: split → work → merge". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph TD
+    Split[Split node] --> W1[Worker 1]
+    Split --> W2[Worker 2]
+    Split --> W3[Worker N]
+    W1 --> Merge[Merge node]
+    W2 --> Merge
+    W3 --> Merge
+    style Split fill:#fff4e1
+    style Merge fill:#ffe1f5
+```
+
+**Concept**: The diamond topology: one node splits the job, many nodes do work in parallel, one node merges. Canonical form: fan out → reduce → synthesize. Fan out to gather breadth, reduce with plain code to compress it, synthesize with a final agent to write the answer.
 
 Put fan-out and fan-in together and you get the workhorse topology of every serious agent graph: the
 diamond.
@@ -375,11 +477,20 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/png wrapped in svg
 Extracted size: 701x237; 14285 bytes
 Alt text: 08. Route the edge at runtime with a conditional
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "08. Route the edge at runtime with a conditional". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph TD
+    Input[Input] --> Router[Router node]
+    Router -->|low risk| Quick[Quick review]
+    Router -->|high risk| Full[Full parallel audit]
+    Quick --> Output[Result]
+    Full --> Output
+    style Router fill:#fff4e1
+```
+
+**Concept**: Not every graph is fixed. A router node inspects a result and decides which downstream path fires—classify the ticket, then branch to the right handler; check the diff size, then either do a quick review or spin up a full audit. In a workflow this is just a JavaScript `if` or `switch` on a node's validated output. You get Claude's judgment at the node and the script's reliability at the edge.
 
 Not every graph is fixed. Sometimes the edge to take depends on what a node found. A router node
 inspects a result and decides which downstream path fires - classify the ticket, then branch to the
@@ -425,11 +536,19 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/png wrapped in svg
 Extracted size: 697x220; 19114 bytes
 Alt text: 09. Put a verifier on the edge
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "09. Put a verifier on the edge". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph LR
+    Producer[Producer node] -->|result| Verifier[Verifier node]
+    Verifier -->|pass| Downstream[Downstream node]
+    Verifier -->|fail| Blocked[blocked]
+    style Verifier fill:#ffe1f5
+    style Blocked fill:#fdd
+```
+
+**Concept**: A verifier node sits on the edge before a result is allowed downstream. Its only job is to try to kill the finding. Three patterns: (1) adversarial verify — spawn N skeptics per finding, keep only if majority survive; (2) perspective-diverse verify — each verifier uses a distinct lens (correctness, security, reproducibility); (3) judge panel — generate N attempts, score with parallel judges, synthesize from the winner.
 
 The real leverage of a graph isn’t more agents - it’s the structure you can wrap around them to
 produce confidence.
@@ -455,11 +574,19 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/png wrapped in svg
 Extracted size: 830x725; 276126 bytes
 Alt text: 10. Isolate nodes so one failure can’t poison the graph
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "10. Isolate nodes so one failure can’t poison the graph". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph TD
+    A[Agent A - writes file X] -->|worktree isolated| Done[Done]
+    B[Agent B - writes file Y] -->|worktree isolated| Done
+    C[Agent C - fails] -. "null, contained" .-> X[Graph continues]
+    style C fill:#fdd
+    style X fill:#e1ffe1
+```
+
+**Concept**: In a chain, failure cascades. In a graph, failure should be contained to its node. `parallel()` already resolves thrown thunks to `null` — `.filter(Boolean)` is the containment. Design every fan-in to tolerate missing inputs. When agents write files in parallel, use worktree isolation so they can't collide.
 
 In a chain, a failure cascades - C dies, D never runs, the whole thing halts. In a graph, failure
 should be contained to its node.
@@ -483,11 +610,23 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/png wrapped in svg
 Extracted size: 2048x760; 56709 bytes
 Alt text: 11. Add a cycle - but make it converge
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "11. Add a cycle - but make it converge". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph TD
+    Start[Start] --> Finders[Parallel finders]
+    Finders --> Dedupe{Dedupe against SEEN}
+    Dedupe -->|new| Verify[Verify survivors]
+    Dedupe -->|nothing new| DryCount{dry rounds < 2?}
+    DryCount -->|yes| Finders
+    DryCount -->|no| Stop[Stop]
+    Verify -->|real| Confirmed[Confirmed findings]
+    style Dedupe fill:#fff4e1
+    style Stop fill:#e1ffe1
+```
+
+**Concept**: A cycle that doesn’t converge is an infinite loop that burns budget. The pattern that converges is loop-until-dry: keep spawning finders until K consecutive rounds surface nothing new. Critical detail: dedupe against everything **seen**, not just confirmed results — otherwise rejected findings reappear every round and the loop never runs dry.
 
 Sometimes you don’t know how big the job is until you’re in it: unknown-size discovery, a bug sweep
 where finding one bug reveals three more. That needs a cycle - a controlled edge back to an earlier
@@ -537,11 +676,29 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/jpeg wrapped in svg
 Extracted size: 1200x730; 82644 bytes
 Alt text: 12. Tier the models across the nodes
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "12. Tier the models across the nodes". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph TD
+    subgraph "Cheap model (repetitive nodes)"
+        FanOut1[Fan-out: extract field]
+        FanOut2[Fan-out: classify ticket]
+    end
+    subgraph "Expensive model (judgment nodes)"
+        Merge[Merge / synthesize report]
+        Adjudicate[Adjudicate finding]
+    end
+    FanOut1 --> Merge
+    FanOut2 --> Merge
+    Merge --> Adjudicate
+    style FanOut1 fill:#e1ffe1
+    style FanOut2 fill:#e1ffe1
+    style Merge fill:#ffe1f5
+    style Adjudicate fill:#ffe1f5
+```
+
+**Concept**: Not every node needs your best model. A graph makes it obvious: some nodes are bounded and repetitive (extract a field, classify a ticket), and some carry real judgment (synthesize a report, adjudicate a finding). Run boring nodes on a cheaper model and spend expensive tokens where judgment lives. Use the `model` option on `agent()` to route individual nodes.
 
 Not every node needs your best model. A graph makes this obvious in a way a single agent never does:
 some nodes are bounded and repetitive (extract this field, classify this ticket), and some carry the
@@ -568,11 +725,28 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/png wrapped in svg
 Extracted size: 702x306; 26898 bytes
 Alt text: 13. Topology is your cost and latency
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "13. Topology is your cost and latency". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph LR
+    subgraph "parallel() - barrier waits for slowest"
+        A1[Task A - fast] --> S1[Stage 2]
+        B1[Task B - slow] --> S1
+        C1[Task C - fast] --> S1
+    end
+```
+
+```mermaid
+graph LR
+    subgraph "pipeline() - streams independently"
+        A2[Task A] --> A3[Stage 2] --> A4[Stage 3]
+        B2[Task B] --> B3[Stage 2] --> B4[Stage 3]
+        C2[Task C] --> C3[Stage 2] --> C4[Stage 3]
+    end
+```
+
+**Concept**: `parallel()` makes everything wait for the slowest node. `pipeline()` streams each item through all stages independently — fast items finish early instead of idling behind slow ones. Default to `pipeline()`. Reach for a barrier only when a stage truly needs every prior result at once (cross-set dedupe, early-exit on total).
 
 The shape of the graph isn’t cosmetic - it’s the single biggest lever on wall-clock time. The choice
 that trips everyone up: parallel() versus pipeline(). A parallel() barrier makes everything wait for
@@ -597,11 +771,22 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/jpeg wrapped in svg
 Extracted size: 2048x1152; 120970 bytes
 Alt text: 14. Let Claude draw the graph - self-routing
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "14. Let Claude draw the graph - self-routing". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagram below.
 -->
+
+```mermaid
+graph TD
+    User[User describes objective] --> Claude[Claude writes orchestration script]
+    Claude --> Decompose[Decompose task]
+    Decompose --> Fanout[Choose fan-out strategy]
+    Fanout --> Spawn[Spawn coordinated fleet of subagents]
+    Spawn --> Synthesize[Synthesize result]
+    Synthesize --> Graph[Graph tailored to this run]
+    style Claude fill:#fff4e1
+    style Graph fill:#e1ffe1
+```
+
+**Concept**: Stop drawing the graph by hand for jobs you can't plan in advance. With dynamic workflows, describe the objective and Claude writes the orchestration script itself — decomposing the task, choosing the fan-out, spawning a coordinated fleet of subagents, and synthesizing the result. Three ways in: (1) say "workflow" in your prompt; (2) run a saved workflow like `/deep-research` (scope → parallel search → fetch → adversarial verify → synthesize); (3) turn on ultracode and Claude plans a workflow for every substantial task.
 
 The final move is to stop drawing the graph by hand for jobs you can’t plan in advance.
 
@@ -638,11 +823,52 @@ Original page embedding: CSS background-image on a <div> (x.com renders section 
 Type: image/png wrapped in svg
 Extracted size: 701x458; 44119 bytes
 Alt text: Six graphs to build with Claude this week
-Transcription status: preserved as local SVG asset (raster wrapped in SVG with embedded data). Visual content not yet text-transcribed.
-Multimodal status: local SVG asset is available; open the .svg file to inspect the diagram directly.
-Text-only fallback: this is the diagram for the section "Six graphs to build with Claude this week". See the section prose for its description. Visual content not fully transcribed unless a Mermaid block or human/agent note is added.
-Mermaid: not inferred automatically; the section prose describes the topology — add only after confirming the diagram matches the prose.
+Transcription status: Text-transcribed as Mermaid diagrams below; prose descriptions follow in article body.
 -->
+
+**Concept**: A 2x3 grid of miniature graph diagrams, each captioned with one of the six patterns. Each cell shows the shape (fan-out, sequential gates, parallel-verify, tiered routing, scheduled barrier, loop-until-dry) as nodes and edges. The six patterns are enumerated and described in the article body immediately below.
+
+```mermaid
+graph TB
+    subgraph "Pattern 1: Security sweep"
+        S1[route files] --> S2[fan-out: 1 agent per file]
+        S2 --> S3[verifier pass]
+        S3 --> S4[report]
+    end
+    subgraph "Pattern 2: Cited report"
+        C1[question] --> C2[decompose into angles]
+        C2 --> C3[parallel searches]
+        C3 --> C4[dedupe sources]
+        C4 --> C5[3-vote skeptics]
+        C5 --> C6[write]
+    end
+    subgraph "Pattern 3: Port a module"
+        P1[files] --> P2[parallel translation]
+        P2 --> P3[test suite gate]
+        P3 --> P4[loop failures back]
+        P4 --> P5[adversarial review]
+    end
+    subgraph "Pattern 4: Adversarial diff review"
+        D1[diff] --> D2{size?}
+        D2 -->|small| D3[one quick pass]
+        D2 -->|large| D4[parallel audit: correctness/security/performance]
+        D4 --> D5[judge panel synthesizes]
+    end
+    subgraph "Pattern 5: Ecosystem scan"
+        E1[schedule trigger] --> E2[parallel sources: releases/blogs/discussion]
+        E2 --> E3[rank by impact]
+        E3 --> E4[write digest]
+    end
+    subgraph "Pattern 6: Discovery loop"
+        L1[finders in parallel] --> L2[dedupe vs seen]
+        L2 --> L3[verify survivors]
+        L3 --> L4{two dry rounds?}
+        L4 -->|no| L1
+        L4 -->|yes| L5[stop]
+    end
+```
+
+**Six graph patterns to build:**
 
 - Security sweep across every route. Claude spawns one subagent per route file, each hunting for missing auth checks, then a verifier pass confirms every finding before it reaches the report. Breadth no single context could hold.
 - Cited report with /deep-research. A graph that ships in Claude Code already. Claude decomposes your question into distinct angles, runs parallel searches, dedupes sources, then adversarially verifies every claim with three-vote skeptics before writing.
@@ -650,6 +876,7 @@ Mermaid: not inferred automatically; the section prose describes the topology �
 - Adversarial review of a diff. Claude routes on diff size: a small change gets one quick pass, a large one triggers a full parallel audit with reviewers on distinct lenses - correctness, security, performance - then a judge panel synthesizes.
 - Ecosystem scan on a schedule. Save it once, re-run it forever. Claude checks many sources in parallel - eleases, blogs, discussion - ranks by impact at a barrier, and writes the digest. Version-controlled in .claude/workflows/, launchable by name.
 - Discovery of unknown size. You don’t know how many bugs are there. Claude runs finders in parallel, dedupes each new find against everything seen, verifies survivors, and keeps looping until two rounds turn up nothing new - then stops.
+
 ### Conclusion:
 
 A prompter asks a question. An architect draws a graph.
