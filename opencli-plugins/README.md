@@ -102,4 +102,4 @@ opencli-plugins/
 | Plugin | Commands | Description |
 |---|---|---|
 | [`huawei-terminology`](./huawei-terminology) | `search` | Search the Huawei terminology database (3ms.huawei.com/terminology) — English/Chinese term, domain, confidence, definition. Requires a logged-in Huawei session via the Browser Bridge. |
-| [`jiaxian`](./jiaxian) | `search` | Search Huawei's 稼先社区 (jx.huawei.com) — the internal expert/engineer knowledge community. Given an arbitrary question, returns the top N most relevant documents (title, type, author, date, views, replies, rich summary, url) plus a synthesized answer. Requires a logged-in Huawei session via the Browser Bridge. |
+| [`huawei-jiaxian`](./huawei-jiaxian) | `search` | Search Huawei's 稼先社区 (jx.huawei.com) — the internal expert/engineer knowledge community. Given an arbitrary question, returns the top N most relevant documents (title, type, author, date, views, replies, rich summary, url) plus a synthesized answer. Requires a logged-in Huawei session via the Browser Bridge. |

@@ -1,5 +1,5 @@
 {
-  "name": "opencli-plugin-jiaxian",
+  "name": "opencli-plugin-huawei-jiaxian",
   "version": "0.1.0",
   "type": "module",
   "description": "Search Huawei's 稼先社区 (jx.huawei.com) — given an arbitrary question, returns the top N most relevant documents (title, type, author, date, views, replies, rich summary, url) plus a synthesized answer. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",

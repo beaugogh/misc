@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Set up the jiaxian OpenCLI plugin on this machine.
+# Set up the huawei-jiaxian OpenCLI plugin on this machine.
 #
 # Handles the AUTOMATABLE parts: verifies opencli + the Browser Bridge, installs
 # the plugin, ensures the @jackwener/opencli peer-dep symlink at the REPO ROOT
@@ -24,7 +24,7 @@ RED=$'\033[31m'; YELLOW=$'\033[33m'; GREEN=$'\033[32m'; BOLD=$'\033[1m'; RESET=$
 
 # Resolve the plugin directory (this script lives next to search.ts).
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_NAME="jiaxian"
+PLUGIN_NAME="huawei-jiaxian"
 
 say() { printf '%s\n' "$*"; }
 ok()  { printf "${GREEN}✓${RESET} %s\n" "$*"; }
@@ -110,10 +110,10 @@ ok "'$PLUGIN_NAME search' registered"
 # A real search needs a logged-in Huawei session. If this fails with an auth
 # error, the human must sign into jx.huawei.com in Chrome first.
 say "Smoke test: searching '大模型' --limit 1 …"
-if out="$(opencli jiaxian search "大模型" --limit 1 2>&1)"; then
+if out="$(opencli huawei-jiaxian search "大模型" --limit 1 2>&1)"; then
   printf '%s\n' "$out" | sed 's/^/    /'
   ok "smoke test passed — plugin is ready"
-  printf '\n%sDone.%s  Try:  opencli jiaxian search "架构演进"\n' "$GREEN" "$RESET"
+  printf '\n%sDone.%s  Try:  opencli huawei-jiaxian search "架构演进"\n' "$GREEN" "$RESET"
 else
   rc=$?
   printf '\n%sSmoke test failed — likely the Huawei session:%s\n' "$YELLOW" "$RESET"

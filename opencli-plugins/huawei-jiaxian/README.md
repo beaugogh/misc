@@ -1,10 +1,10 @@
-# opencli-plugin-jiaxian
+# opencli-plugin-huawei-jiaxian
 
 Search Huawei's **稼先社区** ([jx.huawei.com](https://jx.huawei.com/)) — the internal
 expert-and-engineer knowledge community — and get your questions answered from the
 community's collective expertise.
 
-Given an arbitrary question, `opencli jiaxian search` returns the **top N most relevant
+Given an arbitrary question, `opencli huawei-jiaxian search` returns the **top N most relevant
 documents**, each with title, type, author, date, views, replies, a **rich summary** (author +
 abstract + expert viewpoints), and a URL — plus a synthesized **`answer`** string assembled
 from the top results.
@@ -54,7 +54,7 @@ is missing, it prints exactly what the human needs to do and exits. Safe to re-r
 ```bash
 npm install -g @jackwener/opencli          # Node >= 20
 opencli doctor                               # must be green — Browser Bridge connected
-opencli plugin install D:/workspace/misc/opencli-plugins/jiaxian
+opencli plugin install D:/workspace/misc/opencli-plugins/huawei-jiaxian
 
 # Ensure the peer-dep symlink. Hoist it to the REPO ROOT (not the plugin dir)
 # so the plugin folder stays clean — Node's resolver walks up from search.js,
@@ -64,12 +64,12 @@ cd D:/workspace/misc
 mkdir -p node_modules/@jackwener
 ln -s "$(npm root -g)/@jackwener/opencli" node_modules/@jackwener/opencli
 
-opencli jiaxian search "大模型" --limit 1   # smoke test
+opencli huawei-jiaxian search "大模型" --limit 1   # smoke test
 ```
 
 From GitHub (after pushing):
 ```bash
-opencli plugin install github:<user>/misc/opencli-plugins/jiaxian
+opencli plugin install github:<user>/misc/opencli-plugins/huawei-jiaxian
 ```
 
 </details>
@@ -84,22 +84,22 @@ opencli plugin install github:<user>/misc/opencli-plugins/jiaxian
 
 | Command | Strategy | Description |
 |---------|----------|-------------|
-| `jiaxian search` | COOKIE | Search the 稼先社区 knowledge base; returns top N documents + a synthesized answer |
+| `huawei-jiaxian search` | COOKIE | Search the 稼先社区 knowledge base; returns top N documents + a synthesized answer |
 
 ## Usage
 
 ```bash
 # Ask a question — returns top 10 documents plus an answer
-opencli jiaxian search "大模型推理优化"
+opencli huawei-jiaxian search "大模型推理优化"
 
 # Limit to 3 documents
-opencli jiaxian search "盘古2.0昇腾性能" --limit 3
+opencli huawei-jiaxian search "盘古2.0昇腾性能" --limit 3
 
 # JSON output for agents
-opencli jiaxian search "5G架构演进" -f json
+opencli huawei-jiaxian search "5G架构演进" -f json
 
 # The answer field is attached to rank 1; fetch it directly:
-opencli jiaxian search "昇腾推理" --limit 1 -f json | jq '.[0].answer'
+opencli huawei-jiaxian search "昇腾推理" --limit 1 -f json | jq '.[0].answer'
 ```
 
 ### Arguments
@@ -151,11 +151,11 @@ These are the fragile bits, called out honestly:
 
 1. **`CARD_SELECTOR`** (in `search.ts`/`search.js`) — if the site's result-card markup changes,
    `.recommended-page-list-item` won't match and the adapter throws `EmptyResultError`. Inspect a
-   real results page with `opencli browser jxian state` / `opencli browser jxian find --css ...`
+   real results page with `opencli browser huawei-jiaxian state` / `opencli browser huawei-jiaxian find --css ...`
    and update the selector.
 2. **The input/button selectors** in `triggerSearch` — if the search UI changes (input class, button
    class), the adapter reports "Could not trigger a search". Run
-   `opencli browser jxian state` after typing a query to find the new trigger elements and update
+   `opencli browser huawei-jiaxian state` after typing a query to find the new trigger elements and update
    the `input.form-control` / `.search-btn` selectors.
 
 ## Development
@@ -165,8 +165,8 @@ These are the fragile bits, called out honestly:
 # OpenCLI loads. Keep both in sync after edits (no build step).
 
 # Verify the command is registered:
-opencli list | grep jiaxian
+opencli list | grep huawei-jiaxian
 
 # Run it:
-opencli jiaxian search "大模型" --limit 3
+opencli huawei-jiaxian search "大模型" --limit 3
 ```
