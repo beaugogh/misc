@@ -152,10 +152,12 @@ body is the primary content on 3MS.
   that bleeds into the scraped body. A bare docId is rejected — 3MS detail URLs
   require the group id, and the group-less form (`/km/blogs/details/<id>`)
   redirects to the user profile, not the doc.
-- **Known limitation:** blog posts whose body IS an attachment list (e.g.
-  `22433679`) can load title-only via the plugin's `page.goto` — the attachment
-  XHR doesn't fire under CDP `Page.navigate` the way it does under the bridge
-  `open` command. Text-body blogs and wikis read correctly.
+- **Attachment-only posts:** blog posts whose body is just a file attachment
+  (e.g. a `.pptx`) return the title + available metadata (author, date, views,
+  comments) and a short body (the title echo). The attachment itself is not
+  parsed — it's a binary file, not readable text. The `detail_url` in the search
+  result links to the post where the attachment can be downloaded manually.
+  Text-body blogs and wikis read their full content.
 
 ### Parts most likely to need adjustment
 
