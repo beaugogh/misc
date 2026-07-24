@@ -21,7 +21,7 @@
         { "name": "post_id", "positional": true, "required": true, "help": "The post id — either a bare 32-char hex postId (e.g. da25639435334344912733f65c592a1b) or a full detail URL from jx.huawei.com" },
         { "name": "type", "default": "free_post", "help": "Resource type: free_post | technical_report | industry_report (only free_post is supported)" }
       ],
-      "columns": ["title", "author", "author_id", "dept", "date", "views", "likes", "replies", "body", "url"]
+      "columns": ["title", "author", "author_id", "dept", "date", "views", "likes", "replies", "body", "comments", "url"]
     }
   ]
 }

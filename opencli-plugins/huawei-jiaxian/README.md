@@ -145,7 +145,11 @@ supports only `free_post`.)
 
 ### `read` columns
 
-`title`, `author`, `author_id`, `dept`, `date`, `views`, `likes`, `replies`, `body`, `url`
+`title`, `author`, `author_id`, `dept`, `date`, `views`, `likes`, `replies`, `body`, `comments`, `url`
+
+`body` is the article text (video-player DOM stripped). `comments` is the expert
+discussion thread — an array of `{floor, author, body, replies[]}`, since the full
+post is article body + discussion and omitting comments drops half the content.
 
 ## How it works (recon notes)
 
@@ -185,11 +189,16 @@ supports only `free_post`.)
 
 - The detail route is `/community/comgroup/postsDetails?postId=<id>&type=freePost`, discovered from
   the app bundle's `resourceType → URL` mapping (`free_post` → `postsDetails?postId=${resourceId}`).
-  `read` navigates the logged-in tab there and scrapes the rendered `.detail-content`.
+  `read` navigates the logged-in tab there and scrapes the rendered `.detail-content` (article
+  body) **plus the `.comment-item-wrapper` discussion thread** — the full post is article + expert
+  discussion, and the comments are where much of the value lives (Q&A, author replies, debate).
 - No clean JSON content API exists in the bundle — the body is server-rendered into the page HTML,
   so navigation + scrape is the reliable path (not an API call).
 - The body may embed a video.js player whose DOM text would pollute the output, so `.video-js` /
   `<video>` elements are stripped from a clone before reading `textContent`.
+- Comments: each top-level `.comment-item-wrapper` whose direct `.comment-item` child has a "N楼"
+  floor marker is a thread; replies nest in `.reply-list .comment-item`. Trailing timestamps +
+  reply counts are stripped.
 - The postId comes straight from `search`'s `post_id` column (extracted via the in-page
   `window.open` intercept — see the postId-extraction note above). `parsePostId` also accepts a
   bare 32-char hex id or a full detail URL; for a URL it extracts `postId` + normalizes the `type`

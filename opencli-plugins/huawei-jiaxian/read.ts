@@ -26,10 +26,14 @@
  *
  * Recon-confirmed selectors (see README.md "Parts most likely to need
  * adjustment"):
- *   - body:     .detail-content  (or <article>; full post text. Cloned with
+ *   - body:     .detail-content  (or <article>; the article text. Cloned with
  *               .video-js / <video> players stripped — their DOM text
  *               "Video Player is loading…Play Video…Chapters…" would
  *               otherwise pollute the body)
+ *   - comments: .comment-item-wrapper (the expert discussion thread — each
+ *               top-level comment has a "N楼" floor, author, body, and nested
+ *               replies in .reply-list). The full post = article body + this
+ *               discussion; omitting it silently drops half the content.
  *   - title:    .contention-page-content-title  (or h1)
  *   - author:   .author-card__info-row  (name + id + dept, one string)
  *   - views:    .author-card__stat-label "访问量" → sibling stat-value
@@ -64,7 +68,7 @@ cli({
         { name: 'post_id', positional: true, required: true, help: 'The post id — either a bare 32-char hex postId (e.g. da25639435334344912733f65c592a1b) or a full detail URL from jx.huawei.com' },
         { name: 'type', default: 'free_post', help: 'Resource type: free_post | technical_report | industry_report (only free_post is supported)' },
     ],
-    columns: ['title', 'author', 'author_id', 'dept', 'date', 'views', 'likes', 'replies', 'body', 'url'],
+    columns: ['title', 'author', 'author_id', 'dept', 'date', 'views', 'likes', 'replies', 'body', 'comments', 'url'],
     func: async (page, kwargs) => {
         if (!page) throw new CommandExecutionError('Browser session required for huawei-jiaxian read');
 
@@ -147,6 +151,37 @@ cli({
             // Replies: count next to the 评论 label, if present.
             const replies = statFor('评论');
 
+            // Comment thread (expert discussion). Each top-level comment is a
+            // .comment-item-wrapper whose direct child .comment-item has a
+            // "N楼" floor marker; replies nest in .reply-list .comment-item.
+            // The full post = article body + this discussion, so omitting it
+            // would silently drop half the content.
+            const stripTs = (s: string): string =>
+                s.replace(/\s*\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\s*回复\d*\s*$/, '').trim();
+            const comments: any[] = [];
+            for (const w of Array.from(document.querySelectorAll('.comment-item-wrapper'))) {
+                const main = Array.from(w.children).find((c) => c.classList.contains('comment-item'));
+                if (!main) continue;
+                const mainText = (main.textContent || '').trim();
+                if (!/\d+楼/.test(mainText)) continue; // skip reply-only wrappers
+                const am = mainText.match(/^(.+?)关注(\d+楼)/);
+                const cReplies: { author: string; body: string }[] = [];
+                const seen = new Set<string>();
+                for (const r of Array.from(w.querySelectorAll('.reply-list .comment-item'))) {
+                    const rt = (r.textContent || '').trim();
+                    if (seen.has(rt)) continue; seen.add(rt);
+                    const rm = rt.match(/^(.+?\([lsd]\d+\))\s*(作者回复|回复)\s*(.+?\([lsd]\d+\))\s*([\s\S]*)$/);
+                    if (rm) cReplies.push({ author: `${rm[1]} ${rm[2]} ${rm[3]}`, body: stripTs(rm[4]) });
+                    else cReplies.push({ author: '', body: stripTs(rt) });
+                }
+                comments.push({
+                    floor: am ? am[2] : '',
+                    author: am ? am[1] : '',
+                    body: stripTs(mainText.replace(/^.*?关注\d+楼/, '')),
+                    replies: cReplies,
+                });
+            }
+
             return {
                 title: text(titleEl) || document.title,
                 author: authorName,
@@ -157,6 +192,7 @@ cli({
                 likes,
                 replies,
                 body: bodyText,
+                comments,
             };
         });
 
@@ -174,6 +210,7 @@ cli({
             likes: String(doc.likes || '').trim(),
             replies: String(doc.replies || '').trim(),
             body: String(doc.body || '').trim(),
+            comments: Array.isArray(doc.comments) ? doc.comments : [],
             url: detailUrl,
         };
     },
