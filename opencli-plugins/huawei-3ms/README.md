@@ -127,37 +127,54 @@ body is the primary content on 3MS.
   search box opens a **new tab** to a dedicated search app.
 - **`search` drives the search app** at `/doc3ms/index.html?type=<tab>&l=zh&text=<urlencoded>#/`
   (title "3MS搜索"). The query goes in the `text` param, so the app runs the
-  search on load — no input-filling needed for the initial query. Result cards
-  are `.ant-list-item` (e.g. `.ant-list-item.blog`).
-- **The docId is in the card's `<a href>`** (`/km/groups/<gid>/blogs/details/<docId>`)
-  — directly available, no `window.open` intercept needed (unlike 稼先社区).
-  The title lives in the `<a title="...">` attribute (with `<em>` highlight tags
-  stripped). Author id comes from the `/Ufield/<id>` profile link.
-- **Stats** (views/likes/comments): the search cards don't render counts inline,
-  but the stats API `GET /api/projectspace/1-2-4/v1/statistics?moduleType=blog&resourceIds=<csv>`
-  returns them per docId — called for the visible results to enrich the cards.
-- **`read`** takes a full detail URL (`/km/groups/<gid>/blogs/details/<docId>` — the
-  `detail_url` from `search`) and scrapes `#content-body` (fallback `.content`).
-  The container mixes breadcrumb + meta (作者/日期/浏览/回复) + article body; the meta
-  is parsed out and the body is the text after the "最近编辑时间" marker. A bare
-  docId is rejected — 3MS detail URLs require the group id, and the group-less
-  form (`/km/blogs/details/<id>`) redirects to the user profile, not the doc.
+  search on load — no input-filling needed for the initial query.
+- **The real results list** is `.ant-list.list___1nr2P` (its header reads
+  "共N个结果"). The page also renders sidebar "相关社区" / recommendation cards
+  as `.ant-list-item` — scoping to the main list excludes them. Results come in
+  multiple types by link pattern:
+  - `blog` → `/km/groups/<gid>/blogs/details/<docId>`
+  - `wiki` → `/hi/group/<gid>/wiki_<docId>.html` (the majority for broad queries)
+  - `frameItem` → external link, no docId (skipped)
+- **The docId is in the card's `<a href>`** — directly available, no `window.open`
+  intercept needed (unlike 稼先社区). The clean title is in `.title_em___2OVTv`
+  (the `<a title="...">` attribute has `<em>` highlight tags). Author id comes
+  from the `/Ufield/<id>` profile link.
+- **Stats** (views/likes/comments): the search cards render "浏览 N" inline, and
+  the stats API `GET /api/projectspace/1-2-4/v1/statistics?moduleType=<blog|wiki>&resourceIds=<csv>`
+  returns fuller counts per docId — called per type (blog ids with
+  `moduleType=blog`, wiki ids with `moduleType=wiki`) to enrich the cards.
+- **`read`** takes a full detail URL (the `detail_url` from `search` — blog or
+  wiki) and scrapes the body container. Blog bodies are in `#content-body`
+  (mixes breadcrumb + meta + article body; the meta is parsed out and the body
+  is the text after the "最近编辑时间" marker). Wiki URLs redirect to
+  `/next/groups/index.html#/wiki/detail` with the body in `.detail-content`. A
+  `stripFooter()` pass cuts page chrome (多维分类/Tag：/Previous：/site footer)
+  that bleeds into the scraped body. A bare docId is rejected — 3MS detail URLs
+  require the group id, and the group-less form (`/km/blogs/details/<id>`)
+  redirects to the user profile, not the doc.
+- **Known limitation:** blog posts whose body IS an attachment list (e.g.
+  `22433679`) can load title-only via the plugin's `page.goto` — the attachment
+  XHR doesn't fire under CDP `Page.navigate` the way it does under the bridge
+  `open` command. Text-body blogs and wikis read correctly.
 
 ### Parts most likely to need adjustment
 
-1. **`CARD_SELECTOR` + field selectors** (in `search.ts`/`search.js`) —
-   `.ant-list-item` / `.ant-list-item-meta-title a[href]` / `a[href^="/Ufield/"]`.
-   If the search-app markup changes, the adapter throws `EmptyResultError`.
-   Inspect a real `/doc3ms/index.html?...` page with
+1. **`RESULTS_LIST_SELECTOR` + field selectors** (in `search.ts`/`search.js`) —
+   `.ant-list.list___1nr2P` (the main results list) / `.title_em___2OVTv` /
+   `.titleRight___2MXLQ` / `a[href^="/Ufield/"]` / `a[href*="/blogs/details/"]` /
+   `a[href*="wiki_"]`. If the search-app markup changes, the adapter throws
+   `EmptyResultError`. Inspect a real `/doc3ms/index.html?...` page with
    `opencli browser huawei-3ms state` / `opencli browser huawei-3ms find --css ...`.
 2. **The search-app route + `text` param** — `search` depends on
    `/doc3ms/index.html?type=<tab>&l=zh&text=<urlencoded>#/` rendering cards. If the
    route or param name changes, inspect the URL a manual search produces.
-3. **The stats API** (`/api/projectspace/1-2-4/v1/statistics`) — if the endpoint
-   or its `resourceIds` param changes, stats go empty (search still works).
-4. **`read`'s body selectors** — `#content-body` / `.content` and the meta-parsing
-   regexes (`楼主…等级`, `日期：`, `浏览：`, `回复：`). If the detail page markup
-   changes, `read` may return the raw container text or throw `EmptyResultError`.
+3. **The stats API** (`/api/projectspace/1-2-4/v1/statistics`) — type-specific
+   (`moduleType=blog` vs `moduleType=wiki`). If the endpoint or its `resourceIds`
+   param changes, stats go empty (search still works).
+4. **`read`'s body selectors** — blog `#content-body` vs wiki `.detail-content`,
+   the meta-parsing regexes (`楼主…等级`, `日期：`, `浏览：`, `最近编辑时间`),
+   and the `FOOTER_MARKERS` list. If the detail page markup changes, `read` may
+   return the raw container text or throw `EmptyResultError`.
 5. **Comments are not extracted** — 3MS lazy-loads the comment thread (widget/
    iframe, interaction-gated). `comments_thread` is left empty. If you need
    comments, recon the comment widget's load trigger first.
