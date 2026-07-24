@@ -16,9 +16,9 @@
     },
     {
       "name": "read",
-      "description": "Read the full content of a single 3MS document by its docId (bare numeric id, or the full detail URL). Returns the complete document body plus title, author, date, views/likes/comments. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+      "description": "Read the full content of a single 3MS document by its detail URL (a blog /km/groups/<gid>/blogs/details/<id> or wiki /hi/group/<gid>/wiki_<id>.html URL — take it from a search result's detail_url). Returns the complete document body plus title, author, date, views/likes/comments. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
       "args": [
-        { "name": "doc_id", "positional": true, "required": true, "help": "The full 3ms.huawei.com detail URL (e.g. https://3ms.huawei.com/km/groups/3059465/blogs/details/22436113) — take it from a search result's detail_url. A bare numeric id is not accepted (3MS detail URLs require the group id)." }
+        { "name": "doc_id", "positional": true, "required": true, "help": "The full 3ms.huawei.com detail URL from a search result's detail_url — a blog URL (https://3ms.huawei.com/km/groups/3059465/blogs/details/22436113) or wiki URL (http://3ms.huawei.com/hi/group/3591759/wiki_7433309.html). A bare numeric id is not accepted (3MS detail URLs require the group id)." }
       ],
       "columns": ["title", "author", "author_id", "date", "views", "likes", "comments", "body", "comments_thread", "url"]
     }

@@ -39,23 +39,106 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultErr
 const BASE_URL = "https://3ms.huawei.com";
 const DOMAIN = "3ms.huawei.com";
 
-// Detail route. The docId is the trailing /details/<docId> segment. The
-// /km/groups/<gid>/ prefix is optional — /km/blogs/details/<docId> also works.
-const DETAIL_PATH = "/km/blogs/details/";
+// Footer markers that mark where the article body ends and page chrome
+// (classification labels, comment form, prev/next nav, site footer) begins.
+// The body is cut at the earliest marker that appears.
+const FOOTER_MARKERS = [
+    "多维分类", "分类：日常活动", "推荐度", "我来推荐", "印象：", "发表评论",
+    "Tag：", "[Edit]Category", "Share (", "Favorite (", "Praises (",
+    "Previous：", "Next：", "人在这个团队内", "关于3MS+", "用户协议", "知识服务服务中心",
+];
 
 // How long (seconds) to wait for the body to render after navigation.
 const RENDER_WAIT_S = 5;
+
+/**
+ * Cut page-chrome noise off the end of a scraped body. The detail containers
+ * (#content-body for blogs, .detail-content for wikis) render the article body
+ * followed by classification labels, the comment form, prev/next nav, and the
+ * site footer — none of which is article content. Cut at the earliest footer
+ * marker. Also collapses runs of blank lines.
+ */
+function stripFooter(s) {
+    let cut = s.length;
+    for (const m of FOOTER_MARKERS) {
+        const i = s.indexOf(m);
+        if (i >= 0 && i < cut) cut = i;
+    }
+    return s.slice(0, cut).replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Poll the body container's text length until it stops growing (or the max
+ * polls are hit). The body element appears before its content is fully
+ * populated — without this, a cold navigation can scrape a half-rendered body
+ * (e.g. just the title before the attachment list streams in).
+ */
+async function waitForBodyStable(page, selector) {
+    const len = await page.evaluate((sel) => {
+        const el = document.querySelector(sel);
+        return el ? (el.textContent || "").trim().length : 0;
+    }, selector).catch(() => 0);
+    let prev = typeof len === "number" ? len : 0;
+    for (let i = 0; i < 4; i++) {
+        await page.wait("time", 1).catch(() => {});
+        const next = await page.evaluate((sel) => {
+            const el = document.querySelector(sel);
+            return el ? (el.textContent || "").trim().length : 0;
+        }, selector).catch(() => 0);
+        const n = typeof next === "number" ? next : 0;
+        if (n === prev) break; // stable
+        prev = n;
+    }
+}
+
+/**
+ * Wait for the body container to exist AND have non-trivial content. Polls up
+ * to ~20s. A plain `page.wait('selector', ...)` resolves against stale markup
+ * from the previous page (the SPA doesn't clear #content-body between routes),
+ * so this checks the *article* text length — the text between the meta block
+ * and the footer markers — not the raw container length. The footer
+ * (多维分类…) can render before the article body streams in, so a raw-length
+ * check would pass on a title+footer-only state; this waits for real article
+ * content.
+ */
+/**
+ * Compute the article-body length (text between the meta prefix and the footer
+ * markers) in the body container. Used to decide whether the body has real
+ * content or is still title-only (which happens when the blog attachment-list
+ * XHR hasn't fired).
+ */
+function articleBodyLenJs(sel, marker) {
+    if (!location.href.includes(marker)) return 0;
+    const el = document.querySelector(sel);
+    if (!el) return 0;
+    let raw = (el.textContent || "").trim();
+    const editMatch = raw.match(/最近编辑时间[：:]\s*\d{4}[-/.]\d{1,2}[-/.]\d{1,2}(?:\s+\d{1,2}:\d{2})?\s*/);
+    if (editMatch) raw = raw.slice(raw.indexOf(editMatch[0]) + editMatch[0].length);
+    const markers = ["多维分类", "分类：日常活动", "推荐度", "Tag：", "[Edit]Category", "Share (", "Previous：", "Next："];
+    let cut = raw.length;
+    for (const m of markers) { const j = raw.indexOf(m); if (j >= 0 && j < cut) cut = j; }
+    return raw.slice(0, cut).trim().length;
+}
+
+async function waitForBody(page, selector, type) {
+    const urlMarker = type === "wiki" ? "wiki_" : "/details/";
+    for (let i = 0; i < 25; i++) {
+        const len = await page.evaluate(articleBodyLenJs, selector, urlMarker).catch(() => 0);
+        if (typeof len === "number" && len > 80) return;
+        await page.wait("time", 1).catch(() => {});
+    }
+}
 
 cli({
     site: "huawei-3ms",
     name: "read",
     access: "read",
-    description: "Read the full content of a single 3MS document by its docId (bare numeric id, or the full detail URL). Returns the complete document body plus title, author, date, views/likes/comments. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+    description: "Read the full content of a single 3MS document by its detail URL (a blog /km/groups/<gid>/blogs/details/<id> or wiki /hi/group/<gid>/wiki_<id>.html URL — take it from a search result's detail_url). Returns the complete document body plus title, author, date, views/likes/comments. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
     domain: DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: "doc_id", positional: true, required: true, help: "The full 3ms.huawei.com detail URL (e.g. https://3ms.huawei.com/km/groups/3059465/blogs/details/22436113) — take it from a search result's detail_url. A bare numeric id is not accepted (3MS detail URLs require the group id)." },
+        { name: "doc_id", positional: true, required: true, help: "The full 3ms.huawei.com detail URL from a search result's detail_url — a blog URL (https://3ms.huawei.com/km/groups/3059465/blogs/details/22436113) or wiki URL (http://3ms.huawei.com/hi/group/3591759/wiki_7433309.html). A bare numeric id is not accepted (3MS detail URLs require the group id)." },
     ],
     columns: ["title", "author", "author_id", "date", "views", "likes", "comments", "body", "comments_thread", "url"],
     func: async (page, kwargs) => {
@@ -64,32 +147,71 @@ cli({
         const raw = String(kwargs.doc_id || "").trim();
         if (!raw) throw new ArgumentError("huawei-3ms read doc_id cannot be empty");
 
-        // Resolve to a full detail URL. A full URL is used as-is; a bare docId
-        // is resolved by searching for it (3MS detail URLs require the group
-        // id: /km/groups/<gid>/blogs/details/<id>, and the group-less form
-        // /km/blogs/details/<id> redirects to the user profile, not the doc).
-        const { docId, detailUrl } = await resolveDetailUrl(page, raw);
+        // Resolve to a full detail URL + resource type (blog or wiki). A full
+        // URL is used as-is; a bare docId is rejected (3MS detail URLs require
+        // the group id, which a bare id doesn't carry).
+        const { docId, detailUrl, type } = await resolveDetailUrl(page, raw);
 
         // Navigate to the detail page (SSO-gated; the bridge drives the
-        // logged-in Chrome tab). The page is an SPA — wait for the body
-        // container to render before scraping (a bare time wait races it).
+        // logged-in Chrome tab). Match the bridge `open` command's call
+        // (page.goto with default options) — passing waitUntil/settleMs here
+        // changed the load behavior on 3MS blog pages (the attachment-list XHR
+        // didn't fire, leaving the body title-only).
         await page.goto(detailUrl);
-        await page.wait("selector", "#content-body, .content").catch(() => {});
+        const bodySelector = type === "wiki" ? ".detail-content" : "#content-body";
+        // Wait for the body container to render WITH content. A bare selector
+        // wait races the SPA, so poll for a non-trivial article-body length,
+        // then let it stabilize.
+        await waitForBody(page, bodySelector, type);
         await page.wait("time", RENDER_WAIT_S).catch(() => {});
+        await waitForBodyStable(page, bodySelector);
 
         // Auth gate.
-        const authOk = await page.evaluate(() => {
-            const body = document.querySelector("#content-body, .content");
+        const authOk = await page.evaluate((sel) => {
+            const body = document.querySelector(sel);
             const hasLoginPrompt = /请登录|sign\s*in/i.test(document.documentElement.outerHTML) && !body;
             return !!body || !hasLoginPrompt;
-        });
+        }, bodySelector);
         if (!authOk) {
             throw new AuthRequiredError(DOMAIN, "3MS requires a logged-in session. Open https://3ms.huawei.com/ in Chrome and sign in with your Huawei account, then re-run.");
         }
 
-        // Scrape the rendered detail content (all extraction in-page).
-        const doc = await page.evaluate(() => {
+        // Scrape the rendered detail content. Blog and wiki detail pages have
+        // different markup, so branch on type (all extraction in-page).
+        const doc = await page.evaluate((resourceType) => {
             const text = (el) => (el?.textContent || "").trim();
+
+            // ---- Wiki detail page (/hi/group/<gid>/wiki_<id>.html → redirects
+            // to /next/groups/index.html#/wiki/detail). Body in .detail-content,
+            // which starts with "<title>Summary：..." — strip that prefix. ----
+            if (resourceType === "wiki") {
+                const bodyEl = document.querySelector(".detail-content") || document.querySelector(".content");
+                const raw = text(bodyEl);
+                const title = (document.title || "").split(/\s*-\s*(Huawei Cloud|3ms)/i)[0].trim();
+                // Body: drop leading "<title>目录[Show All]" and "Summary："
+                // prefixes that the wiki detail-content prepends.
+                let body = raw
+                    .replace(/^[^\n]*?目录\[Show All\]/, "")
+                    .replace(/^[^\n]*?Summary[：:]/, "")
+                    .trim();
+                const pageText = document.body.innerText;
+                const viewsMatch = pageText.match(/浏览[：:]\s*(\d+)/);
+                const dateMatch = pageText.match(/20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}/);
+                const authorLink = document.querySelector('a[href*="/Ufield/"]');
+                return {
+                    title,
+                    author: "",
+                    author_id: (authorLink?.getAttribute("href") || "").match(/\/Ufield\/(\w+)/)?.[1] || "",
+                    date: dateMatch ? dateMatch[0] : "",
+                    views: viewsMatch ? viewsMatch[1] : "",
+                    likes: "",
+                    comments: "",
+                    body,
+                };
+            }
+
+            // ---- Blog detail page (/km/groups/<gid>/blogs/details/<id>). Body
+            // in #content-body, which mixes breadcrumb + meta + article body. ----
             const bodyEl = document.querySelector("#content-body") || document.querySelector(".content");
 
             // Title: document.title is "<title> - <community> - 3MS知识管理社区".
@@ -103,7 +225,6 @@ cli({
             const author = authorMatch ? authorMatch[1] : "";
             const dateMatch = raw.match(/日期[：:]\s*(20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}(?:\s+\d{1,2}:\d{2})?)/);
             const viewsMatch = raw.match(/浏览[：:]\s*(\d+)/);
-            const repliesMatch = raw.match(/回复[：:]\s*(\d+)/);
 
             // Body: everything after the "最近编辑时间：<timestamp>" meta line.
             // The textContent has no newlines, so match the timestamp
@@ -136,7 +257,7 @@ cli({
                 comments: commentsCount,
                 body,
             };
-        });
+        }, type);
 
         if (!doc.body) {
             throw new EmptyResultError("huawei-3ms", `No body rendered for docId ${docId}. The document may be deleted, access-restricted, or the page markup may have changed — inspect with \`opencli browser huawei-3ms state\`.`);
@@ -150,7 +271,7 @@ cli({
             views: String(doc.views || "").trim(),
             likes: String(doc.likes || "").trim(),
             comments: String(doc.comments || "").trim(),
-            body: String(doc.body || "").trim(),
+            body: stripFooter(String(doc.body || "")),
             // Comments are lazy-loaded (widget/iframe) on 3MS detail pages and
             // often not rendered on a cold navigation — left empty rather than
             // risk scraping partial/stale markup.
@@ -161,28 +282,28 @@ cli({
 });
 
 /**
- * Resolve the `doc_id` arg into { docId, detailUrl }. Accepts a full detail URL
- * (`https://3ms.huawei.com/km/groups/<gid>/blogs/details/<id>`) — used as-is,
- * since 3MS requires the group id in the path. A bare numeric id is rejected
- * with a pointer to `search`'s `detail_url` (the group id can't be recovered
- * from a bare id: the group-less URL redirects to the user profile, and
- * searching the numeric id as text doesn't surface the doc).
+ * Resolve the `doc_id` arg into { docId, detailUrl, type }. Accepts a full
+ * detail URL — blog (`/km/groups/<gid>/blogs/details/<id>`) or wiki
+ * (`/hi/group/<gid>/wiki_<id>.html`) — used as-is, since 3MS requires the group
+ * id in the path. A bare numeric id is rejected with a pointer to `search`'s
+ * `detail_url` (the group id can't be recovered from a bare id: the group-less
+ * blog URL redirects to the user profile, and searching the numeric id as text
+ * doesn't surface the doc).
  */
 async function resolveDetailUrl(page, raw) {
-    // Full URL: extract docId + use as-is.
+    // Wiki URL: /hi/group/<gid>/wiki_<id>.html
+    const wikiM = raw.match(/wiki_(\d+)\.html/);
+    if (wikiM) return { docId: wikiM[1], detailUrl: raw.startsWith("http") ? raw : BASE_URL + raw, type: "wiki" };
+    // Blog URL: /km/groups/<gid>/blogs/details/<id>
     if (raw.includes("://") || raw.includes("/details/")) {
         const m = raw.match(/\/details\/(\d+)/);
-        if (m) return { docId: m[1], detailUrl: raw.startsWith("http") ? raw : BASE_URL + raw };
+        if (m) return { docId: m[1], detailUrl: raw.startsWith("http") ? raw : BASE_URL + raw, type: "blog" };
         throw new ArgumentError(`Could not read a docId from URL: ${raw}`);
     }
-    // Bare id: 3MS detail URLs require the group id
-    // (/km/groups/<gid>/blogs/details/<id>); the group-less form redirects to
-    // the user profile, and searching the numeric id as text doesn't surface
-    // the doc. So a bare id can't be resolved without the gid — ask for the
-    // full detail_url (which `search` returns).
+    // Bare id: rejected (see doc comment).
     throw new ArgumentError(
         `3MS read needs the full detail URL (it carries the group id that the detail route requires). ` +
-        `Run \`opencli huawei-3ms search "<query>"\` and pass the result's \`detail_url\` to read, e.g. ` +
+        `Run\`opencli huawei-3ms search "<query>"\` and pass the result's \`detail_url\` to read, e.g. ` +
         `opencli huawei-3ms read "https://3ms.huawei.com/km/groups/3059465/blogs/details/22436113". ` +
         `Got bare id: ${raw}`,
     );

@@ -41,7 +41,15 @@ const DOMAIN = "3ms.huawei.com";
 // The search app route. The query goes in the `text` query param.
 const SEARCH_PATH = "/doc3ms/index.html";
 
-// CSS selector for a rendered result card.
+// CSS selector for the MAIN search-results list. The page also renders sidebar
+// "相关社区" / recommendation cards as .ant-list-item — scoping to the main
+// results list (.list___1nr2P) excludes them. Its header reads "共N个结果".
+const RESULTS_LIST_SELECTOR = ".ant-list.list___1nr2P";
+// Items inside the main list. Each is .ant-list-item plus a type class:
+//   .blog  → /km/groups/<gid>/blogs/details/<docId>
+//   .wiki  → /hi/group/<gid>/wiki_<docId>.html
+//   .frameItem___2tD0c → external link, no docId (skip)
+//   (no 2nd class)     → "相关搜索" related-searches block (skip)
 const CARD_SELECTOR = ".ant-list-item";
 
 // How long (seconds) to wait for results to render after clicking search.
@@ -85,11 +93,11 @@ cli({
         // initial query. (Re-searching within the page fills input.ant-input +
         // clicks button.ant-input-search-button; not needed here.)
         const searchUrl = `${BASE_URL}${SEARCH_PATH}?type=${tab}&l=zh&text=${encodeURIComponent(query)}#/`;
-        await page.goto(searchUrl);
-        // Wait for result cards to render. The search app is an SPA that
-        // fetches results after load, so wait on the selector (with a time
+        await page.goto(searchUrl, { waitUntil: "load", settleMs: 1500 });
+        // Wait for the MAIN results list to render. The search app is an SPA
+        // that fetches results after load, so wait on the selector (with a time
         // fallback) — a bare time wait races the fetch.
-        await page.wait("selector", CARD_SELECTOR).catch(() => {});
+        await page.wait("selector", RESULTS_LIST_SELECTOR).catch(() => {});
         await page.wait("time", RENDER_WAIT_S).catch(() => {});
 
         // Auth gate: a logged-in page renders result cards or the search UI;
@@ -103,61 +111,83 @@ cli({
             throw new AuthRequiredError(DOMAIN, "3MS requires a logged-in session. Open https://3ms.huawei.com/ in Chrome and sign in with your Huawei account, then re-run.");
         }
 
-        // Scrape the rendered result cards. Each knowledge-document card has a
-        // real <a href> with /details/<docId> in the main DOM (not iframed).
-        // The community tab mixes in iframe-based service/product cards
-        // (.ant-list-item.iotItem) with no details link — filter to cards that
-        // HAVE a /details/ link so only knowledge documents are returned.
-        const docs = await page.evaluate((selector, max) => {
+        // Scrape the real search results from the MAIN results list. Each
+        // knowledge-document result has a link whose pattern reveals its type:
+        //   blog → /km/groups/<gid>/blogs/details/<docId>
+        //   wiki → /hi/group/<gid>/wiki_<docId>.html
+        // Sidebar "相关社区" cards and the "相关搜索" block live outside this
+        // list (or have no docId-bearing link) — scoping to the main list +
+        // requiring a docId-bearing link excludes them.
+        const docs = await page.evaluate((listSelector, max) => {
             const text = (el) => (el?.textContent || "").trim();
             const stripEm = (s) => s.replace(/<[^>]+>/g, "").trim();
-            const nodes = Array.from(document.querySelectorAll(selector))
-                .filter((card) => !!card.querySelector('a[href*="/details/"]'))
-                .slice(0, max);
+            const list = document.querySelector(listSelector);
+            if (!list) return [];
+            const nodes = Array.from(list.querySelectorAll(".ant-list-item")).slice(0, max);
             return nodes.map((card) => {
-                // type = 2nd class on the card (e.g. .ant-list-item.blog → "blog")
+                // type = 2nd class on the card (blog / wiki / frameItem / none)
                 const cls = card.className.split(/\s+/).filter((c) => c !== "ant-list-item");
                 const type = cls[0] || "";
-                // title + detail url + docId from the title link
-                const titleLink = card.querySelector(".ant-list-item-meta-title a[href], .title a[href], h3 a[href], h4 a[href]");
-                const titleAttr = stripEm(titleLink?.getAttribute("title") || "");
-                const titleText = stripEm(titleLink?.textContent || "");
-                const detailUrl = titleLink?.getAttribute("href") || "";
-                const docIdMatch = detailUrl.match(/\/details\/(\d+)/);
-                const docId = docIdMatch ? docIdMatch[1] : "";
+                // Find the doc-bearing link: blog (/details/) or wiki (wiki_<id>.html).
+                const blogLink = card.querySelector('a[href*="/blogs/details/"]');
+                const wikiLink = card.querySelector('a[href*="wiki_"]');
+                const link = blogLink || wikiLink;
+                if (!link) return null; // frameItem (external) or 相关搜索 block
+                const href = link.getAttribute("href") || "";
+                const blogMatch = href.match(/\/blogs\/details\/(\d+)/);
+                const wikiMatch = href.match(/wiki_(\d+)\.html/);
+                const docId = (blogMatch?.[1] || wikiMatch?.[1] || "");
+                if (!docId) return null;
+                const resourceType = blogMatch ? "blog" : (wikiMatch ? "wiki" : type);
+                // Title: prefer .title_em___2OVTv (clean, no "浏览 N" suffix);
+                // fall back to the link's title attr / text.
+                const titleEm = card.querySelector(".title_em___2OVTv");
+                const titleAttr = stripEm(link.getAttribute("title") || "");
+                const titleText = stripEm(link.textContent || "");
+                const title = stripEm(titleEm?.textContent || "") || titleAttr || titleText;
+                // detail url (absolute)
+                const detailUrl = href.startsWith("http") ? href : (href.startsWith("/") ? BASE_URL + href : BASE_URL + "/" + href);
                 // author: a[href^="/Ufield/"] → author id
                 const authorLink = card.querySelector('a[href^="/Ufield/"]');
                 const authorText = text(authorLink);
                 const authorId = (authorLink?.getAttribute("href") || "").match(/\/Ufield\/(\w+)/)?.[1] || "";
-                // source community: a[href*="/hi/group/"]
-                const sourceLink = card.querySelector('a[href*="/hi/group/"]');
+                // source community: the wikis.html / group link
+                const sourceLink = card.querySelector('a[href*="/hi/group/"][href*="wikis.html"], a[href*="/hi/group/"]');
                 const source = text(sourceLink);
-                // date + views may be inline in the meta text
-                const metaText = text(card.querySelector(".ant-list-item-meta-content"));
-                const dateMatch = metaText.match(/20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}/);
-                // summary: any description/abstract element
-                const summary = text(card.querySelector("[class*=summary],[class*=desc],[class*=abstract]"));
+                // views: .titleRight___2MXLQ ("浏览 N")
+                const viewsText = text(card.querySelector(".titleRight___2MXLQ, [class*=view], [class*=browse]"));
+                const viewsNum = (viewsText.match(/(\d[\d,]*)/) || [])[1] || "";
+                // summary
+                const summary = text(card.querySelector(".ant-list-item-meta-description, [class*=summary],[class*=desc],[class*=abstract]"));
                 return {
-                    title: titleAttr || titleText,
-                    type,
+                    title,
+                    type: resourceType,
                     author: authorText,
                     author_id: authorId,
                     source,
-                    date: dateMatch ? dateMatch[0] : "",
+                    views: viewsNum,
                     summary,
                     doc_id: docId,
-                    detail_url: detailUrl.startsWith("http") ? detailUrl : (detailUrl ? BASE_URL + detailUrl : ""),
+                    detail_url: detailUrl,
                 };
-            }).filter((r) => r.title && r.doc_id);
-        }, CARD_SELECTOR, limit);
+            }).filter((r) => r && r.title && r.doc_id);
+        }, RESULTS_LIST_SELECTOR, limit);
 
         if (!docs.length) {
             throw new EmptyResultError("huawei-3ms", `No results parsed for "${query}". Try a different keyword or tab, or inspect the page with \`opencli browser huawei-3ms state\`.`);
         }
 
-        // Enrich with stats (views/likes/comments) via the stats API, batching
-        // the docIds. Best-effort — if it fails, stats stay empty.
-        const stats = await fetchStats(page, docs.map((d) => d.doc_id));
+        // Enrich with stats (views/likes/comments) via the stats API. The API
+        // is type-specific: blog ids use moduleType=blog, wiki ids use
+        // moduleType=wiki. Best-effort — if it fails, stats stay empty (the
+        // card's own "浏览 N" already gave us views as a fallback).
+        const blogIds = docs.filter((d) => d.type === "blog").map((d) => d.doc_id);
+        const wikiIds = docs.filter((d) => d.type === "wiki").map((d) => d.doc_id);
+        const [blogStats, wikiStats] = await Promise.all([
+            fetchStats(page, "blog", blogIds),
+            fetchStats(page, "wiki", wikiIds),
+        ]);
+        const stats = { ...blogStats, ...wikiStats };
 
         return docs.slice(0, limit).map((item, index) => {
             const s = stats[item.doc_id] || {};
@@ -181,14 +211,15 @@ cli({
 });
 
 /**
- * Fetch views/likes/comments for a batch of docIds via the 3MS stats API.
- * Returns a map { docId: {views, likes, comments} }. Best-effort: on any
- * failure returns an empty map (the search still returns, just without stats).
+ * Fetch views/likes/comments for a batch of docIds of ONE resource type via the
+ * 3MS stats API. Returns a map { docId: {views, likes, comments} }. Best-effort:
+ * on any failure returns an empty map (the search still returns, just without
+ * stats).
  *
- * The endpoint: GET /api/projectspace/1-2-4/v1/statistics?moduleType=blog&resourceIds=<csv>
+ * The endpoint: GET /api/projectspace/1-2-4/v1/statistics?moduleType=<blog|wiki>&resourceIds=<csv>
  * Returns: [{ resourceId, views, likes, comments, collections, attach }]
  */
-async function fetchStats(page, docIds) {
+async function fetchStats(page, moduleType, docIds) {
     if (!docIds.length) return {};
     try {
         const csv = docIds.join(",");
@@ -196,7 +227,7 @@ async function fetchStats(page, docIds) {
             const r = await fetch(url, { credentials: "include" });
             const t = await r.text();
             return t;
-        }, `${BASE_URL}/api/projectspace/1-2-4/v1/statistics?moduleType=blog&resourceIds=${encodeURIComponent(csv)}`);
+        }, `${BASE_URL}/api/projectspace/1-2-4/v1/statistics?moduleType=${moduleType}&resourceIds=${encodeURIComponent(csv)}`);
         const arr = JSON.parse(json);
         const out = {};
         for (const item of Array.isArray(arr) ? arr : []) {
