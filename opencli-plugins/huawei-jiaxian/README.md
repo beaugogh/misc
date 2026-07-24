@@ -7,7 +7,8 @@ community's collective expertise.
 Given an arbitrary question, `opencli huawei-jiaxian search` returns the **top N most relevant
 documents**, each with title, type, author, date, views, replies, a **rich summary** (author +
 abstract + expert viewpoints), and a URL. The rich summaries carry enough substance for a
-downstream agent or reader to answer the question.
+downstream agent or reader to triage the question. To get one post's **full article body**, use
+`opencli huawei-jiaxian read <postId>` with a postId from a detail URL you have.
 
 稼先社区 is Huawei's high-density technical-discussion space (6,000+ chief experts, 100,000+ R&D
 engineers), focused on deep technical exploration, architecture evolution, and cross-domain
@@ -84,12 +85,13 @@ opencli plugin install github:<user>/misc/opencli-plugins/huawei-jiaxian
 
 | Command | Strategy | Description |
 |---------|----------|-------------|
-| `huawei-jiaxian search` | COOKIE | Search the 稼先社区 knowledge base; returns top N documents |
+| `huawei-jiaxian search` | COOKIE | Search the 稼先社区 knowledge base; returns top N documents (rich summaries, not full bodies) |
+| `huawei-jiaxian read` | COOKIE | Read one post's full body by postId (bare id or detail URL) |
 
 ## Usage
 
 ```bash
-# Ask a question — returns the top 10 documents
+# Ask a question — returns the top 10 documents (rich summaries)
 opencli huawei-jiaxian search "大模型推理优化"
 
 # Limit to 3 documents
@@ -97,9 +99,19 @@ opencli huawei-jiaxian search "盘古2.0昇腾性能" --limit 3
 
 # JSON output for agents
 opencli huawei-jiaxian search "5G架构演进" -f json
+
+# Read one post's full body — by bare postId
+opencli huawei-jiaxian read da25639435334344912733f65c592a1b
+
+# ...or by pasting the detail URL straight from the browser
+opencli huawei-jiaxian read "https://jx.huawei.com/community/comgroup/postsDetails?postId=da25639435334344912733f65c592a1b&type=freePost"
 ```
 
-### Arguments
+`search` and `read` are complementary: `search` surveys many posts and returns
+rich summaries (enough to triage); `read` fetches one post's complete article
+body when you need the full text.
+
+### `search` arguments
 
 | Arg | Type | Default | Description |
 |---|---|---|---|
@@ -107,9 +119,20 @@ opencli huawei-jiaxian search "5G架构演进" -f json
 | `--limit` | int | 10 | Max number of documents to return (N) |
 | `--language` | string | `cn` | Source language: `cn` \| `en` |
 
-### Columns
+### `search` columns
 
 `rank`, `title`, `type`, `author`, `date`, `views`, `replies`, `summary`, `url`
+
+### `read` arguments
+
+| Arg | Type | Default | Description |
+|---|---|---|---|
+| `post_id` (positional, required) | string | — | A bare 32-char hex postId, or a full `jx.huawei.com` detail URL |
+| `--type` | string | `free_post` | Resource type: `free_post` \| `technical_report` \| `industry_report` (only `free_post` supported) |
+
+### `read` columns
+
+`title`, `author`, `author_id`, `dept`, `date`, `views`, `likes`, `replies`, `body`, `url`
 
 ## How it works (recon notes)
 
@@ -135,9 +158,26 @@ opencli huawei-jiaxian search "5G架构演进" -f json
     to serve as answers.
   - author: `.author-name`  ·  date: `.create-time`
   - stats: `.stat-item` (1st = views, 2nd = replies)
-- **Detail-page URLs** are not reliably obtainable from a card (navigation is Vue click-handler
-  based and does not update `location.href`), so `url` is the community homepage where the card is
-  surfaced. The rich `summary` carries the actual content.
+- **Detail-page URLs** for `search` results are not obtainable from a homepage card: the cards
+  carry no `postId` in their DOM/attributes, and clicking one fires only a telemetry XHR (no
+  navigation, no content API). So `search`'s `url` is the community homepage where the card is
+  surfaced, and the rich `summary` carries the content. To get a post's full body, use `read`
+  with a postId obtained from a detail URL you already have (e.g. copied from the browser).
+
+### How `read` works
+
+- The detail route is `/community/comgroup/postsDetails?postId=<id>&type=freePost`, discovered from
+  the app bundle's `resourceType → URL` mapping (`free_post` → `postsDetails?postId=${resourceId}`).
+  `read` navigates the logged-in tab there and scrapes the rendered `.detail-content`.
+- No clean JSON content API exists in the bundle — the body is server-rendered into the page HTML,
+  so navigation + scrape is the reliable path (not an API call).
+- The CSRF-gated `POST /ideaService/v2/lib2/ideas` general-search API (which would return postIds
+  for all content types) was investigated but its request body schema could not be recovered (the
+  bridge's network capture returned empty on this page, and synthetic clicks don't trigger the
+  Vue app's handlers). Only `GET /ideaService/v2/innovation/ideas?searchKey=` was cracked, and it
+  returns `ideaManager`-type results only (not `free_post`), so it is not wired in.
+- `parsePostId` accepts a bare 32-char hex id or a full detail URL; for a URL it extracts `postId`
+  + normalizes the `type` query param (`freePost` → `free_post`).
 
 ### Parts most likely to need adjustment
 
@@ -151,16 +191,25 @@ These are the fragile bits, called out honestly:
    class), the adapter reports "Could not trigger a search". Run
    `opencli browser huawei-jiaxian state` after typing a query to find the new trigger elements and update
    the `input.form-control` / `.search-btn` selectors.
+3. **`read`'s detail-page selectors** (in `read.ts`/`read.js`) — `.detail-content` (body),
+   `.author-card__info-row` (author), `.author-card__stat-label`/`.nav-name` (stats),
+   `.meta-icon-date` (date). If the detail page markup changes, `read` throws `EmptyResultError`.
+   Inspect a real detail page with `opencli browser huawei-jiaxian state` and update the selectors.
+4. **`read` only supports `free_post`** — `technical_report` / `industry_report` use different
+   routes (`/TI/report/details/<id>`, `/TI/industry/details/<id>`) with different markup. Adding
+   them means a new entry in `DETAIL_ROUTE` + a body extractor for that page's container.
 
 ## Development
 
 ```bash
-# search.ts is the typed source-of-truth; search.js is the hand-mirrored entry
-# OpenCLI loads. Keep both in sync after edits (no build step).
+# Each command has a typed source-of-truth (.ts) hand-mirrored to the .js entry
+# OpenCLI loads. Keep both in sync after edits (no build step):
+#   search.ts <-> search.js   ·   read.ts <-> read.js
 
-# Verify the command is registered:
+# Verify the commands are registered:
 opencli list | grep huawei-jiaxian
 
-# Run it:
+# Run them:
 opencli huawei-jiaxian search "大模型" --limit 3
+opencli huawei-jiaxian read da25639435334344912733f65c592a1b
 ```

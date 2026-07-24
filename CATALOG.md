@@ -148,7 +148,7 @@ truth. Full recon notes and setup live in each plugin's `README.md`.
 
 | Plugin | Commands |
 |---|---|
-| [`huawei-jiaxian`](./opencli-plugins/huawei-jiaxian/README.md) | **`search`** <query> · --limit <int> · --language<br>columns: `rank, title, type, author, date, views, replies, summary, url` |
+| [`huawei-jiaxian`](./opencli-plugins/huawei-jiaxian/README.md) | **`search`** <query> · --limit <int> · --language<br>columns: `rank, title, type, author, date, views, replies, summary, url`<br><br>**`read`** <post_id> · --type<br>columns: `title, author, author_id, dept, date, views, likes, replies, body, url` |
 | [`huawei-terminology`](./opencli-plugins/huawei-terminology/README.md) | **`search`** <query> · --limit <int> · --language · --filter-language<br>columns: `rank, term_en, term_cn, domain, confidence, definition, url` |
 
 
