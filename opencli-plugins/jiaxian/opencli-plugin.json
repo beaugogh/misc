@@ -1,0 +1,6 @@
+{
+  "name": "jiaxian",
+  "version": "0.1.0",
+  "description": "Search Huawei's 稼先社区 (jx.huawei.com) — the internal expert/engineer knowledge community. Given an arbitrary question, returns the top N most relevant documents (title, type, author, date, views, replies, rich summary, url) plus a synthesized answer. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+  "opencli": ">=1.8.6"
+}
