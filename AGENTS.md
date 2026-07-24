@@ -19,7 +19,7 @@ superpowers/         — Git submodule: obra's methodology skills (read-only)
 mattpocock-skills/   — Git submodule: Matt Pocock's engineering skills (read-only)
 .venv/               — Python venv (torch, whisper, imageio-ffmpeg) for ML-heavy skills
 .env                 — Per-provider API credentials (gitignored, never commit)
-SKILLS.md            — Auto-generated catalog of ALL skills across all sources
+CATALOG.md           — Auto-generated catalog of ALL skills + OpenCLI plugins
 ```
 
 ## Skill format
@@ -40,8 +40,8 @@ Bundled scripts/templates live alongside the `SKILL.md` and are referenced by re
 ## Commands
 
 ```bash
-# Regenerate the skills catalog (required after adding/removing any skill)
-./scripts/generate-skills-catalog.sh
+# Regenerate the catalog (required after adding/removing any skill or plugin)
+./scripts/generate-catalog.sh
 
 # Update all submodules to latest upstream main
 git submodule update --remote
@@ -70,15 +70,15 @@ source .venv/Scripts/activate
 1. `mkdir skills/<kebab-case-name>`
 2. Add `SKILL.md` with `name` (matching folder) and `description` (start with **when to use it**)
 3. Bundle scripts/templates alongside, reference by relative path
-4. Add a row to the Skills table in `README.md`
-5. Run `./scripts/generate-skills-catalog.sh` to update `SKILLS.md`
+4. Run `./scripts/generate-catalog.sh` to update `CATALOG.md` (the catalog is the single source of truth — no manual README table row needed)
 
 ### New OpenCLI plugin
 1. `opencli plugin create <name> --dir opencli-plugins/<name>`
 2. Replace sample commands with real adapters
-3. Compile: `esbuild <cmd>.ts --outfile=<cmd>.js --format=esm --platform=node`
-4. Verify: `opencli plugin install file://$(pwd)/opencli-plugins/<name>` then `opencli <name> <command>`
-5. Add a row to OpenCLI tables in both `README.md` and `opencli-plugins/README.md`
+3. Declare the command surface in `opencli-plugin.json` under a `commands` array (`name`, `description`, `args`, `columns`) — this is the catalog source of truth
+4. Compile: `esbuild <cmd>.ts --outfile=<cmd>.js --format=esm --platform=node`
+5. Verify: `opencli plugin install file://$(pwd)/opencli-plugins/<name>` then `opencli <name> <command>`
+6. Run `./scripts/generate-catalog.sh` to update `CATALOG.md`
 
 ## Key conventions
 
@@ -86,5 +86,5 @@ source .venv/Scripts/activate
 - **Line endings:** All text files normalized to LF (`.gitattributes`). Shell scripts are `text eol=lf`, PowerShell is `text eol=crlf`.
 - **LFS:** Harvested paper outputs under `skills/harvest-ai-papers/output/harvested/**` are tracked with Git LFS.
 - **Credentials:** `.env` at repo root holds API keys (gitignored). Skills that need credentials use per-skill `.env` files (also gitignored). Use `.env.example` as a template.
-- **Catalog is generated:** `SKILLS.md` is auto-generated from `SKILL.md` frontmatter. Never edit it by hand — always run the script.
+- **Catalog is generated:** `CATALOG.md` is auto-generated from `SKILL.md` frontmatter (skills) and `opencli-plugin.json` `commands` arrays (plugins). Never edit it by hand — always run `./scripts/generate-catalog.sh`.
 - **Deprecated/in-progress skills** in `mattpocock-skills/` (under `deprecated/` or `in-progress/` subdirs) should be skipped unless explicitly requested.

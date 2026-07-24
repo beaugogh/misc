@@ -1,6 +1,19 @@
 {
   "name": "huawei-terminology",
   "version": "0.1.0",
-  "description": "Search the Huawei terminology database (3ms.huawei.com/terminology) — returns English term, Chinese term, domain, and definition. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
-  "opencli": ">=1.8.6"
+  "description": "Search the Huawei terminology database (3ms.huawei.com/terminology) — returns English term, Chinese term, domain, confidence, and definition. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+  "opencli": ">=1.8.6",
+  "commands": [
+    {
+      "name": "search",
+      "description": "Search the Huawei terminology database (3ms.huawei.com/terminology). Returns English term, Chinese term, domain, confidence, and definition. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+      "args": [
+        { "name": "query", "positional": true, "required": true, "help": "Term or abbreviation to search (e.g. \"CloudDragon\", \"5G\")" },
+        { "name": "limit", "type": "int", "default": 10, "help": "Max results (server caps at ~50)" },
+        { "name": "language", "default": "en", "help": "Source language to search: en | cn" },
+        { "name": "filter-language", "default": "", "help": "Restrict to a result language, e.g. cn. Empty = all." }
+      ],
+      "columns": ["rank", "term_en", "term_cn", "domain", "confidence", "definition", "url"]
+    }
+  ]
 }

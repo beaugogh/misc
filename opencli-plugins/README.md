@@ -95,11 +95,15 @@ opencli-plugins/
    opencli browser verify <name>/<command>   # for browser adapters
    ```
 
-4. Add a row to the table below.
+4. Declare the command surface in the plugin's `opencli-plugin.json` under a
+   `commands` array (`name`, `description`, `args`, `columns`) — this is the
+   catalog source of truth.
+5. Regenerate the repo catalog: `./scripts/generate-catalog.sh` (writes
+   `CATALOG.md` at the repo root, the single index of skills + plugins).
 
 ## Plugins
 
-| Plugin | Commands | Description |
-|---|---|---|
-| [`huawei-terminology`](./huawei-terminology) | `search` | Search the Huawei terminology database (3ms.huawei.com/terminology) — English/Chinese term, domain, confidence, definition. Requires a logged-in Huawei session via the Browser Bridge. |
-| [`huawei-jiaxian`](./huawei-jiaxian) | `search` | Search Huawei's 稼先社区 (jx.huawei.com) — the internal expert/engineer knowledge community. Given an arbitrary question, returns the top N most relevant documents (title, type, author, date, views, replies, rich summary, url). Requires a logged-in Huawei session via the Browser Bridge. |
+The plugin table (commands, args, output columns) is generated into
+[`../CATALOG.md`](../CATALOG.md) from each plugin's `opencli-plugin.json`
+`commands` array. Run `./scripts/generate-catalog.sh` after adding or changing
+a plugin.

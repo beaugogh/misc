@@ -1,41 +1,54 @@
-# Skills catalog
+# Catalog
 
-A machine- and human-readable index of **every skill** in this repo — own skills
-plus three external collections tracked as git submodules.
+A machine- and human-readable index of **every agent-facing artifact** in this
+repo — skills (own + three external collections) and OpenCLI plugins — so an
+external agent can survey what's available in one place.
 
 ## How an agent should use this
 
-Read the tables below, pick the skills relevant to the user's task, and
+Read the sections below, pick the artifacts relevant to the user's task, and
 **recommend** them (name + path). The user activates picks manually — do not
 attempt to install anything yourself. Prefer stable skills; skip any flagged
-⚠️ deprecated or 🚧 in-progress unless the user asks for them. Each skill's
-`SKILL.md` (linked from the path) has the full instructions — open it when a
-pick is relevant to follow its steps.
+⚠️ deprecated or 🚧 in-progress unless the user asks for them.
 
-Regenerate after adding/removing skills: `./scripts/generate-skills-catalog.sh`
+There are **two kinds** of artifact, with different activation models — an
+agent must know which is which:
 
-## Own skills (`skills/`)
+- **Skill** — open its `SKILL.md` (linked from the path) and follow the steps.
+  Self-contained instructions, no prerequisites. Portable as a document.
+- **OpenCLI plugin** — a CLI command `opencli <plugin> <command>` you call.
+  Needs `opencli` + the Browser Bridge set up and (for Huawei-site plugins) a
+  logged-in Huawei session in Chrome — all human one-time setup. Portable as a
+  *command*, not as pure code. See [`opencli-plugins/README.md`](./opencli-plugins/README.md)
+  for prerequisites and install.
 
-### Own skills (skills/) (10)
+Regenerate after adding/removing skills or plugins: `./scripts/generate-catalog.sh`
+
+## Skills
+
+### Own skills (skills/) (13)
 
 | Skill | Description |
 |---|---|
 | [`adversarial-review`](./skills/adversarial-review) | Production-grade review of any artifact (source code, prompt, SKILL.md, AGENTS.md, CLAUDE.md, workflow definition, configuration, specification, documentation, tool schema, evaluation, or a combination) as if you are the senior engineer, staff architect, and final approver responsible for deploying it. Falsify-first: assume the artifact contains flaws even if it appears correct, actively search for evidence that it is wrong before searching for evidence that it is right, and spend at least as much effort attempting to break the solution as was spent creating it. Use when you are about to ship, merge, or hand off an artifact and want a rigorous final gate — not a surface "looks good" pass. Outputs a structured review (intent alignment, adversarial analysis scratchpad, issues by severity, test/evaluation gaps, alternative designs, confidence, approval decision, and a corrected artifact if any issues are found). Does not defend the implementation or assume design decisions were intentional. |
+| [`analyze-paper-corpus`](./skills/analyze-paper-corpus) | Analyzes a corpus of harvested academic papers (markdown files from top AI venues or arXiv) against a reference/context document (e.g., a design brainstorm, project proposal, or system architecture doc). Extracts abstracts from all papers, screens each against the reference context, flags only papers with genuinely novel and relevant ideas, and composes a structured findings document organized by topic. Use when the user has a harvested paper corpus and a design/planning document, and wants to mine the corpus for ideas that expand their thinking — not to summarize every paper, but to ruthlessly filter to what matters. Handles corpora of 500-2000+ papers via parallel abstract screening followed by selective deep-read of the most promising hits. |
 | [`caveman-compress`](./skills/caveman-compress) | Compress natural language memory files (CLAUDE.md, todos, preferences) into caveman format to save input tokens. Preserves all technical substance, code, URLs, and structure. Compressed version overwrites the original file. Human-readable backup saved as FILE.original.md. Trigger: /caveman-compress FILEPATH or "compress memory file" |
 | [`caveman`](./skills/caveman) | Ultra-compressed communication mode. Cuts output tokens 65% (measured) by speaking like caveman while keeping full technical accuracy. Supports intensity levels: lite, full (default), ultra, wenyan-lite, wenyan-full, wenyan-ultra. Use when user says "caveman mode", "talk like caveman", "use caveman", "less tokens", "be brief", or invokes /caveman. Also auto-triggers when token efficiency is requested. |
 | [`chatgpt-web-imagegen`](./skills/chatgpt-web-imagegen) | Generate images via the chatgpt.com web interface (not the API) by driving your logged-in Chrome session through OpenCLI. Use when you want to create images with ChatGPT image generation but the OpenAI/codex /images/generations API endpoint times out or returns a ~190s cap on long/multi-character prompts, when you don't have an API key but ARE logged into chatgpt.com in a browser, or when prompts get blocked by ChatGPT's third-party-content-similarity moderation and you want automatic rephrase-and-retry. Accepts a single prompt or an array of prompts; not bound to any file format. Each prompt is sent as a fresh chat conversation and the rendered image is scraped from the DOM. |
-| [`git-corporate-proxy-lfs`](./skills/git-corporate-proxy-lfs) | Diagnoses and fixes `git clone`/`git pull` failures behind a strict corporate proxy on Windows — the "Failed to connect to github.com:443" timeout, the schannel revocation-check hang (CRYPT_E_NO_REVOCATION_CHECK / 0x80092012), and Git LFS pulling at single-digit KB/s. Use when git over HTTPS stalls or times out on a corporate/VPN network, when regular git works but LFS crawls, when a clone dies mid-checkout leaving files as LFS pointers, or when the proxy injects a 407 Proxy Authentication Required partway through a transfer. |
+| [`git-corporate-proxy-lfs`](./skills/git-corporate-proxy-lfs) | Diagnoses and fixes `git clone`/`git pull` failures behind a strict corporate proxy on Windows — the "Failed to connect to github.com:443" timeout, the schannel revocation-check hang (CRYPT_E_NO_REVOCATION_CHECK / 0x80092012), and Git LFS pulling at single-digit KB/s. Use when git over HTTPS stalls or times out on a corporate/VPN network, when regular git works but LFS crawls, when a clone dies mid-checkout leaving files as LFS pointers, or when the proxy injects a 407 Proxy Authentication Required partway through a transfer. Also covers partial (`blob:none`/promisor) clones that can't finish a checkout (`could not fetch ... from promisor remote`) and phantom `git status` deletions caused by the LFS smudge filter. |
+| [`harvest-ai-papers`](./skills/harvest-ai-papers) | Use when asked to list, inventory, harvest, preserve, or convert top AI venue paper pages, conference paper pages, proceedings pages, or AI research URLs into Markdown for downstream AI-agent reading, including NeurIPS, ICML, ICLR, AAAI, images, metadata, citations, and AI-readable visual equivalents. |
 | [`install-claude-code-windows`](./skills/install-claude-code-windows) | Installs Anthropic's Claude Code CLI and the Claude Code Router (CCR, pinned to v1.x) on Windows 11 behind a strict corporate firewall / VPN, and routes Claude Code to internal OpenAI-compatible model endpoints. Use when setting up Claude Code on a Windows machine where the official install.ps1 fails (proxy returns an HTML block page) or where CCR v2's web UI hangs forever on "loading". Also use when CCR reports "No available models" — usually a BOM-corrupted config.json. |
 | [`karpathy-guidelines`](./skills/karpathy-guidelines) | Behavioral guidelines to reduce common LLM coding mistakes. Use when writing, reviewing, or refactoring code to avoid overcomplication, make surgical changes, surface assumptions, and define verifiable success criteria. |
 | [`meeting-recording-analysis`](./skills/meeting-recording-analysis) | Analyzes meeting recordings (video + audio) — transcribes speech to a timestamped transcript and extracts key frames from screen-share video, then summarizes / pulls action items / answers questions about the meeting. Built for WeLink recordings (a directory with meeting_1.mp4 + meeting_1.m4a + audio.pcm) but works on any video file. Use when the user wants to know what happened in a recorded meeting, get a summary or action items, extract something shown on the shared screen (slides, code, a diagram), or search what was said by timestamp. Requires the Python venv with openai-whisper + imageio-ffmpeg (see Setup). |
 | [`pip-corporate-proxy`](./skills/pip-corporate-proxy) | Installs Python pip packages behind a strict corporate proxy / VPN on Windows when pip hangs forever or fails with 407 Proxy Authentication Required. Use when `pip install` stalls on large wheels (numpy, onnxruntime, torch, av, imageio-ffmpeg, etc.) while small packages install fine, when pip's `--timeout` never fires, when `pip config global.proxy` returns 407 but env-var `HTTPS_PROXY` works, or when you need to install heavy ML wheels (faster-whisper, pytorch, transformers) on a locked-down network. |
 | [`verify-model-endpoints`](./skills/verify-model-endpoints) | Smoke-tests any OpenAI-compatible chat model endpoint — DashScope/Bailian plans and regions, DeepSeek, Moonshot/Kimi, Zhipu/GLM, SiliconFlow, OpenRouter, OpenAI, local Ollama — by firing a prompt and printing the reply. Use when you want to confirm a new API key / base URL / model name actually works end-to-end, debug "why does my model call 401/404/hang", or quickly compare a prompt across providers before wiring it into an app. The openai SDK pointed at a custom base_url does the work; .env holds per-provider credentials. |
+| [`webpage-to-markdown`](./skills/webpage-to-markdown) | Use when asked to parse, extract, archive, preserve, clean up, or transform a given web page URL into a complete, human-readable and agent-friendly Markdown file for models that may or may not be multimodal, including page metadata, headings, links, tables, code blocks, images, visual fallbacks, and provenance. |
 
 
-## External collections (git submodules)
+### External collections (git submodules)
 
-These are tracked upstream and updated via `git submodule update --remote`.
-Their skills are read-only references — don't edit in place.
+Tracked upstream and updated via `git submodule update --remote`. Their skills
+are read-only references — don't edit in place.
 
 ### Anthropic skills (anthropic-skills/skills/) (17)
 
@@ -125,10 +138,24 @@ Their skills are read-only references — don't edit in place.
 | [`writing-great-skills`](./mattpocock-skills/skills/productivity/writing-great-skills) | productivity | Reference for writing and editing skills well — the vocabulary and principles that make a skill predictable. |
 
 
+## OpenCLI plugins
+
+Each plugin's `opencli-plugin.json` `commands` array declares the command
+surface (args + output columns) — that manifest is the catalog source of
+truth. Full recon notes and setup live in each plugin's `README.md`.
+
+### Plugins (2)
+
+| Plugin | Commands |
+|---|---|
+| [`huawei-jiaxian`](./opencli-plugins/huawei-jiaxian/README.md) | **`search`** <query> · --limit <int> · --language<br>columns: `rank, title, type, author, date, views, replies, summary, url` |
+| [`huawei-terminology`](./opencli-plugins/huawei-terminology/README.md) | **`search`** <query> · --limit <int> · --language · --filter-language<br>columns: `rank, term_en, term_cn, domain, confidence, definition, url` |
+
+
 ## Using a picked skill
 
-Once an agent recommends skills from the catalog, activate them manually. For
-Claude Code, symlink (or copy) the skill folder into your personal skills dir:
+Activate manually. For Claude Code, symlink (or copy) the skill folder into
+your personal skills dir:
 
 ```bash
 # Windows (Git Bash)
@@ -140,3 +167,11 @@ For the submodules, use the full path from the table, e.g.
 
 For other agents, follow their skill-discovery convention, or just open the
 skill's `SKILL.md` and follow the steps directly — every skill is self-contained.
+
+## Using a picked plugin
+
+Install once (see `opencli-plugins/README.md`), then call as a CLI command:
+
+```bash
+opencli <plugin> <command> [args]        # e.g. opencli huawei-jiaxian search "盘古" --limit 3
+```
