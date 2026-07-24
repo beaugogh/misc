@@ -144,10 +144,11 @@ Each plugin's `opencli-plugin.json` `commands` array declares the command
 surface (args + output columns) — that manifest is the catalog source of
 truth. Full recon notes and setup live in each plugin's `README.md`.
 
-### Plugins (2)
+### Plugins (3)
 
 | Plugin | Commands |
 |---|---|
+| [`huawei-3ms`](./opencli-plugins/huawei-3ms/README.md) | **`search`** <query> · --limit <int> · --tab<br>columns: `rank, title, type, author, author_id, source, date, views, likes, comments, summary, doc_id, detail_url`<br><br>**`read`** <doc_id><br>columns: `title, author, author_id, date, views, likes, comments, body, comments_thread, url` |
 | [`huawei-jiaxian`](./opencli-plugins/huawei-jiaxian/README.md) | **`search`** <query> · --limit <int> · --language<br>columns: `rank, title, type, author, date, views, replies, summary, post_id, resource_type, url`<br><br>**`read`** <post_id> · --type<br>columns: `title, author, author_id, dept, date, views, likes, replies, body, comments, url` |
 | [`huawei-terminology`](./opencli-plugins/huawei-terminology/README.md) | **`search`** <query> · --limit <int> · --language · --filter-language<br>columns: `rank, term_en, term_cn, domain, confidence, definition, url` |
 

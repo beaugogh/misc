@@ -1,0 +1,9 @@
+{
+  "name": "opencli-plugin-huawei-3ms",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Huawei's 3MS 知识管理社区 (3ms.huawei.com) — `search` returns the top N most relevant documents (title, type, author, source, date, summary, doc_id, detail_url) from the 3MS搜索 full-text search; `read` fetches one document's full body by docId. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+  "peerDependencies": {
+    "@jackwener/opencli": ">=1.8.6"
+  }
+}
