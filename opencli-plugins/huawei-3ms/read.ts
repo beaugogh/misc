@@ -128,7 +128,7 @@ function articleBodyLenJs(sel: string, marker: string): number {
  * title+footer-only state; this waits for real article content.
  */
 async function waitForBody(page: any, selector: string, type: string): Promise<void> {
-    const urlMarker = type === 'wiki' ? 'wiki_' : '/details/';
+    const urlMarker = type === 'wiki' ? 'wiki_' : (type === 'doc' ? '/docinfo/' : '/details/');
     for (let i = 0; i < 25; i++) {
         const len = (await page.evaluate(articleBodyLenJs, selector, urlMarker).catch(() => 0)) as number;
         if (typeof len === 'number' && len > 80) return;
@@ -165,7 +165,7 @@ cli({
         // changed the load behavior on 3MS blog pages (the attachment-list XHR
         // didn't fire, leaving the body title-only).
         await page.goto(detailUrl);
-        const bodySelector = type === 'wiki' ? '.detail-content' : '#content-body';
+        const bodySelector = type === 'wiki' ? '.detail-content' : (type === 'doc' ? '#root, .content' : '#content-body');
         // Wait for the body container to render WITH content. A bare selector
         // wait races the SPA, so poll for a non-trivial article-body length,
         // then let it stabilize.
@@ -187,6 +187,36 @@ cli({
         // different markup, so branch on type (all extraction in-page).
         const doc = await page.evaluate((resourceType: string) => {
             const text = (el: Element | null | undefined): string => (el?.textContent || '').trim();
+
+            // ---- Doc detail page (/documents/docinfo/<id> → "3MS文档库").
+            // Body in #root; these pages are mostly attachment pointers, so the
+            // body is short (title + meta + attachment list). Strip the nav
+            // prefix and the trailing chrome (历史版本/基本信息/评论列表). ----
+            if (resourceType === 'doc') {
+                const bodyEl = document.querySelector('#root') || document.querySelector('.content');
+                const raw = text(bodyEl);
+                const title = (document.title || '').split(/\s*-\s*3MS文档库/)[0].split(/\s*-\s*/)[0].trim();
+                // Body: from "更新摘要：" (or the title echo) to the trailing chrome.
+                let body = raw;
+                const summaryIdx = body.indexOf('更新摘要');
+                if (summaryIdx >= 0) body = body.slice(summaryIdx);
+                const cutIdx = body.search(/历史版本|基本信息|上架信息|评论列表/);
+                if (cutIdx >= 0) body = body.slice(0, cutIdx);
+                const pageText = document.body.innerText;
+                const viewsMatch = pageText.match(/浏览[：:]\s*(\d+)/) || pageText.match(/浏览\s*(\d+)/);
+                const dateMatch = pageText.match(/20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}/);
+                const authorLink = document.querySelector('a[href*="/Ufield/"]');
+                return {
+                    title,
+                    author: '',
+                    author_id: (authorLink?.getAttribute('href') || '').match(/\/Ufield\/(\w+)/)?.[1] || '',
+                    date: dateMatch ? dateMatch[0] : '',
+                    views: viewsMatch ? viewsMatch[1] : '',
+                    likes: '',
+                    comments: '',
+                    body: body.trim(),
+                };
+            }
 
             // ---- Wiki detail page (/hi/group/<gid>/wiki_<id>.html → redirects
             // to /next/groups/index.html#/wiki/detail). Body in .detail-content,
@@ -301,6 +331,9 @@ async function resolveDetailUrl(page: any, raw: string): Promise<{ docId: string
     // Wiki URL: /hi/group/<gid>/wiki_<id>.html
     const wikiM = raw.match(/wiki_(\d+)\.html/);
     if (wikiM) return { docId: wikiM[1], detailUrl: raw.startsWith('http') ? raw : BASE_URL + raw, type: 'wiki' };
+    // Doc URL: /documents/docinfo/<id>  (document library)
+    const docM = raw.match(/\/documents\/docinfo\/(\d+)/);
+    if (docM) return { docId: docM[1], detailUrl: raw.startsWith('http') ? raw : BASE_URL + raw, type: 'doc' };
     // Blog URL: /km/groups/<gid>/blogs/details/<id>
     if (raw.includes('://') || raw.includes('/details/')) {
         const m = raw.match(/\/details\/(\d+)/);

@@ -122,9 +122,10 @@ cli({
         // knowledge-document result has a link whose pattern reveals its type:
         //   blog → /km/groups/<gid>/blogs/details/<docId>
         //   wiki → /hi/group/<gid>/wiki_<docId>.html
-        // Sidebar "相关社区" cards and the "相关搜索" block live outside this
-        // list (or have no docId-bearing link) — scoping to the main list +
-        // requiring a docId-bearing link excludes them.
+        //   doc  → /documents/docinfo/<docId>   (document library; only in type=all)
+        // Sidebar "相关社区" cards, external w3 links, and the "相关搜索" block
+        // have no docId-bearing link — scoping to the main list + requiring one
+        // excludes them.
         const docs = await page.evaluate((listSelector, max) => {
             const text = (el) => (el?.textContent || "").trim();
             const stripEm = (s) => s.replace(/<[^>]+>/g, "").trim();
@@ -132,20 +133,22 @@ cli({
             if (!list) return [];
             const nodes = Array.from(list.querySelectorAll(".ant-list-item")).slice(0, max);
             return nodes.map((card) => {
-                // type = 2nd class on the card (blog / wiki / frameItem / none)
+                // type = 2nd class on the card (blog / wiki / doc / frameItem / none)
                 const cls = card.className.split(/\s+/).filter((c) => c !== "ant-list-item");
                 const type = cls[0] || "";
-                // Find the doc-bearing link: blog (/details/) or wiki (wiki_<id>.html).
+                // Find the doc-bearing link by pattern.
                 const blogLink = card.querySelector('a[href*="/blogs/details/"]');
                 const wikiLink = card.querySelector('a[href*="wiki_"]');
-                const link = blogLink || wikiLink;
-                if (!link) return null; // frameItem (external) or 相关搜索 block
+                const docLink = card.querySelector('a[href*="/documents/docinfo/"]');
+                const link = blogLink || wikiLink || docLink;
+                if (!link) return null; // frameItem/iotItem (external) or 相关搜索 block
                 const href = link.getAttribute("href") || "";
                 const blogMatch = href.match(/\/blogs\/details\/(\d+)/);
                 const wikiMatch = href.match(/wiki_(\d+)\.html/);
-                const docId = (blogMatch?.[1] || wikiMatch?.[1] || "");
+                const docMatch = href.match(/\/documents\/docinfo\/(\d+)/);
+                const docId = (blogMatch?.[1] || wikiMatch?.[1] || docMatch?.[1] || "");
                 if (!docId) return null;
-                const resourceType = blogMatch ? "blog" : (wikiMatch ? "wiki" : type);
+                const resourceType = blogMatch ? "blog" : (wikiMatch ? "wiki" : (docMatch ? "doc" : type));
                 // Title: prefer .title_em___2OVTv (clean, no "浏览 N" suffix);
                 // fall back to the link's title attr / text.
                 const titleEm = card.querySelector(".title_em___2OVTv");
@@ -161,9 +164,11 @@ cli({
                 // source community: the wikis.html / group link
                 const sourceLink = card.querySelector('a[href*="/hi/group/"][href*="wikis.html"], a[href*="/hi/group/"]');
                 const source = text(sourceLink);
-                // views: .titleRight___2MXLQ ("浏览 N")
-                const viewsText = text(card.querySelector(".titleRight___2MXLQ, [class*=view], [class*=browse]"));
-                const viewsNum = (viewsText.match(/(\d[\d,]*)/) || [])[1] || "";
+                // views: .titleRight___2MXLQ ("浏览 N") for blog/wiki; for doc
+                // cards the count is inline in the h4 title text ("浏览 N下载 M").
+                const viewsText = text(card.querySelector(".titleRight___2MXLQ, [class*=view], [class*=browse]"))
+                    || text(card.querySelector("h4, .title___2OH6c"));
+                const viewsNum = (viewsText.match(/浏览\s*(\d[\d,]*)/) || viewsText.match(/(\d[\d,]*)/) || [])[1] || "";
                 // summary
                 const summary = text(card.querySelector(".ant-list-item-meta-description, [class*=summary],[class*=desc],[class*=abstract]"));
                 return {
