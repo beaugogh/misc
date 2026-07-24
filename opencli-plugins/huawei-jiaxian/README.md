@@ -6,8 +6,8 @@ community's collective expertise.
 
 Given an arbitrary question, `opencli huawei-jiaxian search` returns the **top N most relevant
 documents**, each with title, type, author, date, views, replies, a **rich summary** (author +
-abstract + expert viewpoints), and a URL — plus a synthesized **`answer`** string assembled
-from the top results.
+abstract + expert viewpoints), and a URL. The rich summaries carry enough substance for a
+downstream agent or reader to answer the question.
 
 稼先社区 is Huawei's high-density technical-discussion space (6,000+ chief experts, 100,000+ R&D
 engineers), focused on deep technical exploration, architecture evolution, and cross-domain
@@ -84,12 +84,12 @@ opencli plugin install github:<user>/misc/opencli-plugins/huawei-jiaxian
 
 | Command | Strategy | Description |
 |---------|----------|-------------|
-| `huawei-jiaxian search` | COOKIE | Search the 稼先社区 knowledge base; returns top N documents + a synthesized answer |
+| `huawei-jiaxian search` | COOKIE | Search the 稼先社区 knowledge base; returns top N documents |
 
 ## Usage
 
 ```bash
-# Ask a question — returns top 10 documents plus an answer
+# Ask a question — returns the top 10 documents
 opencli huawei-jiaxian search "大模型推理优化"
 
 # Limit to 3 documents
@@ -97,9 +97,6 @@ opencli huawei-jiaxian search "盘古2.0昇腾性能" --limit 3
 
 # JSON output for agents
 opencli huawei-jiaxian search "5G架构演进" -f json
-
-# The answer field is attached to rank 1; fetch it directly:
-opencli huawei-jiaxian search "昇腾推理" --limit 1 -f json | jq '.[0].answer'
 ```
 
 ### Arguments
@@ -113,9 +110,6 @@ opencli huawei-jiaxian search "昇腾推理" --limit 1 -f json | jq '.[0].answer
 ### Columns
 
 `rank`, `title`, `type`, `author`, `date`, `views`, `replies`, `summary`, `url`
-
-Plus an `answer` field (string) attached to the **rank-1** row, synthesized from the top 3 results'
-summaries.
 
 ## How it works (recon notes)
 

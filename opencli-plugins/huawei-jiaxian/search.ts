@@ -4,7 +4,8 @@
  *
  * Input: an arbitrary question/query. Output: the top N most relevant posts,
  * each with title, author, type, date, views, replies, a rich summary, and a
- * URL; plus a synthesized `answer` string assembled from the top results.
+ * URL. The rich summaries (author + abstract + expert viewpoints) carry enough
+ * substance for a downstream agent or reader to answer the question.
  *
  * Strategy: COOKIE — the site is a Vue SPA with no public search API (no JSON
  * XHR observed on search). Results are JS-rendered inline on the homepage, so
@@ -47,7 +48,7 @@ cli({
     site: 'huawei-jiaxian',
     name: 'search',
     access: 'read',
-    description: 'Search Huawei\'s 稼先社区 (jx.huawei.com). Given an arbitrary question, returns the top N most relevant posts (title, author, type, date, views, replies, rich summary, url) plus a synthesized answer. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.',
+    description: 'Search Huawei\'s 稼先社区 (jx.huawei.com). Given an arbitrary question, returns the top N most relevant posts (title, author, type, date, views, replies, rich summary, url). Requires a logged-in Huawei session via the OpenCLI Browser Bridge.',
     domain: DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
@@ -125,11 +126,6 @@ cli({
             throw new EmptyResultError('huawei-jiaxian', `No results parsed for "${query}". Try a different keyword, or inspect the page with \`opencli browser huawei-jiaxian state\`.`);
         }
 
-        // Synthesize an answer from the top results. The rich summaries carry
-        // enough substance (author + abstract + viewpoints) to stand on their
-        // own as an answer when the top hit is a good match.
-        const answer = buildAnswer(query, docs);
-
         return docs.slice(0, limit).map((item: any, index: number) => ({
             rank: index + 1,
             title: String(item.title || '').trim(),
@@ -140,7 +136,6 @@ cli({
             replies: String(item.replies || '').trim(),
             summary: String(item.summary || '').trim(),
             url: HOME_URL,
-            ...(index === 0 ? { answer } : {}),
         }));
     },
 });
@@ -174,25 +169,4 @@ async function triggerSearch(page: any, query: string): Promise<boolean> {
         });
     }, query);
     return !!ok;
-}
-
-/**
- * Assemble a concise answer from the top results' rich summaries. Leads with
- * the best-matching summary (truncated for readability) and lists the sources
- * by rank so the caller can follow up.
- */
-function buildAnswer(query: string, docs: any[]): string {
-    const top = docs.slice(0, 3).filter((d) => d.summary);
-    if (!top.length) {
-        return `No detailed summary available for "${query}". See the returned documents for details.`;
-    }
-    const parts: string[] = [`Answer for "${query}" (synthesized from 稼先社区 top results):\n`];
-    top.forEach((d, i) => {
-        const summary = String(d.summary).slice(0, 500);
-        parts.push(`[${i + 1}] ${d.title} — ${d.type} by ${d.author} (${d.date})\n${summary}\n`);
-    });
-    if (docs.length > 3) {
-        parts.push(`...and ${docs.length - 3} more source(s). See the full document list.`);
-    }
-    return parts.join('\n').trim();
 }
