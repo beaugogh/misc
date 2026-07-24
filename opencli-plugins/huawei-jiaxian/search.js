@@ -3,52 +3,68 @@
  * knowledge community.
  *
  * Input: an arbitrary question/query. Output: the top N most relevant posts,
- * each with title, author, type, date, views, replies, a rich summary, and a
- * URL. The rich summaries (author + abstract + expert viewpoints) carry enough
- * substance for a downstream agent or reader to answer the question.
+ * each with title, type, author, date, and a rich summary (author + abstract +
+ * expert viewpoints). The summaries are long (often 1,000–4,000 chars) and
+ * carry enough substance for a downstream agent or reader to triage the
+ * question. For one post's full article body, use `read <postId>`.
  *
- * Strategy: COOKIE — the site is a Vue SPA with no public search API (no JSON
- * XHR observed on search). Results are JS-rendered inline on the homepage, so
- * the adapter drives the logged-in Chrome tab, fills the search box the
- * Vue-reactive way (native value setter + dispatched input/change events),
- * clicks the search button, and scrapes the rendered result cards from the
- * page context.
+ * Strategy: COOKIE — the site is a Vue SPA behind Huawei SSO. The adapter
+ * drives the logged-in Chrome tab to the dedicated search-results route
+ * (`/searchResult?searchKey=<query>&search=true`), which renders ranked
+ * full-text-search result cards server-side, and scrapes them from the page
+ * context.
+ *
+ * Why /searchResult and not the homepage search box: the homepage "search" is
+ * actually a filtered recommendation feed (card class
+ * `.recommended-page-list-item` surfaced on the homepage), whose ranking
+ * differs from — and is less relevant than — the real full-text search at
+ * /searchResult. The /searchResult route is what a logged-in human sees when
+ * they search, and is the on-topic result set. (Switched after a quality bug:
+ * the homepage surfaced an off-topic daily briefing for "华为云AI痛点" while
+ * /searchResult ranked the actual 痛点 posts first.)
  *
  * Recon-confirmed selectors (see README.md "Parts most likely to need
  * adjustment"):
- *   - search input:  input.form-control  (placeholder "搜内容 搜话题")
- *   - search button: .search-btn          (text "搜索"; appears after typing)
- *   - result card:   .recommended-page-list-item
- *   - type:          .contention-page-content-type-item
- *   - title:         .contention-page-content-title
- *   - rich summary:  .contention-page-content-summary  (the `title` attribute
- *                    holds the untruncated author + abstract + viewpoints text)
- *   - author:        .author-name   date: .create-time
- *   - stats:         .stat-item (1st = views, 2nd = replies)
+ *   - results route:  /searchResult?searchKey=<urlencoded>&search=true
+ *   - result card:    .recommended-page-list-item
+ *   - type:           .result-page-content-type-item   (思想简报 / 自由讨论 / …)
+ *   - title:          .contention-page-content-title
+ *   - rich summary:   .contention-page-content-summary  (textContent is the
+ *                     full summary — 1k–4k chars; strip the leading
+ *                     "查看原帖或评论，请访问原帖>>" nav prefix)
+ *   - author:         .author-name   date: .create-time
+ *   - views/replies:  not rendered on /searchResult cards (left empty)
  *
- * Detail-page navigation is Vue click-handler based and does not yield a
- * stable URL from the card, so `url` is the community homepage where the card
- * is surfaced; the rich summary carries the actual content.
+ * Detail-page URLs / postIds are not recoverable from these cards (no id in
+ * the DOM, no link), so `url` is the search-results page URL and `read` takes
+ * a postId from a detail URL the user already has. See `read` for full-body
+ * retrieval.
+ *
+ * NOTE: hand-mirrored from search.ts (no build step). Keep the two in sync.
  */
 
 import { cli, Strategy } from "@jackwener/opencli/registry";
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from "@jackwener/opencli/errors";
 
-const HOME_URL = "https://jx.huawei.com/";
+const BASE_URL = "https://jx.huawei.com";
 const DOMAIN = "jx.huawei.com";
 
-// CSS selector for a rendered result card. The class names are hashed
-// (data-v-*) and may change between builds; adjust here if the markup shifts.
+// The dedicated search-results route. The searchKey is URL-encoded in the
+// query string — no box-filling or button-clicking needed, which avoids the
+// Vue synthetic-event problem entirely.
+const SEARCH_ROUTE = "/searchResult";
+
+// CSS selector for a rendered result card.
 const CARD_SELECTOR = ".recommended-page-list-item";
 
-// How long (seconds) to wait for results to render after clicking search.
-const SUBMIT_WAIT_S = 4;
+// How long (seconds) to wait for results to render after navigation.
+const RENDER_WAIT_S = 5;
 
 cli({
     site: "huawei-jiaxian",
     name: "search",
     access: "read",
-    description: "Search Huawei's 稼先社区 (jx.huawei.com). Given an arbitrary question, returns the top N most relevant posts (title, author, type, date, views, replies, rich summary, url). Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+    description: "Search Huawei's 稼先社区 (jx.huawei.com). Given an arbitrary question, returns the top N most relevant posts (title, type, author, date, rich summary). Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
     domain: DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
@@ -68,13 +84,15 @@ cli({
         // `language` is accepted for interface parity with sibling plugins but
         // not consumed: the 稼先社区 SPA search has no language toggle.
 
-        // Land on the community so the page origin/cookies are right.
-        await page.goto(HOME_URL);
-        await page.wait("selector", 'input.form-control, input[placeholder*="搜"]').catch(() => {});
+        // Navigate straight to the search-results route with the query in the
+        // URL. No box-filling / button-clicking — the route renders ranked
+        // full-text-search results server-side.
+        const searchUrl = `${BASE_URL}${SEARCH_ROUTE}?searchKey=${encodeURIComponent(query)}&search=true`;
+        await page.goto(searchUrl);
+        await page.wait("time", RENDER_WAIT_S).catch(() => {});
 
-        // Auth gate: a logged-in page renders an avatar / user-info element.
-        // A login-gated page shows a login/SSO prompt instead. If the SSO
-        // session is missing or expired, every search will fail.
+        // Auth gate: a logged-in page renders result cards; a gated page shows
+        // a login/SSO prompt instead.
         const authOk = await page.evaluate(() => {
             const hasAvatar = !!(document.querySelector('[class*="avatar"]') || document.querySelector('[class*="user-info"]'));
             const hasLoginPrompt = /登录|sign\s*in/i.test(document.documentElement.outerHTML) && !hasAvatar;
@@ -84,40 +102,30 @@ cli({
             throw new AuthRequiredError(DOMAIN, "稼先社区 requires a logged-in session. Open https://jx.huawei.com/ in Chrome and sign in with your Huawei account, then re-run.");
         }
 
-        // Trigger the search. Done entirely inside one page.evaluate to avoid
-        // stale element refs between opencli find/click/type calls (Vue
-        // re-renders between them). The native HTMLInputElement.value setter +
-        // dispatched input/change events is what makes Vue's reactivity pick
-        // the value up — page.type alone leaves it undefined.
-        const triggered = await triggerSearch(page, query);
-        if (!triggered) {
-            throw new CommandExecutionError(
-                "Could not trigger a search on jx.huawei.com. The search UI may have changed — run `opencli browser huawei-jiaxian state` after a manual search to inspect the new markup.",
-            );
-        }
-
         // Scrape the rendered result cards (all extraction happens in-page).
         const docs = await page.evaluate((selector, max) => {
             const text = (el) => (el?.textContent || "").trim();
+            const stripNavPrefix = (s) =>
+                s.replace(/^查看原帖.*?访问原帖.*?>>\s*/, "").replace(/^查看原帖.*?>>\s*/, "").trim();
             const nodes = Array.from(document.querySelectorAll(selector)).slice(0, max);
             return nodes.map((card) => {
-                const typeEl = card.querySelector(".contention-page-content-type-item");
+                const typeEl = card.querySelector(".result-page-content-type-item");
                 const titleEl = card.querySelector(".contention-page-content-title");
-                // The `title` attribute carries the full, untruncated summary
-                // (author + abstract + viewpoints); the textContent is cut off
-                // by an ellipsis class.
                 const summaryEl = card.querySelector(".contention-page-content-summary");
                 const authorEl = card.querySelector(".author-name");
                 const dateEl = card.querySelector(".create-time");
-                const stats = Array.from(card.querySelectorAll(".stat-item")).map((e) => text(e));
                 return {
                     title: text(titleEl),
                     type: text(typeEl),
                     author: text(authorEl),
                     date: text(dateEl),
-                    views: stats[0] || "",
-                    replies: stats[1] || "",
-                    summary: (summaryEl?.getAttribute("title") || text(summaryEl)).trim(),
+                    // /searchResult cards don't render views/replies.
+                    views: "",
+                    replies: "",
+                    // The textContent is the full summary (1k–4k chars); the
+                    // `title` attribute is empty on this route. Strip the
+                    // leading "查看原帖…访问原帖>>" navigation prefix.
+                    summary: stripNavPrefix(text(summaryEl)),
                 };
             }).filter((r) => r.title);
         }, CARD_SELECTOR, limit);
@@ -135,38 +143,8 @@ cli({
             views: String(item.views || "").trim(),
             replies: String(item.replies || "").trim(),
             summary: String(item.summary || "").trim(),
-            url: HOME_URL,
+            url: searchUrl,
         }));
     },
 });
 
-/**
- * Trigger the search entirely within the page context. Filling the input via
- * the native value setter + dispatched input/change events is what makes
- * Vue's v-model reactivity pick the value up; then we click .search-btn.
- *
- * Returns true if result cards render after the click, false otherwise.
- */
-async function triggerSearch(page, query) {
-    const ok = await page.evaluate((q) => {
-        const input = document.querySelector("input.form-control")
-            || document.querySelector('input[placeholder*="搜"]');
-        if (!input) return false;
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-        setter?.call(input, q);
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-        // The search button appears only after typing.
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const btn = document.querySelector(".search-btn");
-                if (!btn) { resolve(false); return; }
-                btn.click();
-                setTimeout(() => {
-                    resolve(!!document.querySelector(".recommended-page-list-item"));
-                }, 4000);
-            }, 400);
-        });
-    }, query);
-    return !!ok;
-}

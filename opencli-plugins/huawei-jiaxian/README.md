@@ -15,9 +15,10 @@ engineers), focused on deep technical exploration, architecture evolution, and c
 problem-solving rather than routine business-process Q&A.
 
 Requires a **logged-in Huawei session** via the OpenCLI Browser Bridge. The site is a Vue SPA with
-no public search API, so the adapter is a `COOKIE`-strategy browser adapter: it drives your
-logged-in Chrome tab, fills the search box the Vue-reactive way, clicks the search button, and
-scrapes the rendered result cards.
+no usable public search API, so the adapter is a `COOKIE`-strategy browser adapter: `search` drives
+your logged-in Chrome tab to the `/searchResult?searchKey=<query>` route (the real full-text search,
+not the homepage recommendation feed) and scrapes the rendered result cards; `read` drives it to a
+post's detail page and scrapes the full body.
 
 ## Prerequisites — human, one-time (an agent cannot do these)
 
@@ -136,33 +137,32 @@ body when you need the full text.
 
 ## How it works (recon notes)
 
-- `jx.huawei.com` is a Vue SPA (Vue + axios + echarts, hash-routed, login-gated behind Huawei SSO).
-- `opencli analyze` classifies the homepage as **Pattern C** (no JSON XHR, HTML scrape). No public
-  search API was observed.
-- **Search results render inline on the homepage** (not on a separate route). After submitting,
-  result cards replace/augment the homepage feed — the URL does not change.
-- **The search trigger** is the subtle part. The input is `input.form-control` (placeholder
-  "搜内容 搜话题"). The submit button is `.search-btn` (text "搜索"), which **only appears after
-  typing**. Filling the input with `page.type` leaves its value `undefined` because Vue's `v-model`
-  reactivity isn't triggered by synthetic typing. The adapter therefore sets the value via the
-  native `HTMLInputElement.value` setter and dispatches `input` + `change` events (all inside one
-  `page.evaluate`, to avoid stale element refs across separate opencli calls), then clicks
-  `.search-btn`.
-- **Result-card markup** (all confirmed against a live results render):
+- `jx.huawei.com` is a Vue SPA (Vue + axios + echarts, login-gated behind Huawei SSO).
+- **`search` drives the `/searchResult` route** (`/searchResult?searchKey=<urlencoded>&search=true`).
+  The query goes in the URL, so no box-filling or button-clicking is needed — the route renders
+  ranked full-text-search result cards server-side and the adapter scrapes them. This is the same
+  result set a logged-in human sees when they search.
+- **Why not the homepage search box?** The homepage "search" is a *filtered recommendation feed*
+  (the cards surfaced on `jx.huawei.com/`), not a true search. Its ranking differs from — and is
+  less relevant than — `/searchResult`. This was a real quality bug: for "华为云AI痛点" the homepage
+  surfaced an off-topic daily briefing first, while `/searchResult` ranked the actual 痛点 posts
+  (终端云运维智能体Top3痛点, 破解AI痛点：UCM能否替代HBM？, …) at the top. The homepage feed was
+  also capped at ~9 results and had truncated summaries; `/searchResult` returns 20 with full
+  1k–4k-char summaries.
+- **Result-card markup on `/searchResult`** (confirmed against a live render):
   - card root: `.recommended-page-list-item`
-  - type: `.contention-page-content-type-item` (e.g. "思想简报")
+  - type: `.result-page-content-type-item` (思想简报 / 自由讨论 / 洞察 / …)
   - title: `.contention-page-content-title`
-  - **rich summary**: `.contention-page-content-summary` — its `title` attribute holds the
-    **untruncated** author + abstract + expert-viewpoints text (the visible `textContent` is cut
-    off by an `ellipsis-1` class). This is the field that makes the documents substantial enough
-    to serve as answers.
+  - **rich summary**: `.contention-page-content-summary` — its `textContent` is the full summary
+    (1,000–4,000 chars: author + abstract + expert viewpoints). The `title` attribute is empty on
+    this route (unlike the homepage cards). A leading "查看原帖或评论，请访问原帖>>" navigation
+    prefix is stripped.
   - author: `.author-name`  ·  date: `.create-time`
-  - stats: `.stat-item` (1st = views, 2nd = replies)
-- **Detail-page URLs** for `search` results are not obtainable from a homepage card: the cards
-  carry no `postId` in their DOM/attributes, and clicking one fires only a telemetry XHR (no
-  navigation, no content API). So `search`'s `url` is the community homepage where the card is
-  surfaced, and the rich `summary` carries the content. To get a post's full body, use `read`
-  with a postId obtained from a detail URL you already have (e.g. copied from the browser).
+  - views/replies: **not rendered** on `/searchResult` cards (left empty).
+- **Detail-page URLs / postIds are not recoverable from the cards** (no id in the DOM, no link;
+  the production Vue build strips `__vue*` internals, so the card's reactive `postId` can't be
+  read either). So `search`'s `url` is the search-results page URL, and `read` takes a postId
+  from a detail URL the user already has.
 
 ### How `read` works
 
@@ -183,14 +183,14 @@ body when you need the full text.
 
 These are the fragile bits, called out honestly:
 
-1. **`CARD_SELECTOR`** (in `search.ts`/`search.js`) — if the site's result-card markup changes,
-   `.recommended-page-list-item` won't match and the adapter throws `EmptyResultError`. Inspect a
-   real results page with `opencli browser huawei-jiaxian state` / `opencli browser huawei-jiaxian find --css ...`
-   and update the selector.
-2. **The input/button selectors** in `triggerSearch` — if the search UI changes (input class, button
-   class), the adapter reports "Could not trigger a search". Run
-   `opencli browser huawei-jiaxian state` after typing a query to find the new trigger elements and update
-   the `input.form-control` / `.search-btn` selectors.
+1. **`CARD_SELECTOR` + field selectors** (in `search.ts`/`search.js`) — if the site's result-card
+   markup changes, `.recommended-page-list-item` / `.result-page-content-type-item` /
+   `.contention-page-content-summary` won't match and the adapter throws `EmptyResultError`. Inspect
+   a real `/searchResult?searchKey=...` page with `opencli browser huawei-jiaxian state` /
+   `opencli browser huawei-jiaxian find --css ...` and update the selectors.
+2. **The `/searchResult` route + `searchKey` query param** — `search` depends on
+   `/searchResult?searchKey=<urlencoded>&search=true` rendering ranked cards server-side. If the
+   route name or param changes, results won't render; inspect the URL a manual search produces.
 3. **`read`'s detail-page selectors** (in `read.ts`/`read.js`) — `.detail-content` (body),
    `.author-card__info-row` (author), `.author-card__stat-label`/`.nav-name` (stats),
    `.meta-icon-date` (date). If the detail page markup changes, `read` throws `EmptyResultError`.

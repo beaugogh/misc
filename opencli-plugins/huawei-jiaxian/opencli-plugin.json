@@ -1,12 +1,12 @@
 {
   "name": "huawei-jiaxian",
   "version": "0.1.0",
-  "description": "Huawei's 稼先社区 (jx.huawei.com) — the internal expert/engineer knowledge community. `search` returns the top N most relevant documents (title, type, author, date, views, replies, rich summary, url); `read` fetches one post's full body by postId. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+  "description": "Huawei's 稼先社区 (jx.huawei.com) — the internal expert/engineer knowledge community. `search` returns the top N most relevant documents (title, type, author, date, rich summary, url); `read` fetches one post's full body by postId. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
   "opencli": ">=1.8.6",
   "commands": [
     {
       "name": "search",
-      "description": "Search Huawei's 稼先社区 (jx.huawei.com). Given an arbitrary question, returns the top N most relevant posts (title, author, type, date, views, replies, rich summary, url). Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+      "description": "Search Huawei's 稼先社区 (jx.huawei.com). Given an arbitrary question, returns the top N most relevant posts (title, type, author, date, rich summary, url) from the /searchResult full-text search. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
       "args": [
         { "name": "query", "positional": true, "required": true, "help": "Your question or search term (e.g. \"大模型推理优化\", \"5G架构演进\")" },
         { "name": "limit", "type": "int", "default": 10, "help": "Max number of documents to return (N)" },
