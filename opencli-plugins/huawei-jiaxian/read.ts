@@ -26,7 +26,10 @@
  *
  * Recon-confirmed selectors (see README.md "Parts most likely to need
  * adjustment"):
- *   - body:     .detail-content  (or <article>; full post text)
+ *   - body:     .detail-content  (or <article>; full post text. Cloned with
+ *               .video-js / <video> players stripped — their DOM text
+ *               "Video Player is loading…Play Video…Chapters…" would
+ *               otherwise pollute the body)
  *   - title:    .contention-page-content-title  (or h1)
  *   - author:   .author-card__info-row  (name + id + dept, one string)
  *   - views:    .author-card__stat-label "访问量" → sibling stat-value
@@ -101,6 +104,17 @@ cli({
             const bodyEl = document.querySelector('.detail-content') || document.querySelector('article');
             const titleEl = document.querySelector('.contention-page-content-title') || document.querySelector('h1');
 
+            // The detail body may embed a video.js player whose DOM text
+            // ("Video Player is loading…Play Video…Chapters…Font Size…")
+            // would pollute the body. Clone the body, strip video players,
+            // then read textContent + collapse excess blank lines.
+            const bodyText = (() => {
+                if (!bodyEl) return '';
+                const clone = bodyEl.cloneNode(true) as Element;
+                clone.querySelectorAll('.video-js, video').forEach((e) => e.remove());
+                return (clone.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+            })();
+
             // Author: .author-card__info-row holds "name + id + dept" as one
             // string (e.g. "李景宇l00974523高教军团..."). Split into name, id,
             // dept. The id is an [lsd]\d+ token; the rest before it is the
@@ -142,7 +156,7 @@ cli({
                 views,
                 likes,
                 replies,
-                body: text(bodyEl),
+                body: bodyText,
             };
         });
 

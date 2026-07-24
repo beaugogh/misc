@@ -12,7 +12,7 @@
         { "name": "limit", "type": "int", "default": 10, "help": "Max number of documents to return (N)" },
         { "name": "language", "default": "cn", "help": "Source language: cn | en" }
       ],
-      "columns": ["rank", "title", "type", "author", "date", "views", "replies", "summary", "url"]
+      "columns": ["rank", "title", "type", "author", "date", "views", "replies", "summary", "post_id", "resource_type", "url"]
     },
     {
       "name": "read",

@@ -8,7 +8,7 @@ Given an arbitrary question, `opencli huawei-jiaxian search` returns the **top N
 documents**, each with title, type, author, date, views, replies, a **rich summary** (author +
 abstract + expert viewpoints), and a URL. The rich summaries carry enough substance for a
 downstream agent or reader to triage the question. To get one post's **full article body**, use
-`opencli huawei-jiaxian read <postId>` with a postId from a detail URL you have.
+`opencli huawei-jiaxian read <postId>` with a postId from a `search` result (or a detail URL).
 
 稼先社区 is Huawei's high-density technical-discussion space (6,000+ chief experts, 100,000+ R&D
 engineers), focused on deep technical exploration, architecture evolution, and cross-domain
@@ -106,11 +106,18 @@ opencli huawei-jiaxian read da25639435334344912733f65c592a1b
 
 # ...or by pasting the detail URL straight from the browser
 opencli huawei-jiaxian read "https://jx.huawei.com/community/comgroup/postsDetails?postId=da25639435334344912733f65c592a1b&type=freePost"
+
+# search → read pipeline: search returns a post_id per result, pass it to read
+opencli huawei-jiaxian search "华为云AI痛点" --limit 5 -f json   # → post_id: eb3d33f9…
+opencli huawei-jiaxian read eb3d33f9fa8e43c78125911a05d11138
 ```
 
 `search` and `read` are complementary: `search` surveys many posts and returns
-rich summaries (enough to triage); `read` fetches one post's complete article
-body when you need the full text.
+rich summaries (enough to triage) **plus a `post_id` per result**; `read`
+fetches one post's complete article body when you need the full text. Take
+`post_id` from any `自由讨论` (free_post) search result and pass it straight to
+`read`. (思想简报 briefings and other types don't yield a post_id — `read`
+supports only `free_post`.)
 
 ### `search` arguments
 
@@ -122,7 +129,12 @@ body when you need the full text.
 
 ### `search` columns
 
-`rank`, `title`, `type`, `author`, `date`, `views`, `replies`, `summary`, `url`
+`rank`, `title`, `type`, `author`, `date`, `views`, `replies`, `summary`, `post_id`, `resource_type`, `url`
+
+`post_id` is the postId `read` consumes (empty for non-`free_post` types like
+思想简报, which use a different detail route). `resource_type` is the URL's
+`type` param (`freePost`, …). So `search → read` is a direct pipeline: take
+`post_id` from any `自由讨论` result and pass it to `read`.
 
 ### `read` arguments
 
@@ -159,10 +171,15 @@ body when you need the full text.
     prefix is stripped.
   - author: `.author-name`  ·  date: `.create-time`
   - views/replies: **not rendered** on `/searchResult` cards (left empty).
-- **Detail-page URLs / postIds are not recoverable from the cards** (no id in the DOM, no link;
-  the production Vue build strips `__vue*` internals, so the card's reactive `postId` can't be
-  read either). So `search`'s `url` is the search-results page URL, and `read` takes a postId
-  from a detail URL the user already has.
+- **postId extraction** (powers the `search → read` pipeline): the cards carry no postId in
+  their DOM and the production Vue build strips `__vue*` internals, so the reactive `postId`
+  can't be read directly. But clicking a card's inner `.contention-page-content` fires
+  `window.open('/community/comgroup/postsDetails?postId=<id>…')` — a **new tab** (which is why
+  the original tab's URL never changed, and why the bridge's `click`, which doesn't dispatch
+  real input events, can't trigger it). The adapter intercepts `window.open` in-page, clicks
+  each card's inner div, and reads the postId + resource type out of the captured URL. Cards
+  whose click uses a different route (思想简报 briefings, etc.) get an empty `post_id`; `read`
+  only supports `free_post` anyway, so those are triaged via their summary.
 
 ### How `read` works
 
@@ -171,13 +188,14 @@ body when you need the full text.
   `read` navigates the logged-in tab there and scrapes the rendered `.detail-content`.
 - No clean JSON content API exists in the bundle — the body is server-rendered into the page HTML,
   so navigation + scrape is the reliable path (not an API call).
-- The CSRF-gated `POST /ideaService/v2/lib2/ideas` general-search API (which would return postIds
-  for all content types) was investigated but its request body schema could not be recovered (the
-  bridge's network capture returned empty on this page, and synthetic clicks don't trigger the
-  Vue app's handlers). Only `GET /ideaService/v2/innovation/ideas?searchKey=` was cracked, and it
-  returns `ideaManager`-type results only (not `free_post`), so it is not wired in.
-- `parsePostId` accepts a bare 32-char hex id or a full detail URL; for a URL it extracts `postId`
-  + normalizes the `type` query param (`freePost` → `free_post`).
+- The body may embed a video.js player whose DOM text would pollute the output, so `.video-js` /
+  `<video>` elements are stripped from a clone before reading `textContent`.
+- The postId comes straight from `search`'s `post_id` column (extracted via the in-page
+  `window.open` intercept — see the postId-extraction note above). `parsePostId` also accepts a
+  bare 32-char hex id or a full detail URL; for a URL it extracts `postId` + normalizes the `type`
+  query param (`freePost` → `free_post`).
+- Only `free_post` is supported. `technical_report` / `industry_report` use different routes
+  (`/TI/report/details/<id>`, `/TI/industry/details/<id>`) with different markup.
 
 ### Parts most likely to need adjustment
 

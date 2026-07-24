@@ -35,10 +35,13 @@
  *   - author:         .author-name   date: .create-time
  *   - views/replies:  not rendered on /searchResult cards (left empty)
  *
- * Detail-page URLs / postIds are not recoverable from these cards (no id in
- * the DOM, no link), so `url` is the search-results page URL and `read` takes
- * a postId from a detail URL the user already has. See `read` for full-body
- * retrieval.
+ * postId extraction: clicking a card's inner `.contention-page-content` fires
+ * `window.open('/community/comgroup/postsDetails?postId=<id>…')` (a new tab).
+ * The adapter intercepts window.open in-page, clicks each card, and reads the
+ * postId + resource type from the captured URL — so each result carries a
+ * `post_id` that `read` consumes directly. Cards whose click uses a different
+ * route (思想简报 briefings, etc.) get an empty `post_id`; `read` only supports
+ * free_post, so those are surfaced for triage via their summary instead.
  */
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
@@ -71,7 +74,7 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: 'Max number of documents to return (N)' },
         { name: 'language', default: 'cn', help: 'Source language: cn | en' },
     ],
-    columns: ['rank', 'title', 'type', 'author', 'date', 'views', 'replies', 'summary', 'url'],
+    columns: ['rank', 'title', 'type', 'author', 'date', 'views', 'replies', 'summary', 'post_id', 'resource_type', 'url'],
     func: async (page, kwargs) => {
         if (!page) throw new CommandExecutionError('Browser session required for huawei-jiaxian search');
 
@@ -100,19 +103,50 @@ cli({
             throw new AuthRequiredError(DOMAIN, '稼先社区 requires a logged-in session. Open https://jx.huawei.com/ in Chrome and sign in with your Huawei account, then re-run.');
         }
 
-        // Scrape the rendered result cards (all extraction happens in-page).
-        const docs = await page.evaluate((selector: string, max: number) => {
+        // Scrape the rendered result cards + extract each post's postId.
+        // postId extraction: clicking a card's inner `.contention-page-content`
+        // fires `window.open('/community/comgroup/postsDetails?postId=<id>…')`
+        // (a new tab — which is why the original tab's URL never changed and
+        // why the bridge's click, which doesn't dispatch real events, can't
+        // trigger it). We intercept window.open in-page, click each card's
+        // inner div, and read the postId out of the captured URL. Cards whose
+        // click uses a different route (e.g. 思想简报 briefings, which don't go
+        // to postsDetails) get an empty post_id — `read` only supports
+        // free_post anyway, so those are skipped honestly.
+        const docs = await page.evaluate(async (selector: string, max: number) => {
             const text = (el: Element | null | undefined): string => (el?.textContent || '').trim();
             const stripNavPrefix = (s: string): string =>
                 s.replace(/^查看原帖.*?访问原帖.*?>>\s*/, '').replace(/^查看原帖.*?>>\s*/, '').trim();
             const nodes = Array.from(document.querySelectorAll(selector)).slice(0, max);
-            return nodes.map((card) => {
+
+            // Intercept window.open (return a stub so the page doesn't actually
+            // open tabs / lose focus). Restore after extraction.
+            const opens: string[] = [];
+            const OO = window.open;
+            window.open = (u?: string | URL) => { if (u) opens.push(String(u)); return { focus() {}, close() {} }; };
+
+            const out: any[] = [];
+            for (const card of nodes) {
                 const typeEl = card.querySelector('.result-page-content-type-item');
                 const titleEl = card.querySelector('.contention-page-content-title');
                 const summaryEl = card.querySelector('.contention-page-content-summary');
                 const authorEl = card.querySelector('.author-name');
                 const dateEl = card.querySelector('.create-time');
-                return {
+
+                // Click the inner content div to fire window.open with the
+                // detail URL, then extract postId + resource type from it.
+                opens.length = 0;
+                const inner = card.querySelector('.contention-page-content') as HTMLElement | null;
+                inner?.click();
+                await new Promise((r) => setTimeout(r, 200));
+                let postId = '';
+                let resourceType = '';
+                for (const u of opens) {
+                    const m = u.match(/postId=([0-9a-f]{32})/i);
+                    if (m) { postId = m[1]; resourceType = (u.match(/type=(\w+)/) || [])[1] || ''; break; }
+                }
+
+                out.push({
                     title: text(titleEl),
                     type: text(typeEl),
                     author: text(authorEl),
@@ -124,8 +158,12 @@ cli({
                     // `title` attribute is empty on this route. Strip the
                     // leading "查看原帖…访问原帖>>" navigation prefix.
                     summary: stripNavPrefix(text(summaryEl)),
-                };
-            }).filter((r: any) => r.title);
+                    post_id: postId,
+                    resource_type: resourceType,
+                });
+            }
+            window.open = OO;
+            return out.filter((r) => r.title);
         }, CARD_SELECTOR, limit);
 
         if (!docs.length) {
@@ -141,6 +179,9 @@ cli({
             views: String(item.views || '').trim(),
             replies: String(item.replies || '').trim(),
             summary: String(item.summary || '').trim(),
+            // postId for `read` (empty for non-free_post types like briefings).
+            post_id: String(item.post_id || '').trim(),
+            resource_type: String(item.resource_type || '').trim(),
             url: searchUrl,
         }));
     },
