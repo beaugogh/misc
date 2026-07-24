@@ -10,7 +10,7 @@
       "args": [
         { "name": "query", "positional": true, "required": true, "help": "Your question or search term (e.g. \"盘古平台\", \"5G架构演进\")" },
         { "name": "limit", "type": "int", "default": 10, "help": "Max number of documents to return (N)" },
-        { "name": "tab", "default": "community", "help": "Search scope/tab: community | doc | blog | expert | know | external" }
+        { "name": "tab", "default": "community", "help": "Source scope: community (3MS站内知识 — default) | all (includes external)" }
       ],
       "columns": ["rank", "title", "type", "author", "author_id", "source", "date", "views", "likes", "comments", "summary", "doc_id", "detail_url"]
     },

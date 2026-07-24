@@ -53,14 +53,15 @@ const CARD_SELECTOR = '.ant-list-item';
 // How long (seconds) to wait for results to render after clicking search.
 const RENDER_WAIT_S = 5;
 
-// The search tabs (scopes). The `type` query param selects the scope.
+// The search source scope (`type` URL param on /doc3ms). The 来源 (source)
+// filter on the left sidebar maps to:
+//   community → "3MS站内知识" (3MS internal knowledge: blogs + wikis) — DEFAULT
+//   all       → "全部" (includes external/w3/frameItem results)
+// Other `type` values (doc, …) return external content, not 3MS-internal, so
+// only community/all are exposed.
 const TABS: Record<string, string> = {
     community: 'community',
-    doc: 'doc',
-    blog: 'blog',
-    expert: 'expert',
-    know: 'know',
-    external: 'external',
+    all: 'all',
 };
 
 cli({
@@ -74,7 +75,7 @@ cli({
     args: [
         { name: 'query', positional: true, required: true, help: 'Your question or search term (e.g. "盘古平台", "5G架构演进")' },
         { name: 'limit', type: 'int', default: 10, help: 'Max number of documents to return (N)' },
-        { name: 'tab', default: 'community', help: 'Search scope/tab: community | doc | blog | expert | know | external' },
+        { name: 'tab', default: 'community', help: 'Source scope: community (3MS站内知识 — default) | all (includes external)' },
     ],
     columns: ['rank', 'title', 'type', 'author', 'author_id', 'source', 'date', 'views', 'likes', 'comments', 'summary', 'doc_id', 'detail_url'],
     func: async (page, kwargs) => {
@@ -88,8 +89,8 @@ cli({
 
         // Navigate to the search app with the query in the URL. The app reads
         // `text` and runs the search on load — no input-filling needed for the
-        // initial query. (Re-searching within the page fills input.ant-input +
-        // clicks button.ant-input-search-button; not needed here.)
+        // initial query. `type=community` scopes to "3MS站内知识" (3MS internal
+        // knowledge); `type=all` includes external/w3 results.
         const searchUrl = `${BASE_URL}${SEARCH_PATH}?type=${tab}&l=zh&text=${encodeURIComponent(query)}#/`;
         await page.goto(searchUrl, { waitUntil: 'load', settleMs: 1500 });
         // Wait for the MAIN results list to render. The search app is an SPA
@@ -97,6 +98,12 @@ cli({
         // fallback) — a bare time wait races the fetch.
         await page.wait('selector', RESULTS_LIST_SELECTOR).catch(() => {});
         await page.wait('time', RENDER_WAIT_S).catch(() => {});
+
+        // (Sub-scope filtering within 3MS站内知识 — e.g. 社区WIKI only — is not
+        // supported: the sidebar exposes those as in-page links with no URL
+        // param, and clicking them via page.evaluate doesn't reliably refresh
+        // the results under the plugin's page.goto. The type=community scope
+        // already returns all 3MS-internal blogs + wikis.)
 
         // Auth gate: a logged-in page renders result cards or the search UI;
         // a gated page shows a login/SSO prompt instead.
