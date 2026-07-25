@@ -138,6 +138,14 @@ class MarkdownHTMLParser(HTMLParser):
     SKIP_TAGS = {"nav", "header", "footer", "aside", "button", "select", "option"}
     BLOCK_TAGS = {"p", "div", "section", "article", "main", "blockquote"}
     HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+    # HTML void elements have no end tag, so they must not inflate skip_depth
+    # (which is balanced against end tags only). Otherwise a single <img> or
+    # <input> inside a <header>/<nav> skip region leaks skip_depth past the
+    # closing tag and silently drops the entire page body that follows.
+    VOID_TAGS = {
+        "area", "base", "br", "col", "embed", "hr", "img", "input",
+        "link", "meta", "param", "source", "track", "wbr",
+    }
 
     def __init__(self, base_url: str, preserve_links: bool = True, preserve_images: bool = True) -> None:
         super().__init__(convert_charrefs=True)
@@ -175,7 +183,11 @@ class MarkdownHTMLParser(HTMLParser):
                 self.svg_title_parts = []
             return
         if self.skip_depth:
-            self.skip_depth += 1
+            # Don't inflate the depth counter for void elements — they have no
+            # matching end tag to decrement it, so they would leak skip_depth
+            # past the closing </header>/</nav> and drop the page body.
+            if tag not in self.VOID_TAGS:
+                self.skip_depth += 1
             return
         if tag in self.SKIP_TAGS or has_attr_value(attrs, "aria-hidden", "true"):
             self.flush_text()
