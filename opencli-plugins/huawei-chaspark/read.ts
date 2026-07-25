@@ -49,12 +49,18 @@ cli({
         const { itemId, detailUrl, type } = resolveDetailUrl(raw);
 
         // Navigate to the detail page (SSO-gated; the bridge drives the
-        // logged-in Chrome tab).
-        await page.goto(detailUrl, { waitUntil: 'load', settleMs: 1500 });
-        // Subject (#/s/<id>) pages are topic landings with little readable
-        // text; paper/video pages have a real body. Wait for whichever.
+        // logged-in Chrome tab). Default page.goto (no waitUntil:'load') —
+        // matching the bridge `open` command; waitUntil:'load' leaves the
+        // tab at about:blank on chaspark.
+        await page.goto(detailUrl);
         await page.wait('selector', '#content-main, h2, .style_m_text__hMFtq').catch(() => {});
         await page.wait('time', RENDER_WAIT_S).catch(() => {});
+        const bodyReady = await page.evaluate(() => !!document.querySelector('#content-main, h2, .style_m_text__hMFtq')).catch(() => false);
+        if (!bodyReady) {
+            await page.evaluate(() => { location.reload(); }).catch(() => {});
+            await page.wait('selector', '#content-main, h2, .style_m_text__hMFtq').catch(() => {});
+            await page.wait('time', RENDER_WAIT_S).catch(() => {});
+        }
 
         // For subject pages, return title + metadata (no article body).
         if (type === 'subject') {
@@ -98,7 +104,15 @@ cli({
                 const titleEl = document.querySelector('h2');
                 const title = text(titleEl);
                 const bodyEl = document.querySelector('.style_m_text__hMFtq');
-                let body = text(bodyEl);
+                // The body container includes <style> tags (Prism theme CSS)
+                // and code-highlight <pre> blocks whose textContent pollutes
+                // the body. Clone, strip them, then read text.
+                let body = '';
+                if (bodyEl) {
+                    const clone = bodyEl.cloneNode(true) as Element;
+                    clone.querySelectorAll('style, pre[class*=codetheme], code[class*=codetheme]').forEach((e) => e.remove());
+                    body = (clone.textContent || '').trim();
+                }
                 const pageText = document.body.innerText;
                 const dateMatch = pageText.match(/(\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)/) || pageText.match(/(20\d{2}-\d{1,2}-\d{1,2})/);
                 const viewsMatch = pageText.match(/(\d[\d,]*)\s*次浏览/);
@@ -179,6 +193,8 @@ cli({
 function resolveDetailUrl(raw: string): { itemId: string; detailUrl: string; type: string } {
     const paperM = raw.match(/\/research\/paper\/(\d+)/);
     if (paperM) return { itemId: paperM[1], detailUrl: raw.startsWith('http') ? raw : BASE_URL + raw, type: 'paper' };
+    const hotspotsM = raw.match(/\/hotspots\/(\d+)/);
+    if (hotspotsM) return { itemId: hotspotsM[1], detailUrl: raw.startsWith('http') ? raw : BASE_URL + raw, type: 'paper' };
     const videoM = raw.match(/\/stw\/media\/(\d+)/);
     if (videoM) return { itemId: videoM[1], detailUrl: raw.startsWith('http') ? raw : BASE_URL + raw, type: 'video' };
     const liveM = raw.match(/\/live\/(\d+)/);
