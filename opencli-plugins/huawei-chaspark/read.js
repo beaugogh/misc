@@ -1,22 +1,19 @@
 /**
- * Read the full content of a single chaspark item (paper or video).
+ * Read the full content of a single chaspark item (paper / hotspots / video).
  *
  * Input: a full chaspark detail URL (the `detail_url` from a `search` result):
- *   - paper:  https://www.chaspark.com/#/research/paper/<id>
- *   - video:  https://www.chaspark.com/#/stw/media/<id>
- *   - live:   https://www.chaspark.com/#/live/<id>
- * Output: the item's full content (article body for papers, AI summary +
- * transcript for videos) plus title, author, date, views.
+ *   - paper:    https://www.chaspark.com/#/research/paper/<id>
+ *   - hotspots: https://www.chaspark.com/#/hotspots/<id>
+ *   - video:    https://www.chaspark.com/#/stw/media/<id>
+ *   - live:     https://www.chaspark.com/#/live/<id>
+ *   - subject:  https://www.chaspark.com/#/s/<id>
+ * Output: the item's full content (article body) plus title, author, date, views.
  *
- * Strategy: COOKIE — the detail page is SSO-gated, so the adapter drives the
- * logged-in Chrome tab to the detail URL and scrapes the rendered content.
- *
- * Recon-confirmed selectors (see README.md "Parts most likely to need
- * adjustment"):
- *   - title:  h2  (paper) / document.title  (video)
- *   - paper body:  .style_m_text__hMFtq  (the article text; strip nav + meta)
- *   - video body:  the AI video summary ("AI视频摘要：...") + transcript segments
- *   - meta:   "MM-DD" date + "N次浏览" views inline in the page text
+ * Strategy: COOKIE — calls the chaspark detail-content JSON API directly
+ * (bypassing the SPA's detail-page rendering, which doesn't reliably fire under
+ * page.goto). The API returns clean JSON with the CSRF token from the cookie:
+ *   paper/hotspots/subject: GET /chasiwu/v1/content/thesis/detail/<id>
+ *   video/live:             GET /chasiwu/v1/video/detail/1/<id>
  *
  * NOTE: hand-mirrored from read.ts (no build step). Keep the two in sync.
  */
@@ -27,19 +24,16 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultErr
 const BASE_URL = "https://www.chaspark.com";
 const DOMAIN = "www.chaspark.com";
 
-// How long (seconds) to wait for the body to render after navigation.
-const RENDER_WAIT_S = 5;
-
 cli({
     site: "huawei-chaspark",
     name: "read",
     access: "read",
-    description: "Read the full content of a single chaspark item by its detail URL (a video #/stw/media/<id> or paper #/research/paper/<id> URL — take it from a search result's detail_url). Returns the full content (article body for papers, AI summary + transcript for videos) plus title, author, date, views. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+    description: "Read the full content of a single chaspark item by its detail URL (a paper #/research/paper/<id>, hotspots #/hotspots/<id>, or video #/stw/media/<id> URL — take it from a search result's detail_url). Returns the full article body plus title, author, date, views. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
     domain: DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: "detail_url", positional: true, required: true, help: "The full chaspark.com detail URL from a search result's detail_url — a video URL (https://www.chaspark.com/#/stw/media/1298064463498584064) or paper URL (https://www.chaspark.com/#/research/paper/1298427126325977088)." },
+        { name: "detail_url", positional: true, required: true, help: "The full chaspark.com detail URL from a search result's detail_url — e.g. https://www.chaspark.com/#/hotspots/1232136419919421440 or https://www.chaspark.com/#/research/paper/1298427126325977088." },
     ],
     columns: ["title", "author", "author_id", "date", "views", "likes", "comments", "body", "url"],
     func: async (page, kwargs) => {
@@ -50,136 +44,62 @@ cli({
 
         const { itemId, detailUrl, type } = resolveDetailUrl(raw);
 
-        // Navigate to the detail page (SSO-gated; the bridge drives the
-        // logged-in Chrome tab). Default page.goto (no waitUntil:'load') —
-        // matching the bridge `open` command; waitUntil:'load' leaves the
-        // tab at about:blank on chaspark.
-        await page.goto(detailUrl);
-        await page.wait("selector", "#content-main, h2, .style_m_text__hMFtq").catch(() => {});
-        await page.wait("time", RENDER_WAIT_S).catch(() => {});
-        const bodyReady = await page.evaluate(() => !!document.querySelector("#content-main, h2, .style_m_text__hMFtq")).catch(() => false);
-        if (!bodyReady) {
-            await page.evaluate(() => { location.reload(); }).catch(() => {});
-            await page.wait("selector", "#content-main, h2, .style_m_text__hMFtq").catch(() => {});
-            await page.wait("time", RENDER_WAIT_S).catch(() => {});
-        }
+        // Fetch the detail-content JSON API directly (bypasses the broken
+        // page.goto). The SPA's detail-page rendering doesn't reliably fire
+        // under page.goto (the tab ends at about:blank), but the API returns
+        // clean JSON with the CSRF token from the cookie.
+        //   paper/hotspots/subject: GET /chasiwu/v1/content/thesis/detail/<id>
+        //   video/live:             GET /chasiwu/v1/video/detail/1/<id>
+        await page.goto(`${BASE_URL}/#/home`).catch(() => {});
+        await page.wait("time", 2).catch(() => {});
 
-        // For subject pages, return title + metadata (no article body).
-        if (type === "subject") {
-            const meta = await page.evaluate(() => {
-                const pageText = document.body.innerText;
-                const dateMatch = pageText.match(/(\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)/) || pageText.match(/(20\d{2}-\d{1,2}-\d{1,2})/);
-                const viewsMatch = pageText.match(/(\d[\d,]*)\s*次浏览/);
-                return {
-                    title: (document.title || "").replace(/-黄大年茶思屋$/, "").trim(),
-                    date: dateMatch ? dateMatch[1] : "",
-                    views: viewsMatch ? viewsMatch[1] : "",
-                    body: (document.querySelector("#content-main")?.textContent || "").trim(),
-                };
-            }).catch(() => ({}));
-            return {
-                title: String(meta.title || "").trim(),
-                author: "", author_id: "", date: String(meta.date || "").trim(),
-                views: String(meta.views || "").trim(), likes: "", comments: "",
-                body: String(meta.body || "").trim(), url: detailUrl,
+        const apiPath = type === "video"
+            ? `/chasiwu/v1/video/detail/1/${itemId}`
+            : `/chasiwu/v1/content/thesis/detail/${itemId}`;
+        const result = await page.evaluate(async (path) => {
+            const csrf = (document.cookie.match(/X-CSRF-TOKEN=([^;]+)/) || [])[1] || "";
+            const r = await fetch(`https://www.chaspark.com${path}?seat=1&lang=zh`, { credentials: "include", headers: { "X-CSRF-TOKEN": csrf } });
+            if (r.status === 403) return { error: "auth" };
+            if (!r.ok) return { error: "http " + r.status };
+            const j = await r.json();
+            const d = j.data || {};
+            const stripHtml = (s) => (s || "").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&[a-z]+;/g, "").trim();
+            const fmtDate = (ts) => {
+                const n = Number(ts);
+                if (!n) return "";
+                const d = new Date(n * 1000);
+                return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
             };
-        }
-
-        // Auth gate.
-        const authOk = await page.evaluate(() => {
-            const deleted = /已被删除|无法查看/.test(document.body.innerText);
-            const hasContent = !!document.querySelector("#content-main, h2, .style_m_text__hMFtq");
-            const hasLoginPrompt = /请登录|sign\s*in|立即登录/i.test(document.body.innerText) && !hasContent;
-            return deleted || hasContent || !hasLoginPrompt;
-        });
-        if (!authOk) {
-            throw new AuthRequiredError(DOMAIN, "ChASpark requires a logged-in session. Open https://www.chaspark.com/ in Chrome and sign in with your Huawei account, then re-run.");
-        }
-
-        // Scrape the rendered content. Branch on type (paper vs video/live).
-        const doc = await page.evaluate((resourceType) => {
-            const text = (el) => (el?.textContent || "").trim();
-
-            // ---- Paper detail page (/#/research/paper/<id>). Article body in
-            // .style_m_text__hMFtq. Meta (date/views/author) inline in the page. ----
-            if (resourceType === "paper") {
-                const titleEl = document.querySelector("h2");
-                const title = text(titleEl);
-                const bodyEl = document.querySelector(".style_m_text__hMFtq");
-                // The body container includes <style> tags (Prism theme CSS)
-                // and code-highlight <pre> blocks whose textContent pollutes
-                // the body. Clone, strip them, then read text.
-                let body = "";
-                if (bodyEl) {
-                    const clone = bodyEl.cloneNode(true);
-                    clone.querySelectorAll("style, pre[class*=codetheme], code[class*=codetheme]").forEach((e) => e.remove());
-                    body = (clone.textContent || "").trim();
-                }
-                const pageText = document.body.innerText;
-                const dateMatch = pageText.match(/(\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)/) || pageText.match(/(20\d{2}-\d{1,2}-\d{1,2})/);
-                const viewsMatch = pageText.match(/(\d[\d,]*)\s*次浏览/);
-                // author: look for a user link near the title
-                const authorLink = document.querySelector('a[href*="/user/"], [class*=author] a, [class*=userInfo] a');
-                return {
-                    title,
-                    author: text(document.querySelector("[class*=author],[class*=userName],[class*=userInfo]")),
-                    author_id: (authorLink?.getAttribute("href") || "").match(/\/user\/(\w+)/)?.[1] || "",
-                    date: dateMatch ? dateMatch[1] : "",
-                    views: viewsMatch ? viewsMatch[1] : "",
-                    body,
-                };
-            }
-
-            // ---- Video / live detail page (/#/stw/media/<id> or /#/live/<id>).
-            // Title in h2; body = AI video summary + transcript segments. The
-            // video player chrome (vjs-*) is stripped. ----
-            const titleEl = document.querySelector("h2");
-            const title = text(titleEl) || (document.title || "").replace(/-黄大年茶思屋$/, "").trim();
-            const pageText = document.body.innerText;
-            const dateMatch = pageText.match(/(\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)/) || pageText.match(/(20\d{2}-\d{1,2}-\d{1,2})/);
-            const viewsMatch = pageText.match(/(\d[\d,]*)\s*次浏览/);
-            // AI summary: text after "AI视频摘要：" up to the transcript
-            const summaryMatch = pageText.match(/AI视频摘要[：:]([\s\S]*?)(?:字幕列表|相关推荐|$)/);
-            // Transcript: collect trackItem timestamp + text pairs
-            const transcript = Array.from(document.querySelectorAll("[class*=trackItem__]"))
-                .map((t) => {
-                    const time = text(t.querySelector("[class*=time]"));
-                    const content = text(t.querySelector("[class*=content]"));
-                    return `${time} ${content}`.trim();
-                })
-                .filter(Boolean);
-            let body = "";
-            if (summaryMatch) body += `AI视频摘要：${summaryMatch[1].trim()}\n\n`;
-            if (transcript.length) body += `字幕 transcript:\n${transcript.join("\n")}`;
-            if (!body) body = text(document.querySelector("#content-main")) || "";
+            const creator = d.creator || {};
             return {
-                title,
-                author: "",
-                author_id: "",
-                date: dateMatch ? dateMatch[1] : "",
-                views: viewsMatch ? viewsMatch[1] : "",
-                body,
+                title: stripHtml(d.title || ""),
+                author: creator.name || "",
+                author_id: d.creatorNid || creator.nid || creator.w3id || "",
+                date: fmtDate(d.publishTime),
+                views: String(d.viewCount || d.views || ""),
+                body: stripHtml(d.content || ""),
             };
-        }, type);
+        }, apiPath).catch(() => ({ error: "evaluate failed" }));
 
-        // Deleted-content check.
-        const deleted = await page.evaluate(() => /已被删除|无法查看/.test(document.body.innerText));
-        if (deleted) {
-            throw new EmptyResultError("huawei-chaspark", `Item ${itemId} has been deleted or is unavailable.`);
+        if (result.error === "auth") {
+            throw new AuthRequiredError(DOMAIN, "ChASPark requires a logged-in session. Open https://www.chaspark.com/ in Chrome and sign in with your Huawei account, then re-run.");
         }
-        if (!doc.body) {
-            throw new EmptyResultError("huawei-chaspark", `No content rendered for item ${itemId}. It may be access-restricted or the page markup may have changed — inspect with \`opencli browser huawei-chaspark state\`.`);
+        if (result.error) {
+            throw new CommandExecutionError(`huawei-chaspark read failed (${result.error})`);
+        }
+        if (!result.body) {
+            throw new EmptyResultError("huawei-chaspark", `No content for item ${itemId}. It may be deleted, access-restricted, or the API changed.`);
         }
 
         return {
-            title: String(doc.title || "").trim(),
-            author: String(doc.author || "").trim(),
-            author_id: String(doc.author_id || "").trim(),
-            date: String(doc.date || "").trim(),
-            views: String(doc.views || "").trim(),
+            title: String(result.title || "").trim(),
+            author: String(result.author || "").trim(),
+            author_id: String(result.author_id || "").trim(),
+            date: String(result.date || "").trim(),
+            views: String(result.views || "").trim(),
             likes: "",
             comments: "",
-            body: String(doc.body || "").trim(),
+            body: String(result.body).trim(),
             url: detailUrl,
         };
     },
@@ -188,9 +108,11 @@ cli({
 /**
  * Resolve the `detail_url` arg into { itemId, detailUrl, type }. Accepts a full
  * chaspark detail URL:
- *   - paper:  https://www.chaspark.com/#/research/paper/<id>
- *   - video:  https://www.chaspark.com/#/stw/media/<id>
- *   - live:   https://www.chaspark.com/#/live/<id>
+ *   - paper:    /#/research/paper/<id>
+ *   - hotspots: /#/hotspots/<id>
+ *   - video:    /#/stw/media/<id>
+ *   - live:     /#/live/<id>
+ *   - subject:  /#/s/<id>
  */
 function resolveDetailUrl(raw) {
     const paperM = raw.match(/\/research\/paper\/(\d+)/);
@@ -202,9 +124,9 @@ function resolveDetailUrl(raw) {
     const liveM = raw.match(/\/live\/(\d+)/);
     if (liveM) return { itemId: liveM[1], detailUrl: raw.startsWith("http") ? raw : BASE_URL + raw, type: "video" };
     const subjectM = raw.match(/\/s\/(\d+)/);
-    if (subjectM) return { itemId: subjectM[1], detailUrl: raw.startsWith("http") ? raw : BASE_URL + raw, type: "subject" };
+    if (subjectM) return { itemId: subjectM[1], detailUrl: raw.startsWith("http") ? raw : BASE_URL + raw, type: "paper" };
     throw new ArgumentError(
         `Could not read an item id from URL: ${raw}. ` +
-        `Pass a chaspark detail_url from a search result (e.g. https://www.chaspark.com/#/research/paper/1298427126325977088).`,
+        `Pass a chaspark detail_url from a search result (e.g. https://www.chaspark.com/#/hotspots/1232136419919421440).`,
     );
 }
