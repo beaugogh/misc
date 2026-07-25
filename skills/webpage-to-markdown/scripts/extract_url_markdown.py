@@ -575,32 +575,67 @@ def render_image_chunk(chunk: Chunk, config: Config, output_path: Path | None) -
     status = "remote reference preserved; local SVG asset not requested"
     asset_type = "image"
     size_text = "unknown"
+    inline_svg: str | None = None
 
     if config.extract_visual_assets and output_path is not None and source_url:
         asset_dir = output_path.with_suffix("").parent / f"{output_path.stem}{config.visual_asset_dir_suffix}"
-        asset_dir.mkdir(parents=True, exist_ok=True)
         try:
-            asset_path, asset_type, size_text = save_image_as_svg(source_url, alt, asset_dir, config)
-            asset_ref = asset_path.relative_to(output_path.parent).as_posix()
-            status = "preserved as local SVG asset"
+            asset_path, asset_type, size_text, inline_svg = save_image_as_svg(
+                source_url, alt, asset_dir, config
+            )
+            if inline_svg is not None:
+                status = "embedded inline as vector SVG; no separate asset file"
+                asset_ref = "(inline svg)"
+            else:
+                asset_ref = asset_path.relative_to(output_path.parent).as_posix()
+                status = "preserved as local SVG asset"
         except Exception as exc:  # noqa: BLE001 - preserve page conversion even when one image fails.
             status = f"local SVG asset unavailable: {exc}"
 
-    lines = [f"![{escape_markdown(alt)}]({asset_ref})", "", "<!-- visual-asset"]
+    lines: list[str] = []
+    if inline_svg is not None:
+        # No ![alt](path) reference: the vector SVG markup is embedded directly
+        # so the Markdown is self-contained and a text-only reader can still
+        # grep the diagram's text labels from the inline markup.
+        lines.append(f"[{escape_markdown(alt)}]")
+    else:
+        lines.append(f"![{escape_markdown(alt)}]({asset_ref})")
+    lines.append("")
+    lines.append("<!-- visual-asset")
     lines.append(f"Asset: {asset_ref}")
     lines.append(f"Source: {source_url}")
     lines.append(f"Type: {asset_type}")
     lines.append(f"Extracted size: {size_text}")
     lines.append(f"Alt text: {alt}")
     lines.append(f"Transcription status: {status}")
-    lines.append("Multimodal status: local SVG asset is available when Asset is a relative path; inspect it directly for visual details.")
-    lines.append("Text-only fallback: use alt text, source URL, dimensions, nearby page text, and any explicit caption; visual content is not fully transcribed unless Mermaid or a human/agent note is added.")
+    if inline_svg is not None:
+        lines.append("Multimodal status: vector SVG markup is embedded inline below this note; inspect it directly for visual details.")
+        lines.append("Text-only fallback: the inline SVG markup carries the diagram's text labels and structure; alt text, source URL, and dimensions are also available.")
+    else:
+        lines.append("Multimodal status: local SVG asset is available when Asset is a relative path; inspect it directly for visual details.")
+        lines.append("Text-only fallback: use alt text, source URL, dimensions, nearby page text, and any explicit caption; visual content is not fully transcribed unless Mermaid or a human/agent note is added.")
     lines.append("Mermaid: not inferred automatically; add only after visual inspection confirms a diagram, flowchart, graph, or timeline.")
     lines.append("-->")
+    if inline_svg is not None:
+        lines.append("")
+        lines.append(inline_svg.rstrip())
+        lines.append("")
     return lines
 
 
-def save_image_as_svg(source_url: str, alt: str, asset_dir: Path, config: Config) -> tuple[Path, str, str]:
+def save_image_as_svg(
+    source_url: str, alt: str, asset_dir: Path, config: Config
+) -> tuple[Path | None, str, str, str | None]:
+    """Fetch an image and persist it as an SVG asset.
+
+    Returns ``(asset_path, asset_type, size_text, inline_svg)``. For a true
+    vector SVG (a real diagram/figure built from <path>/<text>/<rect>/…, not a
+    raster image wrapped in SVG), no file is written: the SVG markup is returned
+    as ``inline_svg`` so the caller can embed it directly in the Markdown,
+    keeping the output a single self-contained file. For raster images, the
+    bytes are base64-wrapped into an SVG file under ``asset_dir`` and
+    ``inline_svg`` is None.
+    """
     data, content_type = fetch_binary(source_url, config)
     if len(data) > config.max_image_bytes:
         raise ValueError(f"image is {len(data)} bytes, above max_image_bytes={config.max_image_bytes}")
@@ -610,10 +645,10 @@ def save_image_as_svg(source_url: str, alt: str, asset_dir: Path, config: Config
     digest = hashlib.sha256(source_url.encode("utf-8")).hexdigest()[:12]
     content_type = content_type or mimetypes.guess_type(fallback_name)[0] or "application/octet-stream"
     if content_type == "image/svg+xml" or data.lstrip().startswith(b"<svg"):
-        asset_path = unique_path(asset_dir / f"{stem}-{digest}.svg")
-        asset_path.write_bytes(data)
-        dimensions = svg_dimensions(data.decode("utf-8", errors="ignore"))
-        return asset_path, "svg", dimensions
+        # True vector SVG: embed inline rather than storing a separate file.
+        svg_text = strip_svg_prolog(data.decode("utf-8", errors="ignore"))
+        dimensions = svg_dimensions(svg_text)
+        return None, "svg", dimensions, svg_text
 
     width, height = image_dimensions(data, content_type)
     encoded = base64.b64encode(data).decode("ascii")
@@ -628,9 +663,10 @@ def save_image_as_svg(source_url: str, alt: str, asset_dir: Path, config: Config
         'preserveAspectRatio="xMidYMid meet"/>\n'
         "</svg>\n"
     )
+    asset_dir.mkdir(parents=True, exist_ok=True)
     asset_path = unique_path(asset_dir / f"{stem}-{digest}.svg")
     asset_path.write_text(svg, encoding="utf-8")
-    return asset_path, f"{content_type} wrapped in svg", f"{width_attr}x{height_attr}; {len(data)} bytes"
+    return asset_path, f"{content_type} wrapped in svg", f"{width_attr}x{height_attr}; {len(data)} bytes", None
 
 
 def fetch_binary(url: str, config: Config) -> tuple[bytes, str]:
@@ -682,6 +718,15 @@ def svg_dimensions(svg_text: str) -> str:
         return f"{width.group(1)}x{height.group(1)}"
     view_box = re.search(r'\bviewBox=["\']([^"\']+)["\']', svg_text)
     return f"viewBox {view_box.group(1)}" if view_box else "unknown"
+
+
+def strip_svg_prolog(svg_text: str) -> str:
+    """Remove XML declarations and DOCTYPE so an SVG is safe to embed inline in
+    HTML/Markdown. Inline SVG lives inside an HTML document, where `<?xml?>`
+    and `<!DOCTYPE>` are invalid and can break renderers."""
+    svg_text = re.sub(r"(?is)<\?xml\b.*?\?>\s*", "", svg_text)
+    svg_text = re.sub(r"(?is)<!DOCTYPE[^>]*>\s*", "", svg_text)
+    return svg_text.strip()
 
 
 def unique_path(path: Path) -> Path:

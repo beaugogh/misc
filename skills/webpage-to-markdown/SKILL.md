@@ -41,7 +41,9 @@ The output must be useful both to humans and agents:
 - Preserve links as Markdown links, resolving relative URLs against the source URL.
 - Preserve images, figures, charts, and diagrams as local SVG assets when they can be fetched or are embedded inline. Raster images are wrapped in SVG with embedded data so the Markdown can reference a stable local asset.
 - Images may be embedded as `<img>`, inline `<svg>`, or inline `style="background-image:url(...)"` on any element. The extractor handles all three from static HTML. Sites that apply `background-image` via JavaScript at runtime (x.com article pages) leave no URL in the serialized HTML — those require the browser-bridge computed-style capture in Workflow step 6, not the `--html` path.
-- SVG preservation does not require a multimodal model. The extractor either saves inline SVG directly or wraps fetched raster image bytes in an SVG container.
+- SVG preservation does not require a multimodal model. The extractor distinguishes two cases:
+  - **True vector SVG** (a real diagram/figure built from `<path>`/`<text>`/`<rect>`/…, e.g. an architecture or landscape diagram): the SVG markup is **embedded directly inline** in the Markdown after the visual-asset note, with no separate `.svg` file. This keeps the output a single self-contained file and lets text-only readers grep the diagram's text labels straight from the inline markup.
+  - **Raster image wrapped in SVG** (a photo/screenshot whose bytes are base64-wrapped in an `<image>` element): written as a separate `.svg` file under the `_assets/` directory and referenced via `![alt](path)`.
 - Add a machine-scannable visual note next to every preserved image with asset path, original source URL, type, extracted size, alt text, transcription status, multimodal status, and text-only fallback status.
 - For non-multimodal readers, provide every visual's surrounding evidence in text: alt text, caption if available, source URL, dimensions, and a clear statement when the visual content itself has not been inspected or transcribed.
 - For multimodal readers, preserve the local SVG asset so the visual can be opened and inspected directly.
@@ -96,7 +98,7 @@ The title slug is lowercase, hyphen-separated, ASCII-only, and capped by `--name
 
 A completed Markdown capture should let a reader reconstruct the source page's main text content without opening the URL. For visuals, the Markdown must support two readers:
 
-- **Multimodal reader**: can inspect linked local SVG assets.
-- **Text-only reader**: can still understand that a visual existed, where it came from, what alt/caption/source metadata says, and whether any textual transcription or Mermaid equivalent is available.
+- **Multimodal reader**: can inspect linked local SVG assets (raster wrappers) or inline vector SVG markup (true diagrams).
+- **Text-only reader**: can still understand that a visual existed, where it came from, what alt/caption/source metadata says, and whether any textual transcription or Mermaid equivalent is available. For inline vector SVGs, the text labels and structure are directly readable from the embedded markup.
 
-Validation should confirm that local visual asset links exist. Never imply a text-only visual transcription is complete unless an agent actually inspected the visual or the source provided the text directly.
+Validation should confirm that local visual asset links exist and that any inline `<svg>` blocks are well-formed. Never imply a text-only visual transcription is complete unless an agent actually inspected the visual or the source provided the text directly.
