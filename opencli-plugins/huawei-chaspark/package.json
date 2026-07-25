@@ -1,0 +1,9 @@
+{
+  "name": "opencli-plugin-huawei-chaspark",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Huawei's 黄大年茶思屋 academic community (chaspark.com) — `search` returns the top N most relevant items (title, type, author, date, views, summary, item_id, detail_url) from the chaspark full-text search; `read` fetches one item's full content by its detail URL. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+  "peerDependencies": {
+    "@jackwener/opencli": ">=1.8.6"
+  }
+}

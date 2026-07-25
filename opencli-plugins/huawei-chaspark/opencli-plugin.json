@@ -1,0 +1,25 @@
+{
+  "name": "huawei-chaspark",
+  "version": "0.1.0",
+  "description": "Huawei's 黄大年茶思屋 academic community (chaspark.com). `search` returns the top N most relevant items (title, type, author, date, views, summary, item_id, detail_url) from the chaspark full-text search; `read` fetches one item's full content by its detail URL. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+  "opencli": ">=1.8.6",
+  "commands": [
+    {
+      "name": "search",
+      "description": "Search Huawei's 黄大年茶思屋 academic community (chaspark.com). Given an arbitrary question, returns the top N most relevant items (title, type, author, date, views, summary, item_id, detail_url). Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+      "args": [
+        { "name": "query", "positional": true, "required": true, "help": "Your question or search term (e.g. \"大模型\", \"光通信\")" },
+        { "name": "limit", "type": "int", "default": 10, "help": "Max number of items to return (N)" }
+      ],
+      "columns": ["rank", "title", "type", "author", "date", "views", "summary", "item_id", "detail_url"]
+    },
+    {
+      "name": "read",
+      "description": "Read the full content of a single chaspark item by its detail URL (a video #/stw/media/<id> or paper #/research/paper/<id> URL — take it from a search result's detail_url). Returns the full content (article body for papers, AI summary + transcript for videos) plus title, author, date, views. Requires a logged-in Huawei session via the OpenCLI Browser Bridge.",
+      "args": [
+        { "name": "detail_url", "positional": true, "required": true, "help": "The full chaspark.com detail URL from a search result's detail_url — a video URL (https://www.chaspark.com/#/stw/media/1298064463498584064) or paper URL (https://www.chaspark.com/#/research/paper/1298427126325977088)." }
+      ],
+      "columns": ["title", "author", "author_id", "date", "views", "likes", "comments", "body", "url"]
+    }
+  ]
+}
