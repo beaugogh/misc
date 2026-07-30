@@ -13,13 +13,14 @@ This is **not a buildable software project**. It is a knowledge repository of Ma
 ```
 skills/              — Own agent skills (growing collection)
 opencli-plugins/     — OpenCLI browser-automation adapters
+mcp-tools/           — Remote MCP servers, packaged to run with no install for any agent
 scripts/             — Repo-level tooling (catalog generation)
-anthropic-skills/    — Git submodule: Anthropic's official skills (read-only)
-superpowers/         — Git submodule: obra's methodology skills (read-only)
-mattpocock-skills/   — Git submodule: Matt Pocock's engineering skills (read-only)
+anthropic-skills/    — Git submodule (at skills/anthropic-skills): Anthropic's official skills (read-only)
+superpowers/         — Git submodule (at skills/superpowers): obra's methodology skills (read-only)
+mattpocock-skills/   — Git submodule (at skills/mattpocock-skills): Matt Pocock's engineering skills (read-only)
 .venv/               — Python venv (torch, whisper, imageio-ffmpeg) for ML-heavy skills
 .env                 — Per-provider API credentials (gitignored, never commit)
-CATALOG.md           — Auto-generated catalog of ALL skills + OpenCLI plugins
+CATALOG.md           — Auto-generated catalog of ALL skills + OpenCLI plugins + MCP tools
 ```
 
 ## Skill format
@@ -45,7 +46,7 @@ Bundled scripts/templates live alongside the `SKILL.md` and are referenced by re
 
 # Update all submodules to latest upstream main
 git submodule update --remote
-git add anthropic-skills superpowers mattpocock-skills
+git add skills/anthropic-skills skills/superpowers skills/mattpocock-skills
 git commit -m "Bump submodules to latest upstream main"
 
 # Clone with submodules
@@ -80,11 +81,19 @@ source .venv/Scripts/activate
 5. Verify: `opencli plugin install file://$(pwd)/opencli-plugins/<name>` then `opencli <name> <command>`
 6. Run `./scripts/generate-catalog.sh` to update `CATALOG.md`
 
+### New MCP tool
+1. `mkdir mcp-tools/<kebab-case-name>`
+2. Add `mcp-tool.json` (manifest: `name`, `transport`, `url`, `headers`, `auth`, `network.no_proxy`, and a `tools[]` array with `name`/`args`/`output_fields`) — this is the catalog source of truth
+3. Write a pure-stdlib `<name>.py` wrapper (urllib + json only) that speaks the MCP Streamable HTTP protocol (`initialize` → `notifications/initialized` → `tools/call`). Must run with no `pip install` and bypass the corporate proxy for intranet hosts itself (use a no-proxy opener, don't rely on `NO_PROXY` env)
+4. Add `claude-code.mcp.json` and `opencode.mcp.json` ready-to-load configs
+5. Add a `README.md` (model on `mcp-tools/w3-search/README.md`)
+6. Run `./scripts/generate-catalog.sh` to update `CATALOG.md`
+
 ## Key conventions
 
-- **Submodules are read-only.** Never edit files inside `anthropic-skills/`, `superpowers/`, or `mattpocock-skills/` directly.
+- **Submodules are read-only.** Never edit files inside `skills/anthropic-skills/`, `skills/superpowers/`, or `skills/mattpocock-skills/` directly.
 - **Line endings:** All text files normalized to LF (`.gitattributes`). Shell scripts are `text eol=lf`, PowerShell is `text eol=crlf`.
 - **LFS:** Harvested paper outputs under `skills/harvest-ai-papers/output/harvested/**` are tracked with Git LFS.
 - **Credentials:** `.env` at repo root holds API keys (gitignored). Skills that need credentials use per-skill `.env` files (also gitignored). Use `.env.example` as a template.
 - **Catalog is generated:** `CATALOG.md` is auto-generated from `SKILL.md` frontmatter (skills) and `opencli-plugin.json` `commands` arrays (plugins). Never edit it by hand — always run `./scripts/generate-catalog.sh`.
-- **Deprecated/in-progress skills** in `mattpocock-skills/` (under `deprecated/` or `in-progress/` subdirs) should be skipped unless explicitly requested.
+- **Deprecated/in-progress skills** in `skills/mattpocock-skills/` (under `deprecated/` or `in-progress/` subdirs) should be skipped unless explicitly requested.

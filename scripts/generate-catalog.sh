@@ -59,8 +59,8 @@ extract_description() {
 # deprecated/in-progress skills in nested submodule layouts.
 render_skill_section() {
   local heading="$1"
-  local base="$2"          # e.g. skills  or  anthropic-skills/skills
-  local linkprefix="$3"    # e.g. ./skills or ./anthropic-skills/skills
+  local base="$2"          # e.g. skills  or  skills/anthropic-skills/skills
+  local linkprefix="$3"    # e.g. ./skills or ./skills/anthropic-skills/skills
   local count=0
   local rows=""
   local nested=0
@@ -74,6 +74,14 @@ render_skill_section() {
     case "$f" in
       */_analysis/*|*/node_modules/*|*/.git/*) continue ;;
     esac
+    # When scanning the own-skills base, skip vendored submodule collections
+    # nested under skills/ — they are scanned in their own dedicated sections
+    # below, so don't double-count. (Only relevant for base="skills".)
+    if [ "$base" = "skills" ]; then
+      case "$f" in
+        skills/anthropic-skills/*|skills/mattpocock-skills/*|skills/superpowers/*) continue ;;
+      esac
+    fi
     local skilldir
     skilldir="$(dirname "$f")"
     skilldir="${skilldir#$base/}"
@@ -210,14 +218,97 @@ render_plugin_section() {
   printf '\n'
 }
 
+# --- mcp-tool helper --------------------------------------------------------
+# Emit one TSV row per MCP tool: name <TAB> transport <TAB> tools-json <TAB>
+# readme-path. Mirrors emit_plugins_tsv but reads mcp-tool.json manifests.
+emit_mcptools_tsv() {
+  node -e '
+    const fs = require("fs");
+    const path = require("path");
+    const dir = "mcp-tools";
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+    catch { process.exit(0); }  // no mcp-tools dir -> no rows
+    const rows = [];
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const manifest = path.join(dir, e.name, "mcp-tool.json");
+      if (!fs.existsSync(manifest)) continue;
+      let m;
+      try { m = JSON.parse(fs.readFileSync(manifest, "utf8")); }
+      catch (err) { console.error(`skip ${e.name}: invalid mcp-tool.json (${err.message})`); continue; }
+      const name = m.name || e.name;
+      const transport = m.transport || "remote";
+      const tools = Array.isArray(m.tools) ? m.tools.map(t => ({
+        name: t.name || "",
+        description: t.description || "",
+        args: Array.isArray(t.args) ? t.args.map(a => ({
+          name: a.name || "",
+          required: !!a.required,
+          default: a.default !== undefined ? String(a.default) : null,
+          help: a.help || ""
+        })) : [],
+        output_fields: Array.isArray(t.output_fields) ? t.output_fields : []
+      })) : [];
+      const readme = path.join(dir, e.name, "README.md");
+      const hasReadme = fs.existsSync(readme) ? `./${readme.split(path.sep).join("/")}` : "";
+      rows.push([name, transport, JSON.stringify(tools), hasReadme].join("\t"));
+    }
+    process.stdout.write(rows.join("\n") + "\n");
+  '
+}
+
+render_mcptool_section() {
+  local count=0
+  local rows=""
+  local tsv
+  tsv="$(emit_mcptools_tsv)"
+  while IFS=$'\t' read -r name transport tools_json readme; do
+    [ -z "$name" ] && continue
+    local tools_md=""
+    if [ -n "$tools_json" ] && [ "$tools_json" != "[]" ]; then
+      tools_md="$(printf '%s' "$tools_json" | node -e '
+        let s = ""; process.stdin.on("data", d => s += d);
+        process.stdin.on("end", () => {
+          const tools = JSON.parse(s);
+          const out = tools.map(t => {
+            const args = t.args.map(a => {
+              let n = a.required ? `<${a.name}>` : `--${a.name}`;
+              if (a.default !== null) n += `=${a.default}`;
+              return n;
+            }).join(" · ");
+            const cols = t.output_fields.join(", ");
+            return `**\`${t.name}\`** ${args}${cols ? `<br>output: \`${cols}\`` : ""}`;
+          });
+          process.stdout.write(out.join("<br><br>"));
+        });
+      ')"
+    fi
+    local name_cell
+    if [ -n "$readme" ]; then
+      name_cell='[`'"$name"'`]('"$readme"')'
+    else
+      name_cell='[`'"$name"'`]'
+    fi
+    rows+="| $name_cell | $transport | $(md_cell_multiline "$tools_md") |"$'\n'
+    count=$((count+1))
+  done <<< "$tsv"
+
+  printf '### MCP tools (%d)\n\n' "$count"
+  printf '| Tool | Transport | MCP tools |\n'
+  printf '|---|---|---|\n'
+  printf '%s' "$rows"
+  printf '\n'
+}
+
 # --- assemble CATALOG.md ----------------------------------------------------
 {
   cat <<'HEADER'
 # Catalog
 
 A machine- and human-readable index of **every agent-facing artifact** in this
-repo — skills (own + three external collections) and OpenCLI plugins — so an
-external agent can survey what's available in one place.
+repo — skills (own + three external collections), OpenCLI plugins, and MCP
+tools — so an external agent can survey what's available in one place.
 
 ## How an agent should use this
 
@@ -226,7 +317,7 @@ Read the sections below, pick the artifacts relevant to the user's task, and
 attempt to install anything yourself. Prefer stable skills; skip any flagged
 ⚠️ deprecated or 🚧 in-progress unless the user asks for them.
 
-There are **two kinds** of artifact, with different activation models — an
+There are **three kinds** of artifact, with different activation models — an
 agent must know which is which:
 
 - **Skill** — open its `SKILL.md` (linked from the path) and follow the steps.
@@ -236,8 +327,13 @@ agent must know which is which:
   logged-in Huawei session in Chrome — all human one-time setup. Portable as a
   *command*, not as pure code. See [`opencli-plugins/README.md`](./opencli-plugins/README.md)
   for prerequisites and install.
+- **MCP tool** — a remote MCP server packaged to work out of the box for any
+  agent. Load the bundled config (Claude Code `.mcp.json` / opencode
+  `--mcp-config`) to expose its MCP tool, **or** run the bundled wrapper script
+  via Bash + Python 3 — no MCP support required. No install step, no bundled
+  credentials. See [`mcp-tools/README.md`](./mcp-tools/README.md).
 
-Regenerate after adding/removing skills or plugins: `./scripts/generate-catalog.sh`
+Regenerate after adding/removing skills, plugins, or MCP tools: `./scripts/generate-catalog.sh`
 
 ## Skills
 
@@ -254,9 +350,9 @@ are read-only references — don't edit in place.
 
 MID
 
-  render_skill_section "Anthropic skills (anthropic-skills/skills/)" "anthropic-skills/skills" "./anthropic-skills/skills"
-  render_skill_section "Superpowers (superpowers/skills/)" "superpowers/skills" "./superpowers/skills"
-  render_skill_section "Mattpocock skills (mattpocock-skills/skills/)" "mattpocock-skills/skills" "./mattpocock-skills/skills"
+  render_skill_section "Anthropic skills (skills/anthropic-skills/skills/)" "skills/anthropic-skills/skills" "./skills/anthropic-skills/skills"
+  render_skill_section "Superpowers (skills/superpowers/skills/)" "skills/superpowers/skills" "./skills/superpowers/skills"
+  render_skill_section "Mattpocock skills (skills/mattpocock-skills/skills/)" "skills/mattpocock-skills/skills" "./skills/mattpocock-skills/skills"
 
   cat <<'PLUGHDR'
 
@@ -269,6 +365,20 @@ truth. Full recon notes and setup live in each plugin's `README.md`.
 PLUGHDR
 
   render_plugin_section
+
+  cat <<'MCPTHDR'
+
+## MCP tools
+
+Each tool's `mcp-tool.json` declares the transport (remote url, headers) and
+the MCP tool surface (name, args, output fields) — that manifest is the catalog
+source of truth. Each tool ships a ready-to-load config per harness plus a
+pure-stdlib wrapper script, so it works with **no install** for any agent. Full
+setup and the no-MCP fallback live in each tool's `README.md`.
+
+MCPTHDR
+
+  render_mcptool_section
 
   cat <<'FOOTER'
 
@@ -283,7 +393,7 @@ ln -s "$(pwd)/<path-from-catalog>/<skill-name>" "$HOME/.claude/skills/<skill-nam
 ```
 
 For the submodules, use the full path from the table, e.g.
-`./anthropic-skills/skills/pdf` or `./mattpocock-skills/skills/engineering/tdd`.
+`./skills/anthropic-skills/skills/pdf`, `./skills/mattpocock-skills/skills/engineering/tdd`, or `./skills/superpowers/skills/brainstorming`.
 
 For other agents, follow their skill-discovery convention, or just open the
 skill's `SKILL.md` and follow the steps directly — every skill is self-contained.
@@ -294,6 +404,19 @@ Install once (see `opencli-plugins/README.md`), then call as a CLI command:
 
 ```bash
 opencli <plugin> <command> [args]        # e.g. opencli huawei-jiaxian search "盘古" --limit 3
+```
+
+## Using a picked MCP tool
+
+No install. Two ways (see the tool's `README.md` for details):
+
+```bash
+# Any agent with Bash + Python 3 (no MCP support needed):
+python3 mcp-tools/<tool>/<wrapper>.py "<query>"           # e.g. python3 mcp-tools/w3-search/w3_search.py "盘古"
+
+# MCP-capable agent — load the bundled config:
+#   Claude Code:   cp mcp-tools/<tool>/claude-code.mcp.json .mcp.json
+#   opencode/cac:  codeagent --mcp-config mcp-tools/<tool>/opencode.mcp.json
 ```
 FOOTER
 } > "$OUT"

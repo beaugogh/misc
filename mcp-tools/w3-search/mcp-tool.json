@@ -1,0 +1,35 @@
+{
+  "name": "w3-search",
+  "version": "0.1.0",
+  "description": "Search Huawei's W3 intranet (w3.huawei.com / 3ms.huawei.com docs) via the remote `w3_search_tool` MCP server. Returns documents (title, source, url, texts, publish_time) for a query. No authentication required — the server is an unauthenticated remote MCP endpoint on the intranet. Usable by any MCP-capable agent (load the bundled config) or any agent with Bash + Python 3 (run the bundled wrapper script).",
+  "transport": "remote",
+  "url": "http://remote-mcp.rnd.huawei.com/remote-mcp/mcp/w3_search_tool",
+  "protocol": "streamable-http",
+  "timeout": 8000,
+  "headers": {
+    "User-Agent": "OpenCode-MCP-Client/1.0",
+    "Accept": "application/json"
+  },
+  "network": {
+    "no_proxy": ["remote-mcp.rnd.huawei.com"],
+    "note": "The endpoint is on the Huawei intranet. It must bypass the corporate HTTP proxy (proxyuk.huawei.com:8080) or the connection fails. The wrapper script sets NO_PROXY automatically; when loading the MCP config into an agent, ensure NO_PROXY includes remote-mcp.rnd.huawei.com."
+  },
+  "auth": "none",
+  "server_info": {
+    "name": "server-w3_search_tool",
+    "version": "1.0.0"
+  },
+  "tools": [
+    {
+      "name": "w3_web_search_tool",
+      "description": "用于搜索w3信息 — search Huawei W3/3MS intranet content.",
+      "args": [
+        { "name": "query", "required": true, "help": "Search query (user name, employee id, or topic)" },
+        { "name": "page_index", "required": true, "default": "1", "help": "Page number, 1-based" },
+        { "name": "page_size", "required": true, "default": "10", "help": "Results per page" },
+        { "name": "engine", "required": true, "default": "huawei", "help": "Query engine, default 'huawei'" }
+      ],
+      "output_fields": ["title", "source", "url", "texts", "publish_time"]
+    }
+  ]
+}
