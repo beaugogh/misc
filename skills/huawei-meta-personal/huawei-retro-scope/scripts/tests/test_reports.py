@@ -21,7 +21,7 @@ from aggregate import aggregate, render_report, render_markdown, render_table, r
 def _synthetic_agg():
     """Build a small synthetic agg dict via aggregate() with hand-crafted tasks.
 
-    Two tasks on the same day: one coding (Edit tool), one conversation.
+    Two tasks on the same day: one coding (Edit tool), one planning.
     This gives us two kinds in one period for realistic table/chart output.
     """
     # 1782967200 = 2026-07-02T04:40:00Z (UTC)
@@ -77,13 +77,13 @@ class TestRenderMarkdown(unittest.TestCase):
         self.assertIn("# Time report (by day)", self.output)
 
     def test_contains_kind_names(self):
-        """Output contains the kind names (coding, conversation, research)."""
+        """Output contains the kind names (coding, planning, research)."""
         self.assertIn("coding", self.output)
-        self.assertIn("conversation", self.output)
+        self.assertIn("planning", self.output)
 
     def test_contains_success_rate(self):
         """Output contains success percentage values."""
-        # The coding task succeeded, conversation failed
+        # The coding task succeeded, planning failed
         self.assertIn("%", self.output)
 
 
@@ -122,7 +122,7 @@ class TestRenderTable(unittest.TestCase):
         """Each data row has aligned columns (same positions as header)."""
         lines = self.output.split("\n")
         # Find a data row (contains a number and a kind)
-        data_lines = [l for l in lines if "coding" in l or "conversation" in l or "research" in l]
+        data_lines = [l for l in lines if "coding" in l or "planning" in l or "research" in l]
         self.assertGreater(len(data_lines), 0)
         # Each data line should have multiple spaces (column separation)
         for line in data_lines:

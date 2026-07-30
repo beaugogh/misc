@@ -514,7 +514,7 @@ def main():
         elif fmt == "table":
             return render_table(agg, args.granularity)
         elif fmt == "markdown":
-            text = render_markdown(agg, args.granularity)
+            text = render_markdown(agg, args.granularity, tasks=tasks)
             return text + _exclusive_footer()
         elif fmt == "html":
             text = render_html(agg, args.granularity, tasks=tasks)
@@ -527,7 +527,7 @@ def main():
                     text += f"\n<p>{footer}</p>"
             return text
         else:
-            text = render_report(agg, args.granularity)
+            text = render_report(agg, args.granularity, tasks=tasks)
             if skipped:
                 text += f"\n(skipped sources: {skipped})"
             text += _exclusive_footer()

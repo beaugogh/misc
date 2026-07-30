@@ -239,13 +239,13 @@ class TestSegmentation(unittest.TestCase):
 
 
 class TestAggregation(unittest.TestCase):
-    def test_classify_coding_vs_conversation(self):
+    def test_classify_coding_vs_planning(self):
         coding = {"tool_names": ["Edit", "Bash"], "cwd": "/workspace/proj",
                   "subject": "fix bug", "event_count": 10}
-        conv = {"tool_names": [], "cwd": "/tmp", "subject": "hi",
-                "event_count": 2}
+        planning = {"tool_names": [], "cwd": "/tmp", "subject": "hi",
+                    "event_count": 2}
         self.assertEqual(classify_task(coding), "coding")
-        self.assertEqual(classify_task(conv), "conversation")
+        self.assertEqual(classify_task(planning), "planning")
 
     def test_aggregate_by_day(self):
         tasks = [
@@ -259,7 +259,7 @@ class TestAggregation(unittest.TestCase):
         period = list(agg.values())[0]
         self.assertAlmostEqual(period["total_seconds"], 5400)
         self.assertEqual(period["task_count"], 2)
-        # both coding (Edit) and conversation present
+        # both coding (Edit) and planning present
         kinds = set(period["by_kind"].keys())
         self.assertIn("coding", kinds)
 
