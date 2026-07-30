@@ -172,10 +172,11 @@ source of truth. Each tool ships a ready-to-load config per harness plus a
 pure-stdlib wrapper script, so it works with **no install** for any agent. Full
 setup and the no-MCP fallback live in each tool's `README.md`.
 
-### MCP tools (1)
+### MCP tools (2)
 
 | Tool | Transport | MCP tools |
 |---|---|---|
+| [`codehub`](./mcp-tools/codehub/README.md) | local | **`get_project_info`** <git_url><br>output: `id, name, description, web_url`<br><br>**`list_merge_requests`** <project_id> · --state=opened · --order_by=created_at · --sort=desc<br>output: `iid, title, state, author, source_branch, target_branch`<br><br>**`get_merge_request_info`** <project_id> · <merge_request_iid><br><br>**`get_merge_request_changes`** <project_id> · <merge_request_iid> · --filters=diffs · --view=simple<br><br>**`get_merge_request_mergeable_state`** <project_id> · <merge_request_iid><br><br>**`get_merge_request_reviews`** <project_id> · <merge_request_iid> · --unresolved · --severity · --page=1 · --per_page=20<br><br>**`create_merge_request`** <project_id> · <title> · <source_branch> · <target_branch> · --description · --issue_nums<br><br>**`merge_merge_request`** <project_id> · <merge_request_iid> · --merge_commit_message<br><br>**`create_merge_request_review`** <project_id> · <merge_request_iid> · <body> · --severity=suggestion · --line · --new_path<br><br>**`resolve_merge_request_reviews`** <project_id> · <merge_request_iid> · <review_id> · <resolved><br><br>**`get_repo_file`** <project_id> · <ref> · --file_path<br><br>**`get_project_issues`** <project_id> · --state=all · --author_id · --assignee_id · --scope · --search · --page=1 · --per_page=20<br><br>**`get_project_issue`** <project_id> · <issue_iid><br><br>**`get_issue_discussions`** <project_id> · <issue_iid> · --page=1 · --per_page=20<br><br>**`create_issue_discussion`** <project_id> · <issue_iid> · <body><br><br>**`create_issue`** <project_id> · <title> · --description<br><br>**`update_issue`** <project_id> · <issue_iid> · --state_event |
 | [`w3-search`](./mcp-tools/w3-search/README.md) | remote | **`w3_web_search_tool`** <query> · <page_index>=1 · <page_size>=10 · <engine>=huawei<br>output: `title, source, url, texts, publish_time` |
 
 

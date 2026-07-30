@@ -1,0 +1,219 @@
+{
+  "name": "codehub",
+  "version": "0.2.0",
+  "description": "Interact with Huawei CodeHub (codehub-y.huawei.com / codehub-g.huawei.com) Git repositories via the local `Codehub-Mcp-Server` MCP server. Exposes project lookup, merge-request lifecycle (list/detail/changes/reviews/create/merge), issues (list/detail/discussions/create/update), and repo file reading. Unlike remote MCP tools in this repo, this is a LOCAL stdio server launched via `uvx`, so it requires `uv`/`uvx` installed, intranet artifactory reachability (first run fetches the Python tarball), and a CodeHub PRIVATE_TOKEN. Usable by any MCP-capable agent (load the bundled config) or any agent with Bash + Python 3 (run the bundled wrapper script).",
+  "transport": "local",
+  "protocol": "stdio",
+  "command": [
+    "uvx",
+    "--index-url",
+    "https://mirrors.tools.huawei.com/pypi/simple",
+    "--allow-insecure-host",
+    "mirrors.tools.huawei.com",
+    "--allow-insecure-host",
+    "cmc-nkg-artifactory.cmc.tools.huawei.com",
+    "--allow-insecure-host",
+    "cmc.centralrepo.rnd.huawei.com",
+    "--with",
+    "python-dotenv",
+    "--with",
+    "mcp<2",
+    "--from",
+    "https://cmc.centralrepo.rnd.huawei.com/artifactory/product_generic/mcp-server/python/gov-codehub/0.2.0/gov-codehub_0.2.0_1773145053.tar.gz",
+    "mcp-server-codehub"
+  ],
+  "command_note": "Three fixes beyond the upstream config, all forced by the corporate TLS-intercepting proxy and the server's packaging gaps (diagnosed via the repo's git-corporate-proxy-lfs skill): (1) --allow-insecure-host cmc.centralrepo.rnd.huawei.com — the proxy re-signs the artifactory's TLS cert, so uv rejects it as a connect error unless TLS verification is relaxed for this host. (2) --with python-dotenv — the server imports dotenv but omits it from pyproject.toml dependencies. (3) --with 'mcp<2' — the server imports FastMCP from mcp.server, which mcp 2.0 removed; pin to 1.x to match the server's expected API.",
+  "runtime": {
+    "requires": ["uvx (uv)"],
+    "install": "first invocation runs `uvx` which downloads the server tarball from the Huawei intranet artifactory; subsequent runs use the uv cache. `uvx` is NOT bundled — install `uv` separately (https://github.com/astral-sh/uv).",
+    "note": "This tool is NOT install-free. Unlike the remote w3-search tool (pure-stdlib wrapper hitting a URL), this is a local Python server that must be fetched and launched by uvx. A fresh git clone of this repo cannot run it without: (1) uv/uvx on PATH, (2) intranet/VPN reachability to cmc.centralrepo.rnd.huawei.com + mirrors.tools.huawei.com, (3) a PRIVATE_TOKEN. The corporate proxy does TLS interception, so --allow-insecure-host must cover the artifactory host (see command_note); uv ignores NO_PROXY for this on Windows."
+  },
+  "environment": {
+    "WEB_HOST": "https://codehub-y.huawei.com/",
+    "PRIVATE_TOKEN": "<your CodeHub personal access token>",
+    "X_AUTH_TOKEN": "<optional: alternative auth token, used if PRIVATE_TOKEN unset>",
+    "REPO_AGENT_HOST": "<optional: needed only for the review-via-repoagent tool variant>"
+  },
+  "network": {
+    "no_proxy": ["cmc.centralrepo.rnd.huawei.com", "mirrors.tools.huawei.com", "cmc-nkg-artifactory.cmc.tools.huawei.com", "codehub-y.huawei.com"],
+    "note": "uvx must reach the intranet artifactory (cmc.centralrepo.rnd.huawei.com) and the PyPI mirror (mirrors.tools.huawei.com). The corporate proxy (proxyuk.huawei.com:8080) does TLS interception: it re-signs the artifactory's cert, so uv rejects the connection with 'client error (Connect)' UNLESS --allow-insecure-host cmc.centralrepo.rnd.huawei.com is passed (already in the command above). This is the same class of problem the repo's git-corporate-proxy-lfs skill documents for git (http.schannelCheckRevoke=false). Setting NO_PROXY alone does NOT fix uv on Windows — uv reads the registry proxy and ignores the bypass list for TLS verification."
+  },
+  "auth": "token",
+  "auth_detail": "CodeHub PRIVATE_TOKEN (personal access token) or X_AUTH_TOKEN. Set in environment. The server exits at startup if neither is present.",
+  "server_info": {
+    "name": "Codehub-Mcp-Server",
+    "version": "0.2.0",
+    "publisher": "Huawei",
+    "source": "https://codehub-g.huawei.com/RepoAI/MCP/codehub-mcp-server"
+  },
+  "tools": [
+    {
+      "name": "get_project_info",
+      "description": "基于本地Git仓库URL获取远程代码仓项目的详细信息，返回整数项目ID（其他工具的入参）。",
+      "args": [
+        { "name": "git_url", "required": true, "help": "本地Git仓库URL，如 ssh://git@codehub-dg-g.huawei.com:2222/group/project.git" }
+      ],
+      "output_fields": ["id", "name", "description", "web_url"]
+    },
+    {
+      "name": "list_merge_requests",
+      "description": "列举远程仓库上的合并请求（MR）任务列表。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID（由 get_project_info 获得）" },
+        { "name": "state", "required": false, "default": "opened", "help": "opened / closed / locked / merged / all" },
+        { "name": "order_by", "required": false, "default": "created_at", "help": "created_at 或 updated_at" },
+        { "name": "sort", "required": false, "default": "desc", "help": "asc 或 desc" }
+      ],
+      "output_fields": ["iid", "title", "state", "author", "source_branch", "target_branch"]
+    },
+    {
+      "name": "get_merge_request_info",
+      "description": "获取单个合并请求的详细信息（标题、描述，不含变更代码）。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "merge_request_iid", "required": true, "help": "合并请求任务IID" }
+      ]
+    },
+    {
+      "name": "get_merge_request_changes",
+      "description": "获取合并请求的实际变更内容（变更文件和diff）。filters=commits 可返回MR内的提交列表。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "merge_request_iid", "required": true, "help": "合并请求任务IID" },
+        { "name": "filters", "required": false, "default": "diffs", "help": "files / diffs / commits" },
+        { "name": "view", "required": false, "default": "simple", "help": "视图模式" }
+      ]
+    },
+    {
+      "name": "get_merge_request_mergeable_state",
+      "description": "获取单个合并请求的门禁状态（冲突/CI/审批/E2E等检查）。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "merge_request_iid", "required": true, "help": "合并请求任务IID" }
+      ]
+    },
+    {
+      "name": "get_merge_request_reviews",
+      "description": "获取指定合并任务的所有检视意见（review comments）。对自演进而言，反复出现的检视意见=反复犯的错误，是强信号。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "merge_request_iid", "required": true, "help": "合并请求任务IID" },
+        { "name": "unresolved", "required": false, "help": "过滤未解决的讨论" },
+        { "name": "severity", "required": false, "help": "suggestion/minor/major/fatal" },
+        { "name": "page", "required": false, "default": "1", "help": "页码" },
+        { "name": "per_page", "required": false, "default": "20", "help": "每页条数" }
+      ]
+    },
+    {
+      "name": "create_merge_request",
+      "description": "基于源分支和目标分支创建合并请求（MR）。写操作。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "title", "required": true, "help": "MR标题" },
+        { "name": "source_branch", "required": true, "help": "源分支" },
+        { "name": "target_branch", "required": true, "help": "目标分支" },
+        { "name": "description", "required": false, "help": "MR描述" },
+        { "name": "issue_nums", "required": false, "help": "关联工单号，多个用;分割" }
+      ]
+    },
+    {
+      "name": "merge_merge_request",
+      "description": "将合并请求的源分支合入目标分支。写操作。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "merge_request_iid", "required": true, "help": "合并请求任务IID" },
+        { "name": "merge_commit_message", "required": false, "help": "附加到自动提交消息的额外信息" }
+      ]
+    },
+    {
+      "name": "create_merge_request_review",
+      "description": "在远程仓库上创建review意见（指定文件、行号）。写操作。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "merge_request_iid", "required": true, "help": "合并请求任务IID" },
+        { "name": "body", "required": true, "help": "review正文" },
+        { "name": "severity", "required": false, "default": "suggestion", "help": "suggestion/minor/major/fatal" },
+        { "name": "line", "required": false, "help": "行号" },
+        { "name": "new_path", "required": false, "help": "文件相对路径" }
+      ]
+    },
+    {
+      "name": "resolve_merge_request_reviews",
+      "description": "标记指定review意见为已解决/未解决。写操作。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "merge_request_iid", "required": true, "help": "合并请求任务IID" },
+        { "name": "review_id", "required": true, "help": "Review ID" },
+        { "name": "resolved", "required": true, "help": "true=已解决" }
+      ]
+    },
+    {
+      "name": "get_repo_file",
+      "description": "获取远程仓库指定分支的指定文件内容。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "ref", "required": true, "help": "commit ID 或分支名" },
+        { "name": "file_path", "required": false, "help": "文件路径" }
+      ]
+    },
+    {
+      "name": "get_project_issues",
+      "description": "获取项目的Issue列表，支持按状态/作者/分配人/标签等过滤。可用 author_id 查某人的工单。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "state", "required": false, "default": "all", "help": "opened/closed/all" },
+        { "name": "author_id", "required": false, "help": "作者ID" },
+        { "name": "assignee_id", "required": false, "help": "分配人ID" },
+        { "name": "scope", "required": false, "help": "created_by_me/assigned_to_me/all" },
+        { "name": "search", "required": false, "help": "搜索标题/描述" },
+        { "name": "page", "required": false, "default": "1", "help": "页码" },
+        { "name": "per_page", "required": false, "default": "20", "help": "每页条数" }
+      ]
+    },
+    {
+      "name": "get_project_issue",
+      "description": "获取单个Issue的详细信息。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "issue_iid", "required": true, "help": "Issue的IID" }
+      ]
+    },
+    {
+      "name": "get_issue_discussions",
+      "description": "获取指定Issue的讨论列表。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "issue_iid", "required": true, "help": "Issue的IID" },
+        { "name": "page", "required": false, "default": "1", "help": "页码" },
+        { "name": "per_page", "required": false, "default": "20", "help": "每页条数" }
+      ]
+    },
+    {
+      "name": "create_issue_discussion",
+      "description": "向指定Issue添加评论。写操作。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "issue_iid", "required": true, "help": "Issue的IID" },
+        { "name": "body", "required": true, "help": "评论正文" }
+      ]
+    },
+    {
+      "name": "create_issue",
+      "description": "在指定项目中创建新Issue。写操作。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "title", "required": true, "help": "Issue标题" },
+        { "name": "description", "required": false, "help": "Issue描述" }
+      ]
+    },
+    {
+      "name": "update_issue",
+      "description": "更新已存在的Issue（标题/描述/分配人/状态等）。写操作。",
+      "args": [
+        { "name": "project_id", "required": true, "help": "代码仓的唯一数字ID" },
+        { "name": "issue_iid", "required": true, "help": "Issue的IID" },
+        { "name": "state_event", "required": false, "help": "close/reopen" }
+      ]
+    }
+  ]
+}

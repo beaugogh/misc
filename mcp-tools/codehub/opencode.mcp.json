@@ -1,0 +1,30 @@
+{
+  "mcp": {
+    "Codehub-Mcp-Server": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "uvx",
+        "--index-url",
+        "https://mirrors.tools.huawei.com/pypi/simple",
+        "--allow-insecure-host",
+        "mirrors.tools.huawei.com",
+        "--allow-insecure-host",
+        "cmc-nkg-artifactory.cmc.tools.huawei.com",
+        "--allow-insecure-host",
+        "cmc.centralrepo.rnd.huawei.com",
+        "--with",
+        "python-dotenv",
+        "--with",
+        "mcp<2",
+        "--from",
+        "https://cmc.centralrepo.rnd.huawei.com/artifactory/product_generic/mcp-server/python/gov-codehub/0.2.0/gov-codehub_0.2.0_1773145053.tar.gz",
+        "mcp-server-codehub"
+      ],
+      "environment": {
+        "WEB_HOST": "https://codehub-y.huawei.com/",
+        "PRIVATE_TOKEN": "YOUR_CODEHub_PRIVATE_TOKEN_HERE"
+      }
+    }
+  }
+}

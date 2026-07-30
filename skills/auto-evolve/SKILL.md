@@ -60,7 +60,7 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
 | welink-cli | 分析时间段内的聊天记录 | 检查 PATH 中是否有 `welink-cli`，`welink-cli auth status` 是否已登录 | 跳过 WeLink 数据源 |
 | W3 搜索 MCP 工具 | 搜索用户公开信息 | 尝试调用 W3 搜索 MCP 工具或 API | 跳过 W3 数据源 |
 | CloudDevOps REST API | 获取用户 Wiki | 尝试调用 `clouddevops-wiki` skill 或 API | 跳过 Wiki 数据源 |
-| git (CodeHub) | 获取代码提交记录 | `git --version` | 跳过代码提交数据源 |
+| git (CodeHub) | 获取代码提交记录 | `git --version`；可选 CodeHub MCP 工具（`codehub.py --list-tools` 或 opencode `mcp.Codehub-Mcp-Server`） | 跳过代码提交数据源（本地 git 仍可用；缺 MCP 则跳过 MR/检视/Issue 协作层数据） |
 | agentcenter CLI | 推荐安装 skill、检查 skill 新版本 | `agentcenter --version` | 跳过 skill 推荐和版本检查 |
 
 ## 核心功能
@@ -157,9 +157,11 @@ welink-cli im query-history-message --user-account <ACCOUNT> --query-count 50
 
 **用途**：获取分析时间段内的代码提交记录，了解实际开发工作
 
-**检测方式**：`git --version`
+**检测方式**：`git --version`（本地提交）；可选 CodeHub MCP 工具（远程 MR/检视/Issue）
 
 **采集方式**：
+
+**A. 本地 git 提交记录**（基础，始终可用）：
 ```bash
 # 查看分析时间段内的代码提交
 git log --author="<工号或姓名>" --since="<开始日期>" --until="<结束日期>" --all --format="%h %ai %s" --no-merges
@@ -169,6 +171,37 @@ git show <hash> --stat
 ```
 - 提取：提交次数、MR 数量、代码行数变更、关键提交概要
 - 与 session 中的开发记录交叉验证，补充 session 未记录的代码工作
+
+**B. CodeHub MCP 工具**（可选，补充本地 git 看不到的协作层数据）：
+
+> CodeHub MCP 服务器是 MR/Issue 中心，**不是**提交中心——它不能按作者枚举原始提交历史，但能获取本地 git 看不到的 MR 生命周期、检视意见、Issue 数据。与本地 git 互补。
+
+**检测方式**：优先使用本仓库自包含的 CodeHub 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/codehub/codehub.py`）；或检查 opencode 的 MCP 配置（`~/.config/opencode/opencode.json` 的 `mcp.Codehub-Mcp-Server`）是否 `enabled: true`；或直接尝试调用 CodeHub MCP 工具
+
+**前置条件**（本地 stdio 服务器，非免安装）：需 `uvx`（uv）在 PATH 上、能访问华为内网制品库、且设置 `PRIVATE_TOKEN` 环境变量（从 CodeHub → Settings → Access Tokens 获取）。无 token 时脚本会友好报错退出。
+
+**凭据管理**：token 存于 `{ANALYZER_SKILL_DIR}/.env`（已 gitignore，参见 `.env.example` 模板）。调用 codehub 工具前先加载：
+```bash
+set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
+```
+该 `.env` 含 `PRIVATE_TOKEN` 和 `WEB_HOST`（默认 `https://codehub-g.huawei.com/`，直接可达；`codehub-y.huawei.com` 在部分网络段不可达）。加载后 `codehub.py` 会从环境读取。Windows 上 uvx 受 TLS 拦截影响需 `--allow-insecure-host`（已在默认参数中，参见 `mcp-tools/codehub/README.md` 的 Troubleshooting）
+
+- **首选：调用自包含脚本**（任何有 Bash + Python 3 的环境都能用，无需 MCP 支持）：
+  ```bash
+  export PRIVATE_TOKEN=<your-token>
+  # 1. git_url → project_id（其他工具的入参）
+  python3 mcp-tools/codehub/codehub.py get-project-info --git-url <仓库git地址>
+  # 2. 列举该项目的合并请求（按状态）
+  python3 mcp-tools/codehub/codehub.py list-merge-requests --project-id <ID> --state all
+  # 3. 获取某 MR 的检视意见 —— 反复出现的检视意见=反复犯的错误，强信号
+  python3 mcp-tools/codehub/codehub.py get-merge-request-reviews --project-id <ID> --mr-iid <IID> --json
+  # 4. 获取某 MR 的变更内容（filters=commits 可返回该 MR 内的提交）
+  python3 mcp-tools/codehub/codehub.py get-merge-request-changes --project-id <ID> --mr-iid <IID> --filters commits
+  ```
+  工具名用 kebab-case（如 `list-merge-requests`），脚本自动映射为服务器的 snake_case 名。参数以 `--key value` 传入，脚本自动转换 int/bool，服务器校验完整 schema。`--list-tools` 可列出全部 17 个工具
+- **备选：调用 MCP 工具**（服务器 `Codehub-Mcp-Server`，需将 `mcp-tools/codehub/opencode.mcp.json` 或 `claude-code.mcp.json` 载入 harness，并填入真实 `PRIVATE_TOKEN`）。此时须在启动 agent 的 shell 设置 `NO_PROXY=cmc.centralrepo.rnd.huawei.com,mirrors.tools.huawei.com,codehub-y.huawei.com`
+- **提取**：MR 标题/状态/分支、**检视意见（review comments）**、Issue 标题/状态/讨论
+- **重点**：反复出现的检视意见揭示反复犯的错误；MR 的门禁状态（`get-merge-request-mergeable-state`）反映代码质量阻塞点；这些是 session 中通常不会记录的协作信号
 
 ### 数据源 3：W3 搜索
 
@@ -340,6 +373,7 @@ for sid, title, tc in unique_sessions:
      4. 如果以上均无法发现，跳过此数据源并在报告中说明
    - 获取分析时间段内的提交记录
    - 提取：提交次数、关键 MR 概要、代码行数变更
+   - **可选补充：CodeHub MCP 工具**（见"数据源 2"详述）。若 `PRIVATE_TOKEN` 可用且 `uvx` 可启动服务器，对发现的项目调用 `list-merge-requests` + `get-merge-request-reviews`，补充本地 git 看不到的 MR 检视意见和 Issue 数据。不可用则跳过，不影响本地 git 采集
 
 3. **W3 搜索**（可选）：
    - 检测 W3 搜索 MCP 工具可用性
