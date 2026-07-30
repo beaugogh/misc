@@ -536,6 +536,29 @@ def refine_success(tasks: list[dict]) -> list[dict]:
     return tasks
 
 
+def _derive_subject_from_events(events: list[dict]) -> str | None:
+    """Derive a human-readable subject from event data when no user message exists.
+
+    Meetings, git commits, emails, and browser visits don't carry a user_message
+    event, so segment_implicit leaves ``current_subject`` as None. The actual title
+    is in ``event["text"]`` (meeting subject, commit message, email subject, page
+    title) or ``event["tool_input"]["subject"]``. This picks the most informative
+    one so the report shows "【会议通知】 AI4W 站会" instead of "(no subject)".
+    """
+    for e in events:
+        ti = e.get("tool_input") or {}
+        # Meeting/email subject from tool_input
+        if isinstance(ti, dict) and ti.get("subject"):
+            s = str(ti["subject"]).strip().strip('"')
+            if s:
+                return s[:MAX_SUBJECT_LEN]
+        # Text field (meeting title, commit message, email subject, page title)
+        text = (e.get("text") or "").strip().strip('"')
+        if text and text != "(no text)":
+            return text[:MAX_SUBJECT_LEN]
+    return None
+
+
 def _make_task(tid: str, flavor: str, events: list[dict], subject: str | None,
                task_status: str | None = None) -> dict:
     ts = [e["timestamp"] for e in events if e.get("timestamp")]
@@ -555,6 +578,10 @@ def _make_task(tid: str, flavor: str, events: list[dict], subject: str | None,
     active_raw, excised_raw = _compute_active_seconds(events)
     active = round(active_raw, 1)
     excised_gap = round(excised_raw, 1)
+    # Subject fallback: meetings/commits/emails have no user_message — derive from
+    # event text so the report shows the real title instead of "(no subject)".
+    if not subject or subject == "(no subject)":
+        subject = _derive_subject_from_events(events)
     # For meetings with a real end_ts, the active time IS the real duration and
     # may exceed the task's wall_clock (which was computed from event timestamps
     # that may not include the meeting's actual end). Use the real duration for

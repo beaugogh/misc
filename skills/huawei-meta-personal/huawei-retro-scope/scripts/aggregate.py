@@ -17,47 +17,49 @@ from datetime import datetime, timezone
 
 
 def classify_task(task: dict) -> str:
-    """Crude task-kind classifier for the MVP.
+    """Classify a task into a kind for aggregation.
 
-    This will be replaced by the deeper categorization (domain detection, LLM
-    labeling, RIPPER rules) — see SKILL.md. For now, a few rules on tool names,
-    source_kind, and cwd give a usable first cut.
+    Rules use source_kind (the originating adapter) first, then tool names and
+    subject. Categories are chosen so each is self-explanatory and the opaque
+    "other" bucket shrinks to near-zero:
+      - coding       — AI-session task that edits/builds (Edit/Write/Read/Bash)
+      - planning     — AI-session task with task-management tools only (TaskCreate,
+                       TaskUpdate, EnterPlanMode) or short no-tool turns (chat/review)
+      - research     — browser visits/searches, or WebSearch/WebFetch tool use
+      - vcs          — git commits/checkouts
+      - meeting      — calendar events, meeting recordings
+      - communication — email, IM
+      - file-edit    — manual file activity (VSCode Local History, Windows Recent)
     """
     tools = set(task.get("tool_names") or [])
     cwd = (task.get("cwd") or "").lower()
     subject = (task.get("subject") or "").lower()
     source_kind = task.get("source_kind", "")
 
-    # Browser-sourced tasks: visits/downloads/searches
+    # Source-kind shortcuts (strongest signal).
     if source_kind == "browser":
-        # if the task has search events, it's research; otherwise browsing
         return "research"
-
-    # VCS-sourced tasks (git commits/checkouts without an AI session)
     if source_kind == "vcs":
         return "vcs"
-
-    # Meeting-sourced tasks (welink-cli meetings, calendar events, .ics, recordings)
     if source_kind == "meeting":
         return "meeting"
-
-    # Communication-sourced tasks (welink-cli mail, IM)
     if source_kind == "comm":
         return "communication"
 
-    if any(t in tools for t in ("TaskCreate", "TaskUpdate", "ExitPlanMode", "EnterPlanMode")):
-        pass
-    if "Bash" in tools and any(k in cwd for k in ("workspace", "repo", "project")):
-        return "coding"
-    if tools & {"Edit", "Write", "Read"}:
+    # Filesystem-sourced tasks (VSCode history, Windows Recent, Jump Lists).
+    if source_kind == "filesystem":
+        return "file-edit"
+
+    # AI-session tasks: classify by tool usage.
+    edit_tools = tools & {"Edit", "Write", "Read", "Bash", "NotebookEdit"}
+    if edit_tools:
         return "coding"
     if tools & {"WebSearch", "WebFetch"}:
         return "research"
-    if any(k in subject for k in ("commit", "push", "rebase", "merge")):
-        return "vcs"
-    if not tools and task.get("event_count", 0) <= 3:
-        return "conversation"
-    return "other"
+    # Task-management tools only (TaskCreate/TaskUpdate/EnterPlanMode) or no tools
+    # at all (short chat turns) → planning. This replaces the old "conversation" +
+    # "other" buckets that were opaque and overlapped with "communication".
+    return "planning"
 
 
 def _period_key(ts: float, granularity: str) -> str:
@@ -145,8 +147,129 @@ def aggregate(tasks: list[dict], granularity: str = "day") -> dict:
     return out
 
 
-def render_report(agg: dict, granularity: str) -> str:
-    """Render an aggregation as a human-readable text report."""
+def generate_insights(tasks: list[dict], agg: dict) -> list[str]:
+    """Surface actionable findings from the reconstructed tasks.
+
+    This is the layer that turns "coding 161h" into "you spent 10.6h retrying a
+    git sync — that's an automation candidate." Each insight is a plain-text
+    string, rendered in all report formats. Returns a list so the caller can
+    format each as a bullet/card.
+
+    Insight types (constitution point #4 — informative toward automation):
+      1. Time sinks: the top tasks by active time, with their subject and a
+         pain-point hint if the task has errors/retries (from task fields).
+      2. Meeting load: total hours, daily average, and all-day-event warnings.
+      3. Recurring pain: tasks sharing a retry/error pattern across the period.
+      4. Success gaps: categories that are 100% unknown (measurement gap, not failure).
+      5. Parallelism: how much time overlapped (coordination) vs exclusive.
+    """
+    from datetime import datetime, timezone
+    insights: list[str] = []
+
+    if not tasks:
+        return ["No tasks in range."]
+
+    # --- 1. Time sinks (top 3 by active time) ---
+    ranked = sorted(tasks, key=lambda t: t.get("active_seconds") or 0, reverse=True)
+    top_sinks = [t for t in ranked[:3] if (t.get("active_seconds") or 0) > 0]
+    for t in top_sinks:
+        act_h = (t.get("active_seconds") or 0) / 3600
+        subj = t.get("subject") or "(no subject)"
+        kind = classify_task(t)
+        hint = ""
+        if t.get("errors"):
+            hint = f" — {t['errors']} error(s)"
+        # Check for retry signals in the subject/text
+        text = (t.get("subject") or "").lower()
+        if any(k in text for k in ("retry", "again", "still", "sync", "fetch", "debug")):
+            hint += ", possible retry/debug loop"
+        insights.append(
+            f"Time sink: {act_h:.1f}h on '{subj[:60]}' ({kind}{hint}). "
+            f"Drill: --task {t.get('id', '?')} --drill"
+        )
+
+    # --- 2. Meeting load ---
+    meeting_tasks = [t for t in tasks if classify_task(t) == "meeting"]
+    if meeting_tasks:
+        meeting_h = sum(t.get("active_seconds") or 0 for t in meeting_tasks) / 3600
+        # Count all-day events (24h duration = calendar artifact, not real meeting)
+        all_day = [t for t in meeting_tasks
+                    if (t.get("active_seconds") or 0) >= 24 * 3600 - 1]
+        # Date span for daily average
+        starts = [t.get("start") or 0 for t in meeting_tasks]
+        if starts:
+            span_days = max(1, (max(starts) - min(starts)) / 86400)
+            daily_avg = meeting_h / span_days
+            line = (f"Meeting load: {meeting_h:.0f}h across {len(meeting_tasks)} meetings "
+                    f"(~{daily_avg:.1f}h/day)")
+            if all_day:
+                line += (f" — {len(all_day)} all-day calendar entry(ies) counted as 24h; "
+                         f"these are likely day-markers, not real meetings")
+            insights.append(line)
+
+    # --- 3. Recurring pain patterns ---
+    pain_tasks = [t for t in tasks if t.get("errors") and t.get("errors") >= 2]
+    if len(pain_tasks) >= 2:
+        # Group by subject keyword to find recurrence
+        from collections import Counter
+        keywords = Counter()
+        for t in pain_tasks:
+            subj = (t.get("subject") or "").lower()
+            for trigger in ("sync", "fetch", "git", "build", "install", "deploy", "debug"):
+                if trigger in subj:
+                    keywords[trigger] += 1
+        recurring = [(k, n) for k, n in keywords.most_common(3) if n >= 2]
+        if recurring:
+            parts = [f"'{k}' failed across {n} tasks" for k, n in recurring]
+            insights.append(
+                f"Recurring pain: {', '.join(parts)} — these repeat the same error "
+                f"pattern and are automation candidates."
+            )
+        else:
+            insights.append(
+                f"{len(pain_tasks)} tasks had 2+ errors — review for retry patterns "
+                f"(use --top N to find them, then --task <id> --drill)."
+            )
+
+    # --- 4. Success measurement gaps ---
+    from collections import defaultdict
+    kind_success = defaultdict(lambda: {"succ": 0, "fail": 0, "unk": 0})
+    for t in tasks:
+        k = classify_task(t)
+        s = t.get("success")
+        if s == "succeeded":
+            kind_success[k]["succ"] += 1
+        elif s == "failed":
+            kind_success[k]["fail"] += 1
+        else:
+            kind_success[k]["unk"] += 1
+    all_unknown = [k for k, v in kind_success.items()
+                   if v["unk"] > 0 and v["succ"] == 0 and v["fail"] == 0]
+    if all_unknown:
+        insights.append(
+            f"Success not yet measured for: {', '.join(sorted(all_unknown))} — "
+            f"these aren't failures, just categories with no success signal detected yet."
+        )
+
+    # --- 5. Parallelism / overlap ---
+    # Use excised_gap_seconds as a proxy for idle, and count tasks with wall >> active
+    high_wall = [t for t in tasks
+                 if (t.get("wall_clock_seconds") or 0) > 2 * max(t.get("active_seconds") or 0, 1)
+                 and (t.get("wall_clock_seconds") or 0) > 3600]
+    if len(high_wall) >= 3:
+        insights.append(
+            f"{len(high_wall)} tasks have wall-clock 2×+ their active time — "
+            f"long idle/overlap periods. Use --top to find them and --drill to see why."
+        )
+
+    return insights
+
+
+def render_report(agg: dict, granularity: str, tasks: list[dict] | None = None) -> str:
+    """Render an aggregation as a human-readable text report.
+
+    When ``tasks`` is provided, an insights section is appended at the end.
+    """
     lines = [f"# Time report (by {granularity})\n"]
     for period in sorted(agg.keys()):
         row = agg[period]
@@ -188,6 +311,16 @@ def render_report(agg: dict, granularity: str) -> str:
                 lines.append(f"  - {kind:12s} {h:5.1f}h wall / {ah:4.1f}h active{kexcised_str}  "
                              f"({pct:4.1f}%, {stats['count']} tasks{kgap_str}, success: n/a (all unknown))")
         lines.append("")
+
+    # Insights section (pain points + automation candidates).
+    if tasks is not None:
+        insights = generate_insights(tasks, agg)
+        if insights:
+            lines.append("## Insights & pain points")
+            for ins in insights:
+                lines.append(f"  • {ins}")
+            lines.append("")
+
     return "\n".join(lines)
 
 
@@ -208,12 +341,13 @@ def _period_summary(row: dict) -> str:
             f"{row['task_count']} tasks, success: n/a (all unknown)")
 
 
-def render_markdown(agg: dict, granularity: str) -> str:
+def render_markdown(agg: dict, granularity: str, tasks: list[dict] | None = None) -> str:
     """Render an aggregation as a Markdown document.
 
     Mirrors the structure of render_report() but as proper Markdown:
     ``##`` headers for periods, Markdown tables for the per-kind breakdown,
-    and a summary line per period.
+    and a summary line per period. When ``tasks`` is provided, an insights
+    section is appended.
     """
     lines = [f"# Time report (by {granularity})\n"]
     for period in sorted(agg.keys()):
@@ -237,6 +371,15 @@ def render_markdown(agg: dict, granularity: str) -> str:
             sr_str = f"{ksr:.0f}%" if k_known else "n/a"
             lines.append(f"| {kind} | {h:.1f} | {ah:.1f} | {pct:.1f} | {stats['count']} | {sr_str} | {kup:.0f}% |")
         lines.append("")
+
+    if tasks is not None:
+        insights = generate_insights(tasks, agg)
+        if insights:
+            lines.append("## Insights & pain points")
+            for ins in insights:
+                lines.append(f"- {ins}")
+            lines.append("")
+
     return "\n".join(lines)
 
 
@@ -299,19 +442,28 @@ def render_table(agg: dict, granularity: str) -> str:
 
 
 def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) -> str:
-    """Render an aggregation as a self-contained HTML file.
+    """Render an aggregation as a self-contained, readable HTML dashboard.
 
     Single file with inline CSS, no external resources, no JS dependencies.
-    Includes a header, summary table, and a simple bar chart via inline SVG.
+    Layout: header + summary stats, insights callout cards, active-time bar
+    chart, per-period breakdown table with color-coded success, top tasks list,
+    and per-kind subject breakdown so the reader sees WHAT the work was.
     """
     import html as html_mod
+    from datetime import datetime as _dt
 
     periods = sorted(agg.keys())
     total_wall = sum(r["total_seconds"] for r in agg.values()) / 3600
     total_active = sum(r.get("active_seconds", 0.0) for r in agg.values()) / 3600
     total_tasks = sum(r["task_count"] for r in agg.values())
 
-    # Build table rows
+    # --- Palette for kinds (consistent across chart + table) ---
+    all_kinds = sorted({k for r in agg.values() for k in r["by_kind"]})
+    palette = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f",
+               "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]
+    kind_colors = {k: palette[i % len(palette)] for i, k in enumerate(all_kinds)}
+
+    # --- Table rows (per-period × kind breakdown) ---
     table_rows = []
     for period in periods:
         row = agg[period]
@@ -327,30 +479,24 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
             ksr = (ksc / k_known * 100) if k_known else 0
             kup = (kuc / stats["count"] * 100) if stats["count"] else 0
             sr_str = f"{ksr:.0f}%" if k_known else "n/a"
+            sr_class = "sr-good" if k_known and ksr >= 80 else ("sr-bad" if k_known and ksr < 50 else "sr-na")
             period_label = html_mod.escape(period) if j == 0 else ""
+            color = kind_colors.get(kind, "#888")
             table_rows.append(
-                f"      <tr>"
-                f"<td>{period_label}</td>"
-                f"<td>{html_mod.escape(kind)}</td>"
-                f"<td class=\"num\">{h:.1f}</td>"
-                f"<td class=\"num\">{ah:.1f}</td>"
-                f"<td class=\"num\">{pct:.1f}</td>"
-                f"<td class=\"num\">{stats['count']}</td>"
-                f"<td class=\"num\">{sr_str}</td>"
-                f"<td class=\"num\">{kup:.0f}%</td>"
-                f"</tr>"
+                f'      <tr>'
+                f'<td>{period_label}</td>'
+                f'<td><span class="kind-dot" style="background:{color}"></span>{html_mod.escape(kind)}</td>'
+                f'<td class="num">{h:.1f}</td>'
+                f'<td class="num">{ah:.1f}</td>'
+                f'<td class="num">{pct:.1f}</td>'
+                f'<td class="num">{stats["count"]}</td>'
+                f'<td class="num {sr_class}">{sr_str}</td>'
+                f'<td class="num">{kup:.0f}%</td>'
+                f'</tr>'
             )
     table_rows_html = "\n".join(table_rows)
 
-    # SVG bar chart: wall-time per kind per period, grouped by period.
-    # Collect all kinds across all periods for the legend.
-    all_kinds = sorted({k for r in agg.values() for k in r["by_kind"]})
-    # Palette (no external dep, just CSS colors)
-    palette = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f",
-               "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]
-    kind_colors = {k: palette[i % len(palette)] for i, k in enumerate(all_kinds)}
-
-    # Build grouped bar chart
+    # --- Active-time bar chart (active, not wall — wall is misleading) ---
     chart_bars = []
     chart_labels = []
     chart_legend = []
@@ -360,34 +506,31 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
     chart_left_margin = 40
     chart_bottom_margin = 40
     chart_top_margin = 20
-    chart_height = 260  # tall enough for bars + labels + gridline labels
+    chart_height = 260
+    bar_area_h = chart_height - chart_top_margin - chart_bottom_margin
 
-    # Calculate max wall time across all kinds/periods for scaling
     max_h = 0.0
     for period in periods:
         for kind, stats in agg[period]["by_kind"].items():
-            max_h = max(max_h, stats["seconds"] / 3600)
+            max_h = max(max_h, stats.get("active_seconds", 0.0) / 3600)
     if max_h == 0:
-        max_h = 1.0  # avoid div-by-zero
-
-    # Usable bar area height (from top_margin to chart_height - bottom_margin)
-    bar_area_h = chart_height - chart_top_margin - chart_bottom_margin
+        max_h = 1.0
 
     x = chart_left_margin
-    for pi, period in enumerate(periods):
+    for period in periods:
         row = agg[period]
-        kinds_in_period = sorted(row["by_kind"].items(), key=lambda kv: -kv[1]["seconds"])
+        kinds_in_period = sorted(row["by_kind"].items(),
+                                 key=lambda kv: -kv[1].get("active_seconds", 0.0))
         for kind, stats in kinds_in_period:
-            h = stats["seconds"] / 3600
+            h = stats.get("active_seconds", 0.0) / 3600
             bar_h = (h / max_h) * bar_area_h if h > 0 else 0
             y_top = chart_height - chart_bottom_margin - bar_h
             color = kind_colors.get(kind, "#888")
             chart_bars.append(
                 f'    <rect x="{x}" y="{y_top:.1f}" width="{bar_width}" height="{bar_h:.1f}" '
-                f'fill="{color}" rx="2"><title>{html_mod.escape(kind)}: {h:.1f}h</title></rect>'
+                f'fill="{color}" rx="2"><title>{html_mod.escape(kind)}: {h:.1f}h active</title></rect>'
             )
             x += bar_width + bar_gap
-        # Period label below the bar group
         label_x = x - (bar_width + bar_gap) * len(kinds_in_period) / 2 if kinds_in_period else x
         chart_labels.append(
             f'    <text x="{label_x:.0f}" y="{chart_height - chart_bottom_margin + 18}" '
@@ -397,7 +540,6 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
 
     chart_width = max(x + 20, 400)
 
-    # Y-axis gridlines
     gridlines = []
     for frac in (0.25, 0.5, 0.75, 1.0):
         gy = chart_height - chart_bottom_margin - frac * bar_area_h
@@ -409,7 +551,6 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
             f'font-size="9" fill="#999">{gv:.1f}h</text>'
         )
 
-    # Legend
     for kind in all_kinds:
         color = kind_colors[kind]
         chart_legend.append(
@@ -420,6 +561,86 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
     svg_content = "\n".join(gridlines + chart_bars + chart_labels)
     legend_html = "\n".join(chart_legend)
 
+    # --- Insights cards ---
+    insights_html = ""
+    if tasks is not None:
+        insights = generate_insights(tasks, agg)
+        if insights:
+            cards = "\n".join(
+                f'  <div class="insight-card">{html_mod.escape(ins)}</div>'
+                for ins in insights
+            )
+            insights_html = f"""<h2>Insights &amp; pain points</h2>
+<div class="insights-grid">
+{cards}
+</div>"""
+
+    # --- Top tasks list (what the biggest time sinks were) ---
+    top_tasks_html = ""
+    if tasks:
+        ranked = sorted(tasks, key=lambda t: t.get("active_seconds") or 0, reverse=True)
+        top5 = [t for t in ranked[:5] if (t.get("active_seconds") or 0) > 0]
+        if top5:
+            rows = []
+            for i, t in enumerate(top5, 1):
+                act_h = (t.get("active_seconds") or 0) / 3600
+                wall_h = (t.get("wall_clock_seconds") or 0) / 3600
+                kind = html_mod.escape(classify_task(t))
+                subj = html_mod.escape((t.get("subject") or "(no subject)")[:55])
+                start_str = _dt.fromtimestamp(t.get("start") or 0).strftime("%m-%d %H:%M")
+                tid = html_mod.escape(t.get("id", "?"))
+                color = kind_colors.get(classify_task(t), "#888")
+                rows.append(
+                    f'      <tr>'
+                    f'<td class="num">{i}</td>'
+                    f'<td class="num">{act_h:.1f}h</td>'
+                    f'<td class="num">{wall_h:.1f}h</td>'
+                    f'<td><span class="kind-dot" style="background:{color}"></span>{kind}</td>'
+                    f'<td>{start_str}</td>'
+                    f'<td>{subj}</td>'
+                    f'<td class="task-id">{tid}</td>'
+                    f'</tr>'
+                )
+            top_tasks_html = f"""<h2>Top 5 time sinks</h2>
+<p class="hint">Drill into any: <code>python run.py --task &lt;id&gt; --drill</code></p>
+<table class="top-tasks">
+  <thead><tr><th>#</th><th>Active</th><th>Wall</th><th>Kind</th><th>Start</th><th>Subject</th><th>Task ID</th></tr></thead>
+  <tbody>
+{chr(10).join(rows)}
+  </tbody>
+</table>"""
+
+    # --- Per-kind subject breakdown (WHAT was the work, not just hours) ---
+    kind_subjects_html = ""
+    if tasks:
+        from collections import defaultdict
+        by_kind_tasks = defaultdict(list)
+        for t in tasks:
+            by_kind_tasks[classify_task(t)].append(t)
+        kind_sections = []
+        for kind in sorted(by_kind_tasks.keys(),
+                           key=lambda k: -sum(t.get("active_seconds", 0) for t in by_kind_tasks[k])):
+            kind_tasks = sorted(by_kind_tasks[kind],
+                                key=lambda t: t.get("active_seconds") or 0, reverse=True)[:3]
+            kind_active = sum(t.get("active_seconds", 0) for t in by_kind_tasks[kind]) / 3600
+            color = kind_colors.get(kind, "#888")
+            items = []
+            for t in kind_tasks:
+                act_h = (t.get("active_seconds") or 0) / 3600
+                subj = html_mod.escape((t.get("subject") or "(no subject)")[:50])
+                items.append(f"<li><span class='num'>{act_h:.1f}h</span> {subj}</li>")
+            kind_sections.append(
+                f'  <div class="kind-section">'
+                f'<h3><span class="kind-dot" style="background:{color}"></span>'
+                f'{html_mod.escape(kind)} <span class="kind-total">({kind_active:.1f}h, {len(by_kind_tasks[kind])} tasks)</span></h3>'
+                f'<ul>{"".join(items)}</ul>'
+                f'</div>'
+            )
+        if kind_sections:
+            kind_subjects_html = '<h2>What the work was — by kind</h2>\n' + \
+                                 '<div class="kind-grid">\n' + \
+                                 "\n".join(kind_sections) + '\n</div>'
+
     range_str = f"{periods[0]} — {periods[-1]}" if len(periods) > 1 else (periods[0] if periods else "n/a")
 
     html = f"""<!DOCTYPE html>
@@ -429,40 +650,50 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Time report (by {html_mod.escape(granularity)})</title>
 <style>
-  body {{ font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 2em; color: #333; }}
-  h1 {{ font-size: 1.5em; }}
-  h2 {{ font-size: 1.2em; margin-top: 1.5em; }}
-  .summary {{ margin: 1em 0; font-size: 0.95em; color: #555; }}
+  body {{ font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 2em; color: #2c2c2c; max-width: 1200px; }}
+  h1 {{ font-size: 1.6em; border-bottom: 3px solid #4e79a7; padding-bottom: 0.3em; }}
+  h2 {{ font-size: 1.25em; margin-top: 2em; color: #333; }}
+  h3 {{ font-size: 1.05em; margin: 0.5em 0; }}
+  .summary {{ background: #f8f9fa; padding: 1em 1.5em; border-radius: 8px; margin: 1em 0; font-size: 1em; }}
+  .summary strong {{ color: #4e79a7; }}
+  .hint {{ font-size: 0.85em; color: #777; margin: 0.3em 0; }}
+  code {{ background: #eef; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }}
   table {{ border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.9em; }}
-  th, td {{ border: 1px solid #ddd; padding: 6px 10px; text-align: left; }}
+  th, td {{ border: 1px solid #e0e0e0; padding: 7px 10px; text-align: left; }}
   th {{ background: #f5f5f5; font-weight: 600; }}
   td.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
-  tr:nth-child(even) {{ background: #fafafa; }}
+  tr:nth-child(even) {{ background: #fafbfc; }}
+  .kind-dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }}
+  .sr-good {{ color: #2e7d32; font-weight: 600; }}
+  .sr-bad {{ color: #c62828; font-weight: 600; }}
+  .sr-na {{ color: #999; }}
+  .insights-grid {{ display: grid; grid-template-columns: 1fr; gap: 10px; margin: 1em 0; }}
+  .insight-card {{ background: #fff3e0; border-left: 4px solid #f28e2b; padding: 10px 14px; border-radius: 4px; font-size: 0.92em; line-height: 1.5; }}
   .chart-container {{ margin: 1.5em 0; overflow-x: auto; }}
   .legend {{ margin-top: 0.5em; display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.85em; }}
   .legend-item {{ display: inline-flex; align-items: center; gap: 4px; }}
   .legend-swatch {{ display: inline-block; width: 12px; height: 12px; border-radius: 2px; }}
+  .top-tasks .task-id {{ font-family: monospace; font-size: 0.8em; color: #667; }}
+  .kind-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin: 1em 0; }}
+  .kind-section {{ background: #fafbfc; border: 1px solid #e8e8e8; border-radius: 6px; padding: 12px 16px; }}
+  .kind-section ul {{ list-style: none; padding-left: 0; margin: 0.3em 0; }}
+  .kind-section li {{ padding: 3px 0; font-size: 0.88em; }}
+  .kind-section .num {{ font-weight: 600; color: #4e79a7; display: inline-block; width: 50px; }}
+  .kind-total {{ font-size: 0.85em; color: #888; font-weight: normal; }}
 </style>
 </head>
 <body>
 <h1>Time report (by {html_mod.escape(granularity)})</h1>
-<p class="summary">
+<div class="summary">
   <strong>Range:</strong> {html_mod.escape(range_str)} &nbsp;|&nbsp;
-  <strong>Total:</strong> {total_wall:.1f}h wall / {total_active:.1f}h active &nbsp;|&nbsp;
+  <strong>Active:</strong> {total_active:.1f}h &nbsp;|&nbsp;
+  <strong>Wall:</strong> {total_wall:.1f}h &nbsp;|&nbsp;
   <strong>Tasks:</strong> {total_tasks}
-</p>
+</div>
 
-<h2>Summary table</h2>
-<table>
-  <thead>
-    <tr><th>Period</th><th>Kind</th><th>Wall(h)</th><th>Active(h)</th><th>%</th><th>Tasks</th><th>Success%</th><th>Unknown%</th></tr>
-  </thead>
-  <tbody>
-{table_rows_html}
-  </tbody>
-</table>
+{insights_html}
 
-<h2>Wall-time by kind</h2>
+<h2>Active time by kind</h2>
 <div class="chart-container">
 <svg width="{chart_width:.0f}" height="{chart_height}" xmlns="http://www.w3.org/2000/svg">
 {svg_content}
@@ -471,6 +702,20 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
 {legend_html}
 </div>
 </div>
+
+<h2>Breakdown by period</h2>
+<table>
+  <thead>
+    <tr><th>Period</th><th>Kind</th><th>Wall(h)</th><th>Active(h)</th><th>%</th><th>Tasks</th><th>Success</th><th>Unknown%</th></tr>
+  </thead>
+  <tbody>
+{table_rows_html}
+  </tbody>
+</table>
+
+{top_tasks_html}
+
+{kind_subjects_html}
 
 </body>
 </html>"""
