@@ -14,11 +14,13 @@ The repo holds three kinds of agent-usable artifacts:
 - **OpenCLI plugins** under `opencli-plugins/` — OpenCLI-coupled adapters that
   turn a website into a deterministic `opencli <site> <command>` call. Portable
   as a *command* (any agent with Bash + `opencli` installed), not as pure code.
-- **MCP tools** under `mcp-tools/` — remote MCP servers packaged to work out of
-  the box for any agent. Each ships a ready-to-load config per harness (Claude
-  Code `.mcp.json` / opencode `--mcp-config`) **and** a pure-stdlib Python
-  wrapper that runs anywhere with Bash + Python 3 — no MCP support required, no
-  install step, no bundled credentials.
+- **MCP tools** under `mcp-tools/` — MCP servers packaged to work for any
+  agent. Each ships a ready-to-load config per harness (Claude Code
+  `.mcp.json` / opencode `--mcp-config`) **and** a pure-stdlib Python wrapper
+  that runs anywhere with Bash + Python 3 — no MCP support required. **Remote**
+  tools (e.g. `w3-search`) are fully install-free; **local** tools (e.g.
+  `codehub`, launched via `uvx`) require `uv`/`uvx` + a user credential on the
+  host — see each tool's README.
 
 Three external skill collections are mirrored as git submodules —
 `skills/anthropic-skills/` (Anthropic's official skills),
@@ -89,21 +91,29 @@ the source of truth; regenerate with `./scripts/generate-catalog.sh`.
 
 ## MCP tools
 
-Remote MCP servers under `mcp-tools/`, packaged to work **out of the box for
-any agent** — no install step, no bundled credentials. Unlike skills (docs)
-and OpenCLI plugins (CLI commands), an MCP tool is a *server connection* made
-self-contained two ways:
+MCP servers under `mcp-tools/`, packaged to work **for any agent**. Unlike
+skills (docs) and OpenCLI plugins (CLI commands), an MCP tool is a *server
+connection* made self-contained two ways:
 
 - **Ready-to-load config** per harness — Claude Code (`claude-code.mcp.json`)
   and opencode/ngAgent/cac (`opencode.mcp.json`). Load it and the MCP tool is
   available; no editing of global config.
-- **A pure-stdlib wrapper script** (`<name>.py`, urllib + json only) that
-  speaks the MCP protocol itself. Any agent with Bash + Python 3 can call it
-  directly — **no MCP support required at all**.
+- **A pure-stdlib wrapper script** (`<name>.py`, stdlib only) that speaks the
+  MCP protocol itself (Streamable HTTP for remote, stdio JSON-RPC for local).
+  Any agent with Bash + Python 3 can call it directly — **no MCP support
+  required at all**.
+
+Two transport types: **remote** tools (`w3-search`) are install-free — pure
+stdlib hitting an intranet URL, no credentials. **Local** tools (`codehub`)
+launch a `uvx`-fetched server process and need `uv`/`uvx` + a `PRIVATE_TOKEN`;
+they are harness-agnostic but not install-free (stated up front in each
+README).
 
 ```bash
 # No-MCP fallback — any agent with Bash + Python 3:
-python3 mcp-tools/w3-search/w3_search.py "盘古平台" --size 5
+python3 mcp-tools/w3-search/w3_search.py "盘古平台" --size 5      # remote, install-free
+export PRIVATE_TOKEN=<token>
+python3 mcp-tools/codehub/codehub.py list-merge-requests --project-id 12345 --state all  # local
 ```
 
 See [`mcp-tools/README.md`](./mcp-tools/README.md) for the full layout and
