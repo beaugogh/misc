@@ -1,0 +1,20 @@
+# huawei-retro-scope dependencies
+#
+# Core (no external deps required): the MVP pipeline runs on Python stdlib only.
+# These optional packages enable the advanced features (Phase 4+):
+
+# Phase 4: advanced segmentation + cross-source identity
+ruptures>=1.1          # PELT change-point detection for task boundary detection
+scikit-learn>=1.0      # GMM inter-arrival threshold + PPMI clustering
+python-igraph>=1.0     # Leiden community detection for cross-source entity resolution
+
+# Phase 5: OCEL 2.0 storage
+# NOTE: pm4py is AGPL v3 — commercial use requires open-sourcing your application.
+# If that's a concern, the JSONL task log (Phase 2) serves as the interim storage.
+pm4py>=2.7             # OCEL 2.0 object-centric event log storage
+
+# Phase 7: auto-categorization
+wittgenstein>=0.3      # RIPPER rule induction for interpretable classification
+
+# Phase 6: provenance tracking (optional)
+prov>=2.0              # W3C PROV-O provenance graphs for task I/O attribution
