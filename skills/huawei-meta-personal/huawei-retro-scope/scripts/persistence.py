@@ -1,14 +1,15 @@
 """Task-log persistence + incremental/watermark (Phase 2).
 
-Stores reconstructed tasks in a flat JSONL log (data/tasks.jsonl) — a deliberately
+Stores reconstructed tasks in a flat JSONL log (output/tasks.jsonl) — a deliberately
 simple intermediate that's easy to migrate to OCEL 2.0 later (Phase 5). Append-only
 across runs with dedup by task id.
 
-The watermark (data/last_run.txt) holds the last-analysis timestamp, enabling two-axis
+The watermark (output/last_run.txt) holds the last-analysis timestamp, enabling two-axis
 incremental collection: new sessions/files + new messages in old sessions. Adapters that
 support `collect_since(watermark)` use it; others fall back to full collect.
 
-`data/` is gitignored — a personal time log is sensitive performance data.
+`output/` is gitignored via the skill's local .gitignore — a personal time log is
+sensitive performance data and must never be committed to the shared repo.
 """
 
 from __future__ import annotations
@@ -17,13 +18,13 @@ import os
 import json
 import time
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
-TASKS_LOG = os.path.join(DATA_DIR, "tasks.jsonl")
-WATERMARK_FILE = os.path.join(DATA_DIR, "last_run.txt")
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output")
+TASKS_LOG = os.path.join(OUTPUT_DIR, "tasks.jsonl")
+WATERMARK_FILE = os.path.join(OUTPUT_DIR, "last_run.txt")
 
 
 def ensure_data_dir():
-    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
 def read_watermark() -> float | None:

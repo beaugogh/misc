@@ -12,6 +12,7 @@ Usage:
     python run.py --granularity week --output report.html   # format inferred from .html
     python run.py --sources          # list detected + skipped sources
     python run.py --check            # verify environment + adapters, no analysis
+    python run.py --top 10           # biggest time sinks by active time (prints task IDs for --drill)
     python run.py --task <id> --drill  # root-cause drill-down on one task (Phase 10.2)
 
 Flags:
@@ -27,6 +28,7 @@ Flags:
     --eval                                run segmentation evaluation against the labeled benchmark (Phase 9.8)
     --task <id>                           show full detail for a single task
     --drill                               with --task: stage-by-stage root-cause analysis (Phase 10.2)
+    --top N                               list the top N tasks by active time (prints task IDs for --drill)
 """
 
 from __future__ import annotations
@@ -36,6 +38,18 @@ import os
 import json
 import argparse
 from datetime import datetime, timezone
+
+# Windows console defaults to the system codepage (e.g. cp936/GBK on Chinese
+# Windows), which cannot encode the em-dashes, arrows, and CJK characters that
+# appear in reports and drill-down output — causing UnicodeEncodeError on print.
+# Reconfigure stdout/stderr to UTF-8 so the skill just works on Windows without
+# requiring PYTHONUTF8=1. errors="replace" is a last-resort safety net so a
+# stray character never crashes the run.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass  # stream doesn't support reconfigure (e.g. redirected/closed) — leave as-is
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -198,6 +212,39 @@ def _render_drill_down(result: dict, task: dict) -> str:
     return "\n".join(lines)
 
 
+def _render_top_tasks(tasks: list[dict], n: int) -> str:
+    """Render a ranked list of the top-N tasks by active time.
+
+    This is the bridge between the aggregation layer (which kinds consumed the
+    most time?) and the drill-down layer (what went wrong inside one task?).
+    Each row gives the task ID so the user can immediately run
+    ``--task <id> --drill`` on anything that looks like a time sink.
+    """
+    from datetime import datetime as _dt
+    ranked = sorted(tasks, key=lambda t: t.get("active_seconds") or 0, reverse=True)[:n]
+    total_active = sum(t.get("active_seconds") or 0 for t in tasks) / 3600
+
+    lines = [f"# Top {len(ranked)} tasks by active time"]
+    lines.append(f"(of {len(tasks)} tasks, {total_active:.1f}h active total)")
+    lines.append("")
+    lines.append(f"{'#':>3}  {'Active':>7}  {'Wall':>7}  {'Kind':<11} {'Start':<12} "
+                 f"{'Success':<11} {'Subject'}")
+    lines.append("-" * 100)
+    for i, t in enumerate(ranked, 1):
+        act = (t.get("active_seconds") or 0) / 3600
+        wall = (t.get("wall_clock_seconds") or 0) / 3600
+        kind = (t.get("source_kind") or "?")[:11]
+        start_str = _dt.fromtimestamp(t.get("start") or 0).strftime("%m-%d %H:%M")
+        succ = (t.get("success") or "?")[:11]
+        subj = (t.get("subject") or (t.get("text") or "")[:50] or "(no subject)")[:48]
+        lines.append(f"{i:>3}  {act:>6.1f}h  {wall:>6.1f}h  {kind:<11} {start_str:<12} "
+                     f"{succ:<11} {subj}")
+        lines.append(f"       id: {t.get('id', '?')}")
+    lines.append("")
+    lines.append("Drill into any task:  python run.py --task <id> --drill")
+    return "\n".join(lines)
+
+
 def main():
     ap = argparse.ArgumentParser(
         prog="run.py",
@@ -219,10 +266,13 @@ def main():
     ap.add_argument("--rebuild", action="store_true",
                     help="ignore watermark, do full reparse (overrides incremental)")
     ap.add_argument("--persist", action="store_true",
-                    help="save reconstructed tasks to data/tasks.jsonl (merged with prior)")
+                    help="save reconstructed tasks to output/tasks.jsonl (merged with prior)")
     ap.add_argument("--task", help="show full detail for a single task by id (e.g. explicit-<session_id>-<timestamp>)")
     ap.add_argument("--drill", action="store_true",
                     help="with --task: stage-by-stage root-cause analysis (Phase 10.2)")
+    ap.add_argument("--top", type=int, metavar="N", default=None,
+                    help="list the top N tasks by active time (with task IDs, so you can "
+                         "--task <id> --drill into any of them). Use with --since/--until to scope.")
     ap.add_argument("--eval", action="store_true",
                     help="run segmentation evaluation against the labeled benchmark (Phase 9.8)")
     args = ap.parse_args()
@@ -368,6 +418,16 @@ def main():
     if args.until:
         until_ts = _parse_date(args.until) + 86400  # end of day
         tasks = [t for t in tasks if (t.get("start") or 0) <= until_ts]
+
+    # --top: list the biggest time sinks by active time, then exit.
+    # Bridges aggregation -> drill-down: shows task IDs so the user can
+    # immediately --task <id> --drill into any sink that stands out.
+    if args.top is not None:
+        if args.top < 1:
+            print("--top requires N >= 1", file=sys.stderr)
+            sys.exit(2)
+        print(_render_top_tasks(tasks, args.top))
+        sys.exit(0)
 
     # --task: show single task detail, then exit.
     if args.task:

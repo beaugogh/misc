@@ -575,5 +575,85 @@ class TestC6ZeroLengthTaskEvents(unittest.TestCase):
         self.assertNotIn("WARNING", output)
 
 
+class TestTopTasks(unittest.TestCase):
+    """--top N: the bridge from aggregation to drill-down.
+
+    Lists the biggest time sinks by active time and prints each task's ID so the
+    user can immediately ``--task <id> --drill`` into any of them.
+    """
+
+    @staticmethod
+    def _task(tid, active_h, wall_h=None, kind="ai_session", subject="t",
+              success="unknown", start=1000.0):
+        return {
+            "id": tid,
+            "active_seconds": active_h * 3600,
+            "wall_clock_seconds": (wall_h if wall_h is not None else active_h) * 3600,
+            "source_kind": kind,
+            "subject": subject,
+            "success": success,
+            "start": start,
+        }
+
+    def test_ranks_by_active_time_descending(self):
+        """Tasks must be sorted by active time, highest first."""
+        import run as run_module
+        tasks = [
+            self._task("a", 1.0, subject="small"),
+            self._task("b", 5.0, subject="biggest"),
+            self._task("c", 3.0, subject="medium"),
+        ]
+        out = run_module._render_top_tasks(tasks, 3)
+        # biggest must appear before medium before small
+        idx_big = out.index("biggest")
+        idx_med = out.index("medium")
+        idx_small = out.index("small")
+        self.assertLess(idx_big, idx_med)
+        self.assertLess(idx_med, idx_small)
+
+    def test_limits_to_n(self):
+        """--top N must only show N tasks even if more exist."""
+        import run as run_module
+        tasks = [self._task(f"t{i}", float(i)) for i in range(10)]
+        out = run_module._render_top_tasks(tasks, 3)
+        # Count id: lines — there should be exactly 3.
+        id_lines = [ln for ln in out.splitlines() if ln.strip().startswith("id:")]
+        self.assertEqual(len(id_lines), 3)
+
+    def test_includes_task_ids_for_drill_down(self):
+        """Every row must show the task id so --task <id> --drill works."""
+        import run as run_module
+        tasks = [self._task("explicit-sess1-1000", 2.0, subject="sync repo"),
+                 self._task("implicit-sess2-2000", 1.0, subject="research")]
+        out = run_module._render_top_tasks(tasks, 5)
+        self.assertIn("explicit-sess1-1000", out)
+        self.assertIn("implicit-sess2-2000", out)
+        self.assertIn("--task <id> --drill", out)
+
+    def test_shows_total_active_and_task_count(self):
+        """The header reports the total active hours and task count for context."""
+        import run as run_module
+        tasks = [self._task("a", 2.0), self._task("b", 3.0)]
+        out = run_module._render_top_tasks(tasks, 5)
+        self.assertIn("5.0h active total", out)
+        self.assertIn("of 2 tasks", out)
+
+    def test_n_larger_than_task_count_is_safe(self):
+        """--top 50 with only 3 tasks must not crash — show all 3."""
+        import run as run_module
+        tasks = [self._task("a", 1.0), self._task("b", 2.0), self._task("c", 3.0)]
+        out = run_module._render_top_tasks(tasks, 50)
+        id_lines = [ln for ln in out.splitlines() if ln.strip().startswith("id:")]
+        self.assertEqual(len(id_lines), 3)
+
+    def test_zero_active_time_task_included(self):
+        """A task with 0 active time (single event, honest gap) is still listable."""
+        import run as run_module
+        tasks = [self._task("a", 0.0, subject="unpaired event"),
+                 self._task("b", 2.0, subject="real work")]
+        out = run_module._render_top_tasks(tasks, 5)
+        self.assertIn("unpaired event", out)
+
+
 if __name__ == "__main__":
     unittest.main()

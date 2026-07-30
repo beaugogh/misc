@@ -25,6 +25,11 @@ python run.py --task explicit-1
 # Stage-by-stage drill-down with root-cause markers + narrative:
 python run.py --task explicit-1 --drill
 
+# Find your biggest time sinks (bridges aggregation -> drill-down):
+python run.py --top 10 --since 2026-07-01 --until 2026-07-31
+# then drill into any of them:
+python run.py --task <id-from-above> --drill
+
 # Output formats: text (default), table, markdown, html, json:
 python run.py --granularity week --format markdown
 python run.py --granularity week --format html --output report.html
@@ -32,7 +37,7 @@ python run.py --granularity week --format html --output report.html
 # Evaluate segmentation quality against labeled benchmark:
 python run.py --eval
 
-# Persist tasks to data/tasks.jsonl + write watermark for incremental next run:
+# Persist tasks to output/tasks.jsonl + write watermark for incremental next run:
 python run.py --granularity week --persist
 
 # Force full reparse (ignore watermark):

@@ -55,9 +55,9 @@ phases unblock or inform later ones. Items within a phase are roughly independen
 
 ## Phase 2 — Output persistence + incremental/watermark  [no new deps] ✅ DONE
 
-- [x] **2.1 Task-log persistence.** `persistence.py`: `data/tasks.jsonl` (append-only,
-      merge by task id). `data/` gitignored.
-- [x] **2.2 Watermark file.** `data/last_run.txt` (epoch seconds). Two-axis incremental:
+- [x] **2.1 Task-log persistence.** `persistence.py`: `output/tasks.jsonl` (append-only,
+      merge by task id). `output/` gitignored.
+- [x] **2.2 Watermark file.** `output/last_run.txt` (epoch seconds). Two-axis incremental:
       new sessions + new messages in old sessions.
 - [x] **2.3 Incremental adapter contract.** `collect_since(watermark)` on `SourceAdapter`;
       JSONL adapters scan per-file; git adapter uses `--since`.
@@ -113,7 +113,7 @@ phases unblock or inform later ones. Items within a phase are roughly independen
 - [x] **5.1 OCEL 2.0 schema mapping.** Object types: task, file, commit, session. Event
       types: task_started, task_ended, file_edited, committed. E2O relations mapped.
 - [x] **5.2 Migrate to OCEL SQLite via `pm4py`.** `ocel_store.py`: `build_ocel()` builds
-      an OCEL from tasks; `save_ocel_sqlite()` writes to `data/ocel.sqlite`. JSONL log
+      an OCEL from tasks; `save_ocel_sqlite()` writes to `output/ocel.sqlite`. JSONL log
       kept as fallback.
 - [x] **5.3 Relational queries.** `relational_query_files_multi_task()`: "files touched by
       >1 task" — returns 134 files (top: `wushan_assistant_brainstorm` at 41 tasks). This
@@ -139,7 +139,7 @@ remains available if that's a concern.
 - [x] **6.4 VSCode Local History adapter.** `more_adapters.py`: parses `entries.json` per-
       file edit versions with millis timestamps.
 - [x] **6.5 iCalendar (.ics) adapter.** `more_adapters.py`: stdlib VEVENT parser (no dep).
-      Detects `.ics` in `data/`, `~/Calendar/`, `~/Documents/`. Needs the user to export
+      Detects `.ics` in `output/`, `~/Calendar/`, `~/Documents/`. Needs the user to export
       their calendar. → enhanced in Phase 9.2 (auto-discovery + WeLink/Outlook export help).
 - [x] **6.6 WeLink Meeting recordings.** `more_adapters.py`: walks `D:\MeetingRecordings`,
       emits meeting_recording events with file mtime. (`.lnk` parsing uses mtime fallback;
@@ -336,7 +336,7 @@ Phase 10 was built via 3 parallel sub-agents in 1 wave + main-agent integration.
 ## Cross-cutting: decisions resolved by doing the work
 
 - **Storage shape** → ✅ resolved: OCEL 2.0 (Phase 5) for relational; JSONL interim (Phase 2) kept as fallback.
-- **Incremental/watermark** → ✅ resolved (Phase 2): `data/last_run.txt`, two-axis incremental.
+- **Incremental/watermark** → ✅ resolved (Phase 2): `output/last_run.txt`, two-axis incremental.
 - **Output/report format** → ✅ resolved (Phase 9.7): stdout text, JSON, Markdown, table, HTML.
 - **MVP scope** → ✅ done (Phases 0a–0b + built spine).
 - **Implicit-task boundary heuristics** → ✅ resolved (Phase 4): PELT + GMM replace naive rules.

@@ -408,17 +408,17 @@ class TestMergePersistence(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="retro_test_")
-        # Patch the DATA_DIR so tasks.jsonl goes to our temp dir.
+        # Patch the OUTPUT_DIR so tasks.jsonl goes to our temp dir.
         self._orig_data_dir = None
         import persistence
-        self._orig_data_dir = persistence.DATA_DIR
-        persistence.DATA_DIR = self.tmpdir
+        self._orig_data_dir = persistence.OUTPUT_DIR
+        persistence.OUTPUT_DIR = self.tmpdir
         persistence.TASKS_LOG = os.path.join(self.tmpdir, "tasks.jsonl")
         persistence.WATERMARK_FILE = os.path.join(self.tmpdir, "last_run.txt")
 
     def tearDown(self):
         import persistence
-        persistence.DATA_DIR = self._orig_data_dir
+        persistence.OUTPUT_DIR = self._orig_data_dir
         persistence.TASKS_LOG = os.path.join(self._orig_data_dir, "tasks.jsonl")
         persistence.WATERMARK_FILE = os.path.join(self._orig_data_dir, "last_run.txt")
         shutil.rmtree(self.tmpdir, ignore_errors=True)
@@ -537,16 +537,16 @@ class TestIncrementalIntegration(unittest.TestCase):
         self.projects_dir = os.path.join(self.tmpdir, "projects")
         os.makedirs(self.projects_dir)
 
-        # Patch persistence DATA_DIR.
+        # Patch persistence OUTPUT_DIR.
         import persistence
-        self._orig_data_dir = persistence.DATA_DIR
-        persistence.DATA_DIR = self.tmpdir
+        self._orig_data_dir = persistence.OUTPUT_DIR
+        persistence.OUTPUT_DIR = self.tmpdir
         persistence.TASKS_LOG = os.path.join(self.tmpdir, "tasks.jsonl")
         persistence.WATERMARK_FILE = os.path.join(self.tmpdir, "last_run.txt")
 
     def tearDown(self):
         import persistence
-        persistence.DATA_DIR = self._orig_data_dir
+        persistence.OUTPUT_DIR = self._orig_data_dir
         persistence.TASKS_LOG = os.path.join(self._orig_data_dir, "tasks.jsonl")
         persistence.WATERMARK_FILE = os.path.join(self._orig_data_dir, "last_run.txt")
         shutil.rmtree(self.tmpdir, ignore_errors=True)
@@ -648,7 +648,7 @@ class TestLegacyCodeagentCollectSince(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="retro_test_")
         import persistence
-        self._orig_data_dir = persistence.DATA_DIR
+        self._orig_data_dir = persistence.OUTPUT_DIR
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)

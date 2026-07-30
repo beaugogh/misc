@@ -35,8 +35,8 @@ from datetime import datetime, timezone
 
 log = logging.getLogger(__name__)
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
-OCEL_DB_PATH = os.path.join(DATA_DIR, "ocel.sqlite")
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output")
+OCEL_DB_PATH = os.path.join(OUTPUT_DIR, "ocel.sqlite")
 
 
 def _ts_to_iso(ts: float) -> str:

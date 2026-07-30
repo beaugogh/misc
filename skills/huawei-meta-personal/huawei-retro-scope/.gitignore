@@ -1,0 +1,8 @@
+# Personal time-log output — sensitive, must never be committed.
+# The skill reconstructs a person's task/time history from their activity
+# traces; each colleague's output/ is their own, not for the shared repo.
+output/
+
+# Python bytecode caches
+__pycache__/
+*.py[cod]

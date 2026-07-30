@@ -95,7 +95,7 @@ class ICalendarAdapter:
 
     The user exports their Outlook/WeLink calendar to .ics (open format, sidesteps
     OST parsing and Graph API). This adapter parses VEVENT entries for meeting
-    start/end/summary. Looks for .ics files in data/, ~/Calendar/, ~/Documents/,
+    start/end/summary. Looks for .ics files in output/, ~/Calendar/, ~/Documents/,
     ~/Downloads/, and any path in env var RETRO_SCOPE_ICS_PATHS (os.pathsep-separated).
 
     Supports minimal RRULE expansion (FREQ=DAILY/WEEKLY) and TZID timezone
@@ -109,16 +109,16 @@ class ICalendarAdapter:
     _DEFAULT_LOOKBACK_DAYS = 365
 
     def __init__(self, ics_paths: list[str] | None = None):
-        # Default: look for .ics files in the skill's data dir and common dirs
+        # Default: look for .ics files in the skill's output dir and common dirs
         self._ics_paths = ics_paths
 
     def _find_ics_files(self) -> list[str]:
         if self._ics_paths is not None:
             return [p for p in self._ics_paths if os.path.isfile(p)]
         paths = []
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output")
         bases = [
-            data_dir,
+            output_dir,
             os.path.expanduser("~/Calendar"),
             os.path.expanduser("~/Documents"),
             os.path.expanduser("~/Downloads"),
