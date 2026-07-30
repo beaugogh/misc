@@ -1,0 +1,40 @@
+{
+  "skill_name": "clouddevops-wiki",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我把这个文档发布到 CloudDevOps Wiki 上：https://clouddevops.huawei.com/domains/34152/wiki/3/WIKI2026060200471 ，文档内容我已经写好了，在当前目录的 design.md 里，里面有几个 Mermaid 流程图",
+      "expected_output": "Agent should: 1) Parse the URL to extract wiki_sn=WIKI2026060200471, 2) Get auth token (via built-in W3 login or --auth), 3) Run wiki_api.py publish with --mermaid upload (default), 4) Report success with uploaded image URLs",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 2,
+      "prompt": "我想看看 https://clouddevops.huawei.com/domains/34152/wiki/3/WIKI2026060200471 这个wiki文档里写了什么，帮我读一下内容",
+      "expected_output": "Agent should: 1) Parse the URL to extract wiki_sn=WIKI2026060200471, 2) Get auth token, 3) Run wiki_api.py get --sn WIKI2026060200471 --format text, 4) Present the document content to the user",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 3,
+      "prompt": "我需要写一个方案设计文档，里面要有时序图和ER图，然后发布到 CloudDevOps 的 WIKI2026060200471 这个文档上",
+      "expected_output": "Agent should: 1) Create a Markdown file with Mermaid sequenceDiagram and erDiagram, 2) Get auth token, 3) Run wiki_api.py publish --sn WIKI2026060200471 with the markdown file, 4) Use --mermaid upload mode (default for publish)",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 4,
+      "prompt": "帮我把 design.md 的内容发布到 https://clouddevops.huawei.com/domains/34152/wiki/3/WIKI2026060200471 的第三章 方案设计",
+      "expected_output": "Agent should: 1) Parse URL to extract wiki_sn, 2) Get auth token, 3) Run wiki_api.py publish --sn WIKIxxx --input design.md --section '3 方案设计', 4) This updates only the matching paragraph, preserving all other paragraphs unchanged",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 5,
+      "prompt": "帮我看看这个wiki文档有哪些章节：https://clouddevops.huawei.com/domains/34152/wiki/3/WIKI2026060200471",
+      "expected_output": "Agent should: 1) Parse URL to extract wiki_sn, 2) Get auth token, 3) Run wiki_api.py structure --sn WIKIxxx (no --domain-id needed), 4) Present the clean section listing to the user",
+      "files": [],
+      "assertions": []
+    }
+  ]
+}

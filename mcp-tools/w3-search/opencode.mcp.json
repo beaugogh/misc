@@ -1,0 +1,14 @@
+{
+  "mcp": {
+    "w3_search_tool": {
+      "type": "remote",
+      "enabled": true,
+      "url": "http://remote-mcp.rnd.huawei.com/remote-mcp/mcp/w3_search_tool",
+      "timeout": 8000,
+      "headers": {
+        "User-Agent": "OpenCode-MCP-Client/1.0",
+        "Accept": "application/json"
+      }
+    }
+  }
+}
