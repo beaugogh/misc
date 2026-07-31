@@ -1,5 +1,5 @@
 {
-  "name": "codehub",
+  "name": "huawei-codehub",
   "version": "0.2.0",
   "description": "Interact with Huawei CodeHub (codehub-y.huawei.com / codehub-g.huawei.com) Git repositories via the local `Codehub-Mcp-Server` MCP server. Exposes project lookup, merge-request lifecycle (list/detail/changes/reviews/create/merge), issues (list/detail/discussions/create/update), and repo file reading. Unlike remote MCP tools in this repo, this is a LOCAL stdio server launched via `uvx`, so it requires `uv`/`uvx` installed, intranet artifactory reachability (first run fetches the Python tarball), and a CodeHub PRIVATE_TOKEN. Usable by any MCP-capable agent (load the bundled config) or any agent with Bash + Python 3 (run the bundled wrapper script).",
   "transport": "local",

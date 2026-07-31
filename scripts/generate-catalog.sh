@@ -412,7 +412,7 @@ No install. Two ways (see the tool's `README.md` for details):
 
 ```bash
 # Any agent with Bash + Python 3 (no MCP support needed):
-python3 mcp-tools/<tool>/<wrapper>.py "<query>"           # e.g. python3 mcp-tools/w3-search/w3_search.py "盘古"
+python3 mcp-tools/<tool>/<wrapper>.py "<query>"           # e.g. python3 mcp-tools/huawei-w3-search/w3_search.py "盘古"
 
 # MCP-capable agent — load the bundled config:
 #   Claude Code:   cp mcp-tools/<tool>/claude-code.mcp.json .mcp.json

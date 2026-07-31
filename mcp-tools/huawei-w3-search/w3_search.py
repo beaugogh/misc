@@ -109,7 +109,7 @@ def _initialize() -> str:
         "params": {
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "w3_search.py", "version": "1.0"},
+            "clientInfo": {"name": "huawei-w3-search.py", "version": "1.0"},
         },
     })
     if "error" in resp:

@@ -82,7 +82,7 @@ UVX_ARGS = json.loads(os.environ.get("CODEHUB_UVX_ARGS", "null")) or DEFAULT_UVX
 TIMEOUT = 120
 
 PROTOCOL_VERSION = "2025-03-26"
-CLIENT_INFO = {"name": "codehub.py", "version": "1.0"}
+CLIENT_INFO = {"name": "huawei-codehub.py", "version": "1.0"}
 
 
 class CodeHubError(RuntimeError):

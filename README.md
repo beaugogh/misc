@@ -18,8 +18,8 @@ The repo holds three kinds of agent-usable artifacts:
   agent. Each ships a ready-to-load config per harness (Claude Code
   `.mcp.json` / opencode `--mcp-config`) **and** a pure-stdlib Python wrapper
   that runs anywhere with Bash + Python 3 — no MCP support required. **Remote**
-  tools (e.g. `w3-search`) are fully install-free; **local** tools (e.g.
-  `codehub`, launched via `uvx`) require `uv`/`uvx` + a user credential on the
+  tools (e.g. `huawei-w3-search`) are fully install-free; **local** tools (e.g.
+  `huawei-codehub`, launched via `uvx`) require `uv`/`uvx` + a user credential on the
   host — see each tool's README.
 
 Three external skill collections are mirrored as git submodules —
@@ -103,17 +103,17 @@ connection* made self-contained two ways:
   Any agent with Bash + Python 3 can call it directly — **no MCP support
   required at all**.
 
-Two transport types: **remote** tools (`w3-search`) are install-free — pure
-stdlib hitting an intranet URL, no credentials. **Local** tools (`codehub`)
+Two transport types: **remote** tools (`huawei-w3-search`) are install-free — pure
+stdlib hitting an intranet URL, no credentials. **Local** tools (`huawei-codehub`)
 launch a `uvx`-fetched server process and need `uv`/`uvx` + a `PRIVATE_TOKEN`;
 they are harness-agnostic but not install-free (stated up front in each
 README).
 
 ```bash
 # No-MCP fallback — any agent with Bash + Python 3:
-python3 mcp-tools/w3-search/w3_search.py "盘古平台" --size 5      # remote, install-free
+python3 mcp-tools/huawei-w3-search/w3_search.py "盘古平台" --size 5      # remote, install-free
 export PRIVATE_TOKEN=<token>
-python3 mcp-tools/codehub/codehub.py list-merge-requests --project-id 12345 --state all  # local
+python3 mcp-tools/huawei-codehub/codehub.py list-merge-requests --project-id 12345 --state all  # local
 ```
 
 See [`mcp-tools/README.md`](./mcp-tools/README.md) for the full layout and

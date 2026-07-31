@@ -1,5 +1,5 @@
 {
-  "name": "clouddevops",
+  "name": "huawei-clouddevops",
   "version": "0.1.0",
   "description": "Interact with the full Huawei CloudDevOps (云捷) platform via the remote `clouddevops-mcpserver` MCP server (tool.clouddevops.huawei.com). 65 tools spanning issues/bugs (full lifecycle), requirements (RR/FE), workitems (Feature/Story), vulnerabilities, Wiki docs, design articles, labels, COE, and release plans. Requires X-AUTH-TOKEN for all tool calls. Remote HTTP endpoint — install-free (pure-stdlib wrapper), but not credential-free. Usable by any MCP-capable agent (load the bundled config) or any agent with Bash + Python 3 (run the bundled wrapper script).",
   "transport": "remote",

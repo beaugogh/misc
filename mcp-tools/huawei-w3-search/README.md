@@ -1,4 +1,4 @@
-# w3-search
+# huawei-w3-search
 
 Search Huawei's W3/3MS intranet (`w3.huawei.com`, `3ms.huawei.com` documents)
 via the remote **`w3_search_tool`** MCP server. Returns documents — title,
@@ -67,8 +67,8 @@ Output fields per result: `title`, `source` (e.g. `hw3ms_doclib`, `w3_doc_w3`),
 ### A. Any agent with Bash + Python 3 (no MCP needed)
 
 ```bash
-python3 mcp-tools/w3-search/w3_search.py "高博 b00563677"
-python3 mcp-tools/w3-search/w3_search.py "盘古平台" --page 2 --size 5 --json
+python3 mcp-tools/huawei-w3-search/w3_search.py "高博 b00563677"
+python3 mcp-tools/huawei-w3-search/w3_search.py "盘古平台" --page 2 --size 5 --json
 ```
 
 Prints human-readable results by default; `--json` emits the raw server JSON.
@@ -81,7 +81,7 @@ auto-discovered, or pass it explicitly:
 
 ```bash
 # Auto-discovered: place at project root as .mcp.json
-cp mcp-tools/w3-search/claude-code.mcp.json .mcp.json
+cp mcp-tools/huawei-w3-search/claude-code.mcp.json .mcp.json
 # Ensure NO_PROXY is set in the shell that launches Claude Code, then:
 claude
 ```
@@ -93,7 +93,7 @@ claude
 Load the bundled opencode config explicitly (no global edit):
 
 ```bash
-NO_PROXY=remote-mcp.rnd.huawei.com codeagent --mcp-config mcp-tools/w3-search/opencode.mcp.json
+NO_PROXY=remote-mcp.rnd.huawei.com codeagent --mcp-config mcp-tools/huawei-w3-search/opencode.mcp.json
 # or strict (only this server): --strict-mcp-config
 ```
 
@@ -113,7 +113,7 @@ object from `opencode.mcp.json` into `~/.config/opencode/opencode.json`.
 ## Verification
 
 ```bash
-python3 mcp-tools/w3-search/w3_search.py "b00563677" --size 3
+python3 mcp-tools/huawei-w3-search/w3_search.py "b00563677" --size 3
 ```
 
 Expect a few W3 document hits (titles + urls). If you see a connection error,

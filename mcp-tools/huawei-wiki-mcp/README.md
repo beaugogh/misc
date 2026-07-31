@@ -1,4 +1,4 @@
-# wiki-mcp
+# huawei-wiki-mcp
 
 Read and write Huawei **CloudDevOps Wiki** documents via the remote **`wiki-mcp`**
 MCP server (`mcpgateway.his.huawei.com`). Exposes wiki content fetch/create/
@@ -56,16 +56,16 @@ serial number).
 ### A. Any agent with Bash + Python 3
 
 ```bash
-python3 mcp-tools/wiki-mcp/wiki_mcp.py fetch-wiki-content --url <wiki-url>
-python3 mcp-tools/wiki-mcp/wiki_mcp.py search-wiki-documents --url <wiki-url> --search-range knowledge --search-key "盘古" --json
-python3 mcp-tools/wiki-mcp/wiki_mcp.py list-my-pending-wiki-countersigns
-python3 mcp-tools/wiki-mcp/wiki_mcp.py --list-tools
+python3 mcp-tools/huawei-wiki-mcp/wiki_mcp.py fetch-wiki-content --url <wiki-url>
+python3 mcp-tools/huawei-wiki-mcp/wiki_mcp.py search-wiki-documents --url <wiki-url> --search-range knowledge --search-key "盘古" --json
+python3 mcp-tools/huawei-wiki-mcp/wiki_mcp.py list-my-pending-wiki-countersigns
+python3 mcp-tools/huawei-wiki-mcp/wiki_mcp.py --list-tools
 ```
 
 ### B/C. Claude Code / opencode
 
-`cp mcp-tools/wiki-mcp/claude-code.mcp.json .mcp.json` (Claude Code) or
-`codeagent --mcp-config mcp-tools/wiki-mcp/opencode.mcp.json` (opencode).
+`cp mcp-tools/huawei-wiki-mcp/claude-code.mcp.json .mcp.json` (Claude Code) or
+`codeagent --mcp-config mcp-tools/huawei-wiki-mcp/opencode.mcp.json` (opencode).
 
 ## Files
 

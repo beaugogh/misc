@@ -1,5 +1,5 @@
 {
-  "name": "w3-search",
+  "name": "huawei-w3-search",
   "version": "0.1.0",
   "description": "Search Huawei's W3 intranet (w3.huawei.com / 3ms.huawei.com docs) via the remote `w3_search_tool` MCP server. Returns documents (title, source, url, texts, publish_time) for a query. No authentication required — the server is an unauthenticated remote MCP endpoint on the intranet. Usable by any MCP-capable agent (load the bundled config) or any agent with Bash + Python 3 (run the bundled wrapper script).",
   "transport": "remote",

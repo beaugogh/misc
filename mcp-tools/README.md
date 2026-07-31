@@ -13,11 +13,11 @@ means:
 
 - **Remote** (`transport: remote`) — the server is an HTTP endpoint on the
   intranet. **Truly install-free**: the wrapper is pure stdlib (urllib + json),
-  nothing to `pip install`, no bundled credentials. Example: `w3-search`.
+  nothing to `pip install`, no bundled credentials. Example: `huawei-w3-search`.
 - **Local** (`transport: local`) — the server is a process launched by `uvx`
   (a Python package fetched from the intranet artifactory). **NOT install-free**:
   requires `uv`/`uvx` on PATH, intranet reachability for the first-run fetch,
-  and a user credential (`PRIVATE_TOKEN`). Example: `codehub`.
+  and a user credential (`PRIVATE_TOKEN`). Example: `huawei-codehub`.
 
 Both share the same packaging shape (manifest + wrapper + harness configs +
 README) so an agent discovers and activates them uniformly; the local variant
@@ -74,7 +74,7 @@ See each tool's `mcp-tool.json` `network.no_proxy` field.
 > ⚠️ **Local tools on Windows**: `uvx` reads the proxy from the Windows registry
 > and may ignore `NO_PROXY`. If `uvx` fails to fetch the server, pre-download the
 > tarball with `curl` (which honors `NO_PROXY`) and point `--from` at the local
-> file — see `codehub/README.md` → Troubleshooting.
+> file — see `huawei-huawei-codehub/README.md` → Troubleshooting.
 
 ## Adding a new MCP tool
 
@@ -89,8 +89,8 @@ See each tool's `mcp-tool.json` `network.no_proxy` field.
    work with no `pip install` (for the wrapper itself) and set its own
    `NO_PROXY` / use a no-proxy opener for intranet hosts where applicable.
 4. Add `claude-code.mcp.json` and `opencode.mcp.json` ready-to-load configs.
-5. Add a `README.md` (model on `w3-search/README.md` for remote,
-   `codehub/README.md` for local — the local variant must state its runtime
+5. Add a `README.md` (model on `huawei-w3-search/README.md` for remote,
+   `huawei-huawei-codehub/README.md` for local — the local variant must state its runtime
    prerequisites up front).
 6. Run `./scripts/generate-catalog.sh` to update `CATALOG.md`.
 

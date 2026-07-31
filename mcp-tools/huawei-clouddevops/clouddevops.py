@@ -90,7 +90,7 @@ def _initialize() -> str:
         "params": {
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "clouddevops.py", "version": "1.0"},
+            "clientInfo": {"name": "huawei-clouddevops.py", "version": "1.0"},
         },
     })
     if "error" in resp:

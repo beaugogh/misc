@@ -176,7 +176,7 @@ git show <hash> --stat
 
 > CodeHub MCP 服务器是 MR/Issue 中心，**不是**提交中心——它不能按作者枚举原始提交历史，但能获取本地 git 看不到的 MR 生命周期、检视意见、Issue 数据。与本地 git 互补。
 
-**检测方式**：优先使用本仓库自包含的 CodeHub 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/codehub/codehub.py`）；或检查 opencode 的 MCP 配置（`~/.config/opencode/opencode.json` 的 `mcp.Codehub-Mcp-Server`）是否 `enabled: true`；或直接尝试调用 CodeHub MCP 工具
+**检测方式**：优先使用本仓库自包含的 CodeHub 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/huawei-codehub/codehub.py`）；或检查 opencode 的 MCP 配置（`~/.config/opencode/opencode.json` 的 `mcp.Codehub-Mcp-Server`）是否 `enabled: true`；或直接尝试调用 CodeHub MCP 工具
 
 **前置条件**（本地 stdio 服务器，非免安装）：需 `uvx`（uv）在 PATH 上、能访问华为内网制品库、且设置 `PRIVATE_TOKEN` 环境变量（从 CodeHub → Settings → Access Tokens 获取）。无 token 时脚本会友好报错退出。
 
@@ -184,22 +184,22 @@ git show <hash> --stat
 ```bash
 set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 ```
-该 `.env` 含 `PRIVATE_TOKEN` 和 `WEB_HOST`（默认 `https://codehub-g.huawei.com/`，直接可达；`codehub-y.huawei.com` 在部分网络段不可达）。加载后 `codehub.py` 会从环境读取。Windows 上 uvx 受 TLS 拦截影响需 `--allow-insecure-host`（已在默认参数中，参见 `mcp-tools/codehub/README.md` 的 Troubleshooting）
+该 `.env` 含 `PRIVATE_TOKEN` 和 `WEB_HOST`（默认 `https://codehub-g.huawei.com/`，直接可达；`codehub-y.huawei.com` 在部分网络段不可达）。加载后 `codehub.py` 会从环境读取。Windows 上 uvx 受 TLS 拦截影响需 `--allow-insecure-host`（已在默认参数中，参见 `mcp-tools/huawei-codehub/README.md` 的 Troubleshooting）
 
 - **首选：调用自包含脚本**（任何有 Bash + Python 3 的环境都能用，无需 MCP 支持）：
   ```bash
   export PRIVATE_TOKEN=<your-token>
   # 1. git_url → project_id（其他工具的入参）
-  python3 mcp-tools/codehub/codehub.py get-project-info --git-url <仓库git地址>
+  python3 mcp-tools/huawei-codehub/codehub.py get-project-info --git-url <仓库git地址>
   # 2. 列举该项目的合并请求（按状态）
-  python3 mcp-tools/codehub/codehub.py list-merge-requests --project-id <ID> --state all
+  python3 mcp-tools/huawei-codehub/codehub.py list-merge-requests --project-id <ID> --state all
   # 3. 获取某 MR 的检视意见 —— 反复出现的检视意见=反复犯的错误，强信号
-  python3 mcp-tools/codehub/codehub.py get-merge-request-reviews --project-id <ID> --mr-iid <IID> --json
+  python3 mcp-tools/huawei-codehub/codehub.py get-merge-request-reviews --project-id <ID> --mr-iid <IID> --json
   # 4. 获取某 MR 的变更内容（filters=commits 可返回该 MR 内的提交）
-  python3 mcp-tools/codehub/codehub.py get-merge-request-changes --project-id <ID> --mr-iid <IID> --filters commits
+  python3 mcp-tools/huawei-codehub/codehub.py get-merge-request-changes --project-id <ID> --mr-iid <IID> --filters commits
   ```
   工具名用 kebab-case（如 `list-merge-requests`），脚本自动映射为服务器的 snake_case 名。参数以 `--key value` 传入，脚本自动转换 int/bool，服务器校验完整 schema。`--list-tools` 可列出全部 17 个工具
-- **备选：调用 MCP 工具**（服务器 `Codehub-Mcp-Server`，需将 `mcp-tools/codehub/opencode.mcp.json` 或 `claude-code.mcp.json` 载入 harness，并填入真实 `PRIVATE_TOKEN`）。此时须在启动 agent 的 shell 设置 `NO_PROXY=cmc.centralrepo.rnd.huawei.com,mirrors.tools.huawei.com,codehub-y.huawei.com`
+- **备选：调用 MCP 工具**（服务器 `Codehub-Mcp-Server`，需将 `mcp-tools/huawei-codehub/opencode.mcp.json` 或 `claude-code.mcp.json` 载入 harness，并填入真实 `PRIVATE_TOKEN`）。此时须在启动 agent 的 shell 设置 `NO_PROXY=cmc.centralrepo.rnd.huawei.com,mirrors.tools.huawei.com,codehub-y.huawei.com`
 - **提取**：MR 标题/状态/分支、**检视意见（review comments）**、Issue 标题/状态/讨论
 - **重点**：反复出现的检视意见揭示反复犯的错误；MR 的门禁状态（`get-merge-request-mergeable-state`）反映代码质量阻塞点；这些是 session 中通常不会记录的协作信号
 
@@ -207,12 +207,12 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 
 **用途**：搜索用户在华为内网上的公开信息（技术文章、项目经历、荣誉等）
 
-**检测方式**：优先使用本仓库自包含的 W3 搜索工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/w3-search/w3_search.py`），该脚本纯标准库实现、无需安装；或检查 opencode 的 MCP 配置（`~/.config/opencode/opencode.json` 的 `mcp.w3_search_tool`）是否 `enabled: true`，或直接尝试调用 `w3_web_search_tool` MCP 工具
+**检测方式**：优先使用本仓库自包含的 W3 搜索工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/huawei-w3-search/w3_search.py`），该脚本纯标准库实现、无需安装；或检查 opencode 的 MCP 配置（`~/.config/opencode/opencode.json` 的 `mcp.w3_search_tool`）是否 `enabled: true`，或直接尝试调用 `w3_web_search_tool` MCP 工具
 
 **采集方式**：
 - **首选：调用自包含脚本**（任何有 Bash + Python 3 的环境都能用，无需 MCP 支持）：
   ```bash
-  python3 mcp-tools/w3-search/w3_search.py "<用户姓名 + 工号>" --size 10 --json
+  python3 mcp-tools/huawei-w3-search/w3_search.py "<用户姓名 + 工号>" --size 10 --json
   ```
   脚本自动绕过公司代理（内置 no-proxy opener），无需手动设置 `NO_PROXY`
 - **备选：调用远程 MCP 工具** `w3_web_search_tool`（服务器 `server-w3_search_tool`，无需认证，仅需 `User-Agent: OpenCode-MCP-Client/1.0` 和 `Accept: application/json` 头）。此时必须设置 `NO_PROXY=remote-mcp.rnd.huawei.com` 绕过公司代理
@@ -226,23 +226,23 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 
 **用途**：获取用户撰写的 Wiki 文档，了解其专业领域和工作重点
 
-**检测方式**：优先使用本仓库自包含的 Wiki MCP 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/wiki-mcp/wiki_mcp.py`，纯标准库、无需安装、读操作无需认证）；或尝试 `clouddevops` MCP 工具（`mcp-tools/clouddevops/clouddevops.py`，需 `CLOUDDEVOPS_X_AUTH_TOKEN`）
+**检测方式**：优先使用本仓库自包含的 Wiki MCP 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/huawei-wiki-mcp/wiki_mcp.py`，纯标准库、无需安装、读操作无需认证）；或尝试 `clouddevops` MCP 工具（`mcp-tools/huawei-clouddevops/clouddevops.py`，需 `CLOUDDEVOPS_X_AUTH_TOKEN`）
 
 **采集方式**：
 - **首选：调用 wiki-mcp 自包含脚本**（任何有 Bash + Python 3 的环境都能用）：
   ```bash
   # 搜索某知识库内的 Wiki（读操作无需 token）
-  python3 mcp-tools/wiki-mcp/wiki_mcp.py search-wiki-documents --url <wiki-url> --search-range knowledge --search-key "<用户姓名>" --json
+  python3 mcp-tools/huawei-wiki-mcp/wiki_mcp.py search-wiki-documents --url <wiki-url> --search-range knowledge --search-key "<用户姓名>" --json
   # 获取文档内容
-  python3 mcp-tools/wiki-mcp/wiki_mcp.py fetch-wiki-content --url <wiki-url> --json
+  python3 mcp-tools/huawei-wiki-mcp/wiki_mcp.py fetch-wiki-content --url <wiki-url> --json
   # 列出某类目下的文档
-  python3 mcp-tools/wiki-mcp/wiki_mcp.py list-wiki-documents --url <wiki-url> --query-range category --query-type all
+  python3 mcp-tools/huawei-wiki-mcp/wiki_mcp.py list-wiki-documents --url <wiki-url> --query-range category --query-type all
   ```
   用户级查询（如 list-my-initiated-wiki-countersigns）和写操作需 `WIKI_X_AUTH_TOKEN` 环境变量
-- **备选 A：clouddevops MCP 工具**（`mcp-tools/clouddevops/clouddevops.py`，65 个工具覆盖整个云捷平台，但所有调用需 `CLOUDDEVOPS_X_AUTH_TOKEN`）：
+- **备选 A：clouddevops MCP 工具**（`mcp-tools/huawei-clouddevops/clouddevops.py`，65 个工具覆盖整个云捷平台，但所有调用需 `CLOUDDEVOPS_X_AUTH_TOKEN`）：
   ```bash
   export CLOUDDEVOPS_X_AUTH_TOKEN=<token>
-  python3 mcp-tools/clouddevops/clouddevops.py search-knowledge --search-key "<用户姓名>" --json
+  python3 mcp-tools/huawei-clouddevops/clouddevops.py search-knowledge --search-key "<用户姓名>" --json
   ```
 - 按作者搜索用户撰写的所有 Wiki
 - 统计各域的文档数量，识别核心关注领域
