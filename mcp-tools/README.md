@@ -17,7 +17,7 @@ means:
 - **Local** (`transport: local`) — the server is a process launched by `uvx`
   (a Python package fetched from the intranet artifactory). **NOT install-free**:
   requires `uv`/`uvx` on PATH, intranet reachability for the first-run fetch,
-  and a user credential (`PRIVATE_TOKEN`). Example: `huawei-codehub`.
+  and a user credential (`CODEHUB_TOKEN`). Example: `huawei-codehub`.
 
 Both share the same packaging shape (manifest + wrapper + harness configs +
 README) so an agent discovers and activates them uniformly; the local variant

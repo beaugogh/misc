@@ -173,7 +173,7 @@ git show <hash> --stat
 
 **检测方式**：优先使用本仓库自包含的 CodeHub 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/huawei-codehub/codehub.py`）；或检查 opencode 的 MCP 配置（`~/.config/opencode/opencode.json` 的 `mcp.Codehub-Mcp-Server`）是否 `enabled: true`；或直接尝试调用 CodeHub MCP 工具
 
-**前置条件**（本地 stdio 服务器，非免安装）：需 `uvx`（uv）在 PATH 上、能访问华为内网制品库、且设置 `PRIVATE_TOKEN` 环境变量（从 CodeHub → Settings → Access Tokens 获取）。无 token 时脚本会友好报错退出。
+**前置条件**（本地 stdio 服务器，非免安装）：需 `uvx`（uv）在 PATH 上、能访问华为内网制品库、且设置 `CODEHUB_TOKEN` 环境变量（从 CodeHub → Settings → Access Tokens 获取）。无 token 时脚本会友好报错退出。
 
 **uvx 自动发现**：Git Bash 的 `which`/`command -v` 可能找不到 uvx（常见于 uv 安装在非标准路径如 `D:/CodingAgentCLI/uv/uvx.exe`）。检测逻辑：`command -v uvx || ls /d/CodingAgentCLI/uv/uvx.exe || ls "$LOCALAPPDATA/uv/uvx.exe"`。若找到 uvx 但不在 PATH 上，通过 `CODEHUB_UVX_ARGS` 环境变量传入完整 uvx 路径（JSON 数组，替换默认的 `"uvx"` 命令），参见 `mcp-tools/huawei-codehub/README.md` 的 Troubleshooting
 
@@ -181,11 +181,11 @@ git show <hash> --stat
 ```bash
 set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 ```
-该 `.env` 含 `PRIVATE_TOKEN` 和 `WEB_HOST`（默认 `https://codehub-g.huawei.com/`，直接可达；`codehub-y.huawei.com` 在部分网络段不可达）。加载后 `codehub.py` 会从环境读取。Windows 上 uvx 受 TLS 拦截影响需 `--allow-insecure-host`（已在默认参数中，参见 `mcp-tools/huawei-codehub/README.md` 的 Troubleshooting）
+该 `.env` 含 `CODEHUB_TOKEN` 和 `WEB_HOST`（默认 `https://codehub-g.huawei.com/`，直接可达；`codehub-y.huawei.com` 在部分网络段不可达）。加载后 `codehub.py` 会从环境读取。Windows 上 uvx 受 TLS 拦截影响需 `--allow-insecure-host`（已在默认参数中，参见 `mcp-tools/huawei-codehub/README.md` 的 Troubleshooting）
 
 - **首选：调用自包含脚本**（任何有 Bash + Python 3 的环境都能用，无需 MCP 支持）：
   ```bash
-  export PRIVATE_TOKEN=<your-token>
+  export CODEHUB_TOKEN=<your-token>
   # 1. git_url → project_id（其他工具的入参）
   python3 mcp-tools/huawei-codehub/codehub.py get-project-info --git-url <仓库git地址>
   # 2. 列举该项目的合并请求（按状态）
@@ -196,7 +196,7 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
   python3 mcp-tools/huawei-codehub/codehub.py get-merge-request-changes --project-id <ID> --mr-iid <IID> --filters commits
   ```
   工具名用 kebab-case（如 `list-merge-requests`），脚本自动映射为服务器的 snake_case 名。参数以 `--key value` 传入，脚本自动转换 int/bool，服务器校验完整 schema。`--list-tools` 可列出全部 17 个工具
-- **备选：调用 MCP 工具**（服务器 `Codehub-Mcp-Server`，需将 `mcp-tools/huawei-codehub/opencode.mcp.json` 或 `claude-code.mcp.json` 载入 harness，并填入真实 `PRIVATE_TOKEN`）。此时须在启动 agent 的 shell 设置 `NO_PROXY=cmc.centralrepo.rnd.huawei.com,mirrors.tools.huawei.com,codehub-y.huawei.com`
+- **备选：调用 MCP 工具**（服务器 `Codehub-Mcp-Server`，需将 `mcp-tools/huawei-codehub/opencode.mcp.json` 或 `claude-code.mcp.json` 载入 harness，并填入真实 `CODEHUB_TOKEN`）。此时须在启动 agent 的 shell 设置 `NO_PROXY=cmc.centralrepo.rnd.huawei.com,mirrors.tools.huawei.com,codehub-y.huawei.com`
 - **提取**：MR 标题/状态/分支、**检视意见（review comments）**、Issue 标题/状态/讨论
 - **重点**：反复出现的检视意见揭示反复犯的错误；MR 的门禁状态（`get-merge-request-mergeable-state`）反映代码质量阻塞点；这些是 session 中通常不会记录的协作信号
 
@@ -208,7 +208,7 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 
 **前置条件**：需设置 `GITHUB_MCP_PAT` 环境变量（GitHub Personal Access Token，从 github.com/settings/tokens 获取，repo scope）。该工具是**外部主机**——与内网工具不同，它必须**通过**公司代理（`proxyuk.huawei.com:8080`），wrapper 自动处理（`ProxyHandler` + `ssl.CERT_NONE` 应对 TLS 拦截）
 
-**凭据管理**：PAT 存于 `{ANALYZER_SKILL_DIR}/.env`（与 `PRIVATE_TOKEN` 同文件），加载方式相同：
+**凭据管理**：PAT 存于 `{ANALYZER_SKILL_DIR}/.env`（与 `CODEHUB_TOKEN` 同文件），加载方式相同：
 ```bash
 set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 ```
@@ -412,7 +412,7 @@ for sid, title, tc in unique_sessions:
      4. 如果以上均无法发现，跳过此数据源并在报告中说明
    - 获取分析时间段内的提交记录
    - 提取：提交次数、关键 MR 概要、代码行数变更
-   - **可选补充：CodeHub MCP 工具**（见"数据源 2"详述）。若 `PRIVATE_TOKEN` 可用且 `uvx` 可启动服务器，对发现的项目调用 `list-merge-requests` + `get-merge-request-reviews`，补充本地 git 看不到的 MR 检视意见和 Issue 数据。不可用则跳过，不影响本地 git 采集
+   - **可选补充：CodeHub MCP 工具**（见"数据源 2"详述）。若 `CODEHUB_TOKEN` 可用且 `uvx` 可启动服务器，对发现的项目调用 `list-merge-requests` + `get-merge-request-reviews`，补充本地 git 看不到的 MR 检视意见和 Issue 数据。不可用则跳过，不影响本地 git 采集
 
 3. **W3 搜索**（可选）：
    - 检测 W3 搜索 MCP 工具可用性

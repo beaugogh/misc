@@ -24,9 +24,9 @@ of this repo **cannot** run it without:
 2. **Intranet/VPN reachability** to:
    - `cmc.centralrepo.rnd.huawei.com` (the tarball artifactory)
    - `mirrors.tools.huawei.com` (the PyPI mirror, for dependency resolution)
-3. **A CodeHub `PRIVATE_TOKEN`** (personal access token) in the environment.
+3. **A CodeHub `CODEHUB_TOKEN`** (personal access token) in the environment.
    Get one from CodeHub → Settings → Access Tokens. The server exits at
-   startup if neither `PRIVATE_TOKEN` nor `X_AUTH_TOKEN` is set.
+   startup if neither `CODEHUB_TOKEN` nor `X_AUTH_TOKEN` is set.
 
 If `uvx` fails with `Failed to resolve --with requirement / client error (Connect)`
 — common on Windows, where uv reads the proxy from the registry and may ignore
@@ -98,7 +98,7 @@ The server exposes 17 tools. Key ones for analysis/automation:
 ### A. Any agent with Bash + Python 3 (no MCP needed)
 
 ```bash
-export PRIVATE_TOKEN=<your-token>
+export CODEHUB_TOKEN=<your-token>
 python3 mcp-tools/huawei-codehub/codehub.py get-project-info \
   --git-url ssh://git@codehub-dg-g.huawei.com:2222/group/project.git
 
@@ -119,7 +119,7 @@ Prints human-readable text by default; `--json` emits the raw server JSON.
 ### B. Claude Code (via `.mcp.json`)
 
 ```bash
-# Edit mcp-tools/huawei-codehub/claude-code.mcp.json to put your real PRIVATE_TOKEN
+# Edit mcp-tools/huawei-codehub/claude-code.mcp.json to put your real CODEHUB_TOKEN
 # in the environment block, then:
 cp mcp-tools/huawei-codehub/claude-code.mcp.json .mcp.json
 # Ensure NO_PROXY is set in the shell that launches Claude Code, then:
@@ -132,7 +132,7 @@ The 17 tools appear as available MCP tools (`get_project_info`,
 ### C. opencode / ngAgent / cac (via `--mcp-config`)
 
 ```bash
-# Edit mcp-tools/huawei-codehub/opencode.mcp.json to put your real PRIVATE_TOKEN in
+# Edit mcp-tools/huawei-codehub/opencode.mcp.json to put your real CODEHUB_TOKEN in
 # the environment block, then:
 NO_PROXY=cmc.centralrepo.rnd.huawei.com,mirrors.tools.huawei.com codeagent \
   --mcp-config mcp-tools/huawei-codehub/opencode.mcp.json
@@ -188,7 +188,7 @@ The default args pin `--with "mcp<2"` to fix this; keep it in any override.
 
 **`server process exited before responding`**
 
-Usually a missing token. Ensure `PRIVATE_TOKEN` (or `X_AUTH_TOKEN`) is exported
+Usually a missing token. Ensure `CODEHUB_TOKEN` (or `X_AUTH_TOKEN`) is exported
 in the environment before running the wrapper or launching the agent. The
 wrapper checks this up front; the harness-config path does not, so the server
 crashes at startup — check the agent's MCP server logs.

@@ -105,14 +105,14 @@ connection* made self-contained two ways:
 
 Two transport types: **remote** tools (`huawei-w3-search`) are install-free — pure
 stdlib hitting an intranet URL, no credentials. **Local** tools (`huawei-codehub`)
-launch a `uvx`-fetched server process and need `uv`/`uvx` + a `PRIVATE_TOKEN`;
+launch a `uvx`-fetched server process and need `uv`/`uvx` + a `CODEHUB_TOKEN`;
 they are harness-agnostic but not install-free (stated up front in each
 README).
 
 ```bash
 # No-MCP fallback — any agent with Bash + Python 3:
 python3 mcp-tools/huawei-w3-search/w3_search.py "盘古平台" --size 5      # remote, install-free
-export PRIVATE_TOKEN=<token>
+export CODEHUB_TOKEN=<token>
 python3 mcp-tools/huawei-codehub/codehub.py list-merge-requests --project-id 12345 --state all  # local
 ```
 

@@ -16,7 +16,7 @@ set -a; source skills/huawei-auto-evolve/.env; set +a
 
 ---
 
-## PRIVATE_TOKEN — CodeHub 个人访问令牌
+## CODEHUB_TOKEN — CodeHub 个人访问令牌
 
 **用途**：CodeHub MCP 工具（`huawei-codehub`）访问华为内部 Git 仓库的 MR、检视意见、Issue 数据。
 
@@ -29,7 +29,7 @@ set -a; source skills/huawei-auto-evolve/.env; set +a
 
 **填入 `.env`**：
 ```
-PRIVATE_TOKEN=你的CodeHub令牌
+CODEHUB_TOKEN=你的CodeHub令牌
 WEB_HOST=https://codehub-g.huawei.com/
 ```
 

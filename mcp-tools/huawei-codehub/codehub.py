@@ -18,7 +18,7 @@ of a remote one.
 
 Two prerequisites (inherent to a local stdio server — NOT install-free):
   1. `uvx` (uv) on PATH, able to reach the intranet artifactory + PyPI mirror.
-  2. A CodeHub PRIVATE_TOKEN (or X_AUTH_TOKEN) in the environment. The server
+  2. A CodeHub token (CODEHUB_TOKEN env var) in the environment. The server
      exits at startup if neither is present.
 
 Unlike w3_search.py, this wrapper CANNOT bypass the corporate proxy for uvx's
@@ -100,6 +100,12 @@ class ServerProcess:
 
     def __init__(self) -> None:
         env = dict(os.environ)
+        # Translate CODEHUB_TOKEN (user-facing name in .env) to PRIVATE_TOKEN
+        # (the name the CodeHub MCP server expects). The server reads
+        # PRIVATE_TOKEN/X_AUTH_TOKEN at startup.
+        codehub_token = env.get("CODEHUB_TOKEN", "")
+        if codehub_token and not env.get("PRIVATE_TOKEN"):
+            env["PRIVATE_TOKEN"] = codehub_token
         # uvx must reach the intranet artifactory + PyPI mirror directly, not
         # through the corporate proxy. The TLS-interception problem is handled
         # by --allow-insecure-host in DEFAULT_UVX_ARGS (the proxy re-signs the
@@ -359,7 +365,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 
     p = argparse.ArgumentParser(
         description="Call the Huawei CodeHub MCP server (local, via uvx). "
-                    "Requires uvx on PATH and PRIVATE_TOKEN in the environment.",
+                    "Requires uvx on PATH and CODEHUB_TOKEN in the environment.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="examples:\n"
                "  %(prog)s list-merge-requests --project-id 12345 --state all\n"
@@ -428,10 +434,12 @@ def main(argv: list[str] | None = None) -> int:
     # Validate credentials early with a clear message, before spawning uvx
     # (which is slow on first run). The server exits at startup without a token;
     # failing fast here is friendlier than a subprocess crash after a long fetch.
-    if not os.environ.get("PRIVATE_TOKEN") and not os.environ.get("X_AUTH_TOKEN"):
-        print("error: PRIVATE_TOKEN (or X_AUTH_TOKEN) is not set in the environment.", file=sys.stderr)
-        print("hint: get a personal access token from CodeHub (codehub-y.huawei.com) and run:", file=sys.stderr)
-        print("  export PRIVATE_TOKEN=<your-token>   # or set X_AUTH_TOKEN", file=sys.stderr)
+    # The wrapper reads CODEHUB_TOKEN (user-facing) and translates it to
+    # PRIVATE_TOKEN (server-facing) in ServerProcess.__init__.
+    if not os.environ.get("CODEHUB_TOKEN") and not os.environ.get("PRIVATE_TOKEN") and not os.environ.get("X_AUTH_TOKEN"):
+        print("error: CODEHUB_TOKEN is not set in the environment.", file=sys.stderr)
+        print("hint: get a personal access token from CodeHub (codehub-g.huawei.com) and run:", file=sys.stderr)
+        print("  export CODEHUB_TOKEN=<your-token>", file=sys.stderr)
         return 2
     if not os.environ.get("WEB_HOST"):
         os.environ["WEB_HOST"] = "https://codehub-y.huawei.com/"
