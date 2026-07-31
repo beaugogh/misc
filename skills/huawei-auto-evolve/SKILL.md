@@ -1,10 +1,10 @@
 ---
-name: auto-evolve
+name: huawei-auto-evolve
 version: 0.0.1
 description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代码提交等多源数据，提取长期记忆、创建/更新skill、推荐安装市场skill、检查skill新版本，驱动整个skill生态持续进化。**必须主动调用**，当用户说"分析session"、"更新记忆"、"看看有没有新的skill可以创建"、"回顾一下"、"总结一下最近的工作"、"自演进"、"evolve"等触发词时，AI必须先加载本skill再执行，不要自行实现分析逻辑。
 ---
 
-# 自演进引擎 (auto-evolve)
+# 自演进引擎 (huawei-auto-evolve)
 
 ## 前置条件
 
@@ -17,11 +17,11 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
 | SQLite3（Python 内置） | `python -c "import sqlite3"` | Python 自带，一般不会缺失 |
 | Skills 目录可写 | 检查 `SKILLS_DIR` 是否存在且可写 | 提示用户确认权限 |
 | 数据库非空 | 查询 `session` 表是否有记录 | 提示用户先使用 opencode 产生一些 session |
-| skill-creator skill | 检查 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md`（auto-evolve 自身目录内的嵌套副本，优先）或 `{SKILLS_DIR}/skill-creator/SKILL.md`（同级副本，备选）是否存在 | 自动安装（见下方"skill-creator 自动安装"流程），安装失败则退化为直接写文件模式 |
+| skill-creator skill | 检查 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md`（huawei-auto-evolve 自身目录内的嵌套副本，优先）或 `{SKILLS_DIR}/skill-creator/SKILL.md`（同级副本，备选）是否存在 | 自动安装（见下方"skill-creator 自动安装"流程），安装失败则退化为直接写文件模式 |
 
 **skill-creator 自动安装流程**：
 
-当检测到 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md`（优先，嵌套于 auto-evolve 自身目录）与 `{SKILLS_DIR}/skill-creator/SKILL.md`（备选，同级副本）**均不存在**时，分析器应**自动执行**以下安装步骤，而非仅提示用户。安装目标默认为 `{ANALYZER_SKILL_DIR}/skill-creator/`（嵌套于 auto-evolve 目录内），如该目录不可写则回退到 `{SKILLS_DIR}/skill-creator/`：
+当检测到 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md`（优先，嵌套于 huawei-auto-evolve 自身目录）与 `{SKILLS_DIR}/skill-creator/SKILL.md`（备选，同级副本）**均不存在**时，分析器应**自动执行**以下安装步骤，而非仅提示用户。安装目标默认为 `{ANALYZER_SKILL_DIR}/skill-creator/`（嵌套于 huawei-auto-evolve 目录内），如该目录不可写则回退到 `{SKILLS_DIR}/skill-creator/`：
 
 1. **前置条件检查**：确认 Node.js ≥ v18（`node -v`），未安装则提示用户参考 https://3ms.huawei.com/km/blogs/details/22148443
 2. **安装 agentcenter CLI**：
@@ -33,21 +33,21 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
    - **PATH 提示**：`agentcenter` 是 npm 全局 bin，默认安装到 `%APPDATA%\npm`。若 `agentcenter --version` 报 command not found，将该目录加入 PATH，或直接用完整路径调用
 3. **安装 agentcenter-skill-finder**：
    ```bash
-   agentcenter skill add agentcenter-skill-finder --client auto-evolve --path {ANALYZER_SKILL_DIR} -f
+   agentcenter skill add agentcenter-skill-finder --client huawei-auto-evolve --path {ANALYZER_SKILL_DIR} -f
    ```
-   - **关键**：使用非内置的 `--client auto-evolve`（或任意非内置值）才会让 `--path` 生效，将 skill 安装到 `{ANALYZER_SKILL_DIR}` 内（嵌套于 auto-evolve 目录）；若用内置 client（`claudecode`/`opencode`/`cac` 等），`--path` 会被忽略，skill 会落到该 client 的全局 skills 目录，违反"依赖 skill 安装在 auto-evolve 文件夹内"的约束
+   - **关键**：使用非内置的 `--client huawei-auto-evolve`（或任意非内置值）才会让 `--path` 生效，将 skill 安装到 `{ANALYZER_SKILL_DIR}` 内（嵌套于 huawei-auto-evolve 目录）；若用内置 client（`claudecode`/`opencode`/`cac` 等），`--path` 会被忽略，skill 会落到该 client 的全局 skills 目录，违反"依赖 skill 安装在 huawei-auto-evolve 文件夹内"的约束
    - 安装后 `agentcenter-skill-finder` 作为全局 npm bin 可用
 4. **使用 agentcenter-skill-finder 安装 skill-creator**：
    ```bash
    agentcenter-skill-finder install skill-creator
    ```
-   - 若 `agentcenter-skill-finder install` 不支持指定安装路径，则改用 `agentcenter skill add skill-creator --client auto-evolve --path {ANALYZER_SKILL_DIR} -f` 直接安装到 auto-evolve 目录内
+   - 若 `agentcenter-skill-finder install` 不支持指定安装路径，则改用 `agentcenter skill add skill-creator --client huawei-auto-evolve --path {ANALYZER_SKILL_DIR} -f` 直接安装到 huawei-auto-evolve 目录内
 5. **验证安装**：再次检查 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md`（优先）或 `{SKILLS_DIR}/skill-creator/SKILL.md`（备选）是否存在
 6. 如果任一步骤失败，退化为直接写文件模式，并在报告中提示用户手动安装 skill-creator
 
-**空环境首次运行引导**：如果用户是在全新环境（没有 `auto-evolve-created-global-memory`、没有任何 `auto-evolve-created-` skill）下首次运行，分析器应自动完成以下初始化，确保开箱即用：
+**空环境首次运行引导**：如果用户是在全新环境（没有 `huawei-auto-evolve-created-global-memory`、没有任何 `huawei-auto-evolve-created-` skill）下首次运行，分析器应自动完成以下初始化，确保开箱即用：
 1. 创建 `SKILLS_DIR` 目录（如不存在）
-2. 创建 `auto-evolve-created-global-memory` skill（见步骤5"首次创建"流程）
+2. 创建 `huawei-auto-evolve-created-global-memory` skill（见步骤5"首次创建"流程）
 3. 询问用户身份信息（姓名、工号/账号），用于初始化记忆和外部数据源采集
 4. 依次检测可选外部数据源（W3、CloudDevOps Wiki、WeLink），可用的自动采集
 5. 分析所有历史 session，提取记忆和创建 skill
@@ -67,8 +67,8 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
 
 分析从上次运行到现在的所有新 session，**同时采集外部数据源（WeLink聊天、CodeHub代码提交、W3搜索等）**，综合全量信息执行五个任务：
 1. **更新长期记忆**：提取值得长期记住的信息，更新到记忆 skill（见下方配置）
-2. **创建新 skill**：发现重复性模式，创建 `auto-evolve-created-` 前缀的新 skill
-3. **更新已有 skill**：检查所有 `auto-evolve-created-` 开头的 skill，根据新发现的经验更新
+2. **创建新 skill**：发现重复性模式，创建 `huawei-auto-evolve-created-` 前缀的新 skill
+3. **更新已有 skill**：检查所有 `huawei-auto-evolve-created-` 开头的 skill，根据新发现的经验更新
 4. **推荐并安装 skill**：根据分析结果，在 agentcenter 市场中搜索可能对用户有用的 skill 并安装
 5. **检查 skill 新版本**：检查用户已安装的所有 skill 是否有新版本，有则更新
 
@@ -80,8 +80,8 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
 |--------|------|----------|
 | `SKILLS_DIR` | Skills 安装目录 | 见下方"SKILLS_DIR 路径映射" |
 | `DB_PATH` | Session 数据库路径 | `~/.local/share/opencode/db/ngagent.db`（Linux/Mac）或 `%USERPROFILE%\.local\share\opencode\db\ngagent.db`（Windows） |
-| `MEMORY_SKILL_NAME` | 存储长期记忆的 skill 名称 | 默认 `auto-evolve-created-global-memory`，如不存在则首次运行时自动创建 |
-| `ANALYZER_SKILL_DIR` | 本 skill 所在目录 | 在 `SKILLS_DIR` 下查找 `auto-evolve` 子目录；如 AI 无法自动定位，可通过 `glob` 搜索 `**/auto-evolve/SKILL.md` 找到 |
+| `MEMORY_SKILL_NAME` | 存储长期记忆的 skill 名称 | 默认 `huawei-auto-evolve-created-global-memory`，如不存在则首次运行时自动创建 |
+| `ANALYZER_SKILL_DIR` | 本 skill 所在目录 | 在 `SKILLS_DIR` 下查找 `huawei-auto-evolve` 子目录；如 AI 无法自动定位，可通过 `glob` 搜索 `**/huawei-auto-evolve/SKILL.md` 找到 |
 
 **SKILLS_DIR 路径映射**（不同 AI 客户端的 skills 目录不同，必须根据当前环境自动识别）：
 
@@ -92,7 +92,7 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
 | codeAgent | `~/.config/codeagent/skills`（Linux/Mac）或 `%USERPROFILE%\.config\codeagent\skills`（Windows） | 路径含 `.config/codeagent` |
 | claudecode | `~/.claude/skills`（Linux/Mac）或 `%USERPROFILE%\.claude\skills`（Windows） | 路径含 `.claude` |
 
-识别方式：优先检查本 SKILL.md 文件的实际路径（即 `auto-evolve/SKILL.md` 所在目录的父目录），这是最准确的判断依据。如果无法获取自身路径，按上表依次检查哪个目录存在。
+识别方式：优先检查本 SKILL.md 文件的实际路径（即 `huawei-auto-evolve/SKILL.md` 所在目录的父目录），这是最准确的判断依据。如果无法获取自身路径，按上表依次检查哪个目录存在。
 
 **路径检测示例**（Python）：
 ```python
@@ -103,7 +103,7 @@ is_windows = platform.system() == "Windows"
 
 # 优先通过本文件路径推断 SKILLS_DIR
 this_dir = os.path.dirname(os.path.abspath(__file__))
-SKILLS_DIR = os.path.dirname(this_dir)  # auto-evolve 的父目录
+SKILLS_DIR = os.path.dirname(this_dir)  # huawei-auto-evolve 的父目录
 
 # 如果无法获取自身路径，按优先级检查
 if not os.path.isdir(SKILLS_DIR):
@@ -119,7 +119,7 @@ if not os.path.isdir(SKILLS_DIR):
             break
 
 DB_PATH = os.path.join(home, ".local", "share", "opencode", "db", "ngagent.db")
-MEMORY_SKILL_NAME = "auto-evolve-created-global-memory"
+MEMORY_SKILL_NAME = "huawei-auto-evolve-created-global-memory"
 ```
 
 ## 外部数据源（每次分析时采集）
@@ -439,7 +439,7 @@ for sid, title, tc in unique_sessions:
    - **SKILL.md 是否已加约束**：如果 bug 的根因是 AI 行为问题（如"没确认就提交"、"重复加 US号"），检查 SKILL.md 中是否已加入明确的禁止规则
    - **已出问题的现状是否已修复**：如果 bug 已经造成了错误结果（如 commit message 中 US号重复了），检查是否已修正该结果，而非只修了生成逻辑
 3. 如果任一项未完成，**必须立即修复**，并在报告中列出
-4. **回溯验证也适用于 auto-evolve 自身**：如果历史 session 中用户对自演进引擎的行为提出纠正（如"你没分析出来"、"你漏了某个 bug"、"你应该举一反三"、"你应该能更新自己"），必须检查本 SKILL.md 中是否已加入对应的规则或流程改进。如果没有，立即补充
+4. **回溯验证也适用于 huawei-auto-evolve 自身**：如果历史 session 中用户对自演进引擎的行为提出纠正（如"你没分析出来"、"你漏了某个 bug"、"你应该举一反三"、"你应该能更新自己"），必须检查本 SKILL.md 中是否已加入对应的规则或流程改进。如果没有，立即补充
 
 **为什么需要这一步**：
 - 增量分析只看新 session，但用户报的 bug 可能在更早的 session 中，AI 当时可能只修了部分（如只修了代码没修 SKILL.md，或只修了根因没修现状）
@@ -480,8 +480,8 @@ for sid, title, tc in unique_sessions:
 **泛化执行规则**：
 
 - **创建 skill 时**：不要只针对当前观察到的具体任务创建窄 skill，而是思考该 skill 的**自然边界**在哪里。如果多个同构任务可以共用一个 skill，就创建一个更通用的 skill，在 description 中列出所有触发场景
-  - 好：`auto-evolve-created-stats-collector`（触发词：统计token、统计代码行数、统计MR数量、统计Wiki数量）
-  - 差：`auto-evolve-created-token-stats`（只能统计 token）
+  - 好：`huawei-auto-evolve-created-stats-collector`（触发词：统计token、统计代码行数、统计MR数量、统计Wiki数量）
+  - 差：`huawei-auto-evolve-created-token-stats`（只能统计 token）
 - **更新 skill 时**：当发现新的类似场景时，检查是否应该**扩展已有 skill 的范围**而非创建新 skill。如果已有 skill 的流程可以复用到新场景，则更新已有 skill 的 description 和流程说明，增加新场景的触发词和处理分支
 - **记忆 skill 更新时**：当从 session 中提取到一条经验时，思考这条经验的**适用范围**，写入记忆时标注其适用场景，而非只记一个具体实例
   - 好："用户偏好所有代码中常量提取到文件顶部，适用于 UT、集成测试、工具脚本等所有代码生成场景"
@@ -500,7 +500,7 @@ for sid, title, tc in unique_sessions:
 **强制规则：禁止主观跳过**：
 - 当上述标准被满足时，**必须创建 skill**，AI 不得以"本质上是简单调用"、"已被其他 skill 覆盖"等主观理由跳过
 - 即使某个功能看起来简单（如 `nga.cmd metrics`），只要 AI 在执行时需要多轮摸索（找工具→试命令→逐个调用→汇总），就说明该流程值得固化，避免下次重复摸索
-- 唯一可跳过的例外：该任务已有**同名或功能完全等价**的 auto-evolve-created skill 存在
+- 唯一可跳过的例外：该任务已有**同名或功能完全等价**的 huawei-auto-evolve-created skill 存在
 - **泛化时也禁止跳过**：如果泛化检查发现新的适用场景，即使该场景在 session 中尚未出现，也必须更新 skill 的 description 和流程说明，确保下次遇到时能正确触发
 
 **"5轮工具调用"判定规则**：
@@ -513,41 +513,41 @@ for sid, title, tc in unique_sessions:
 - 排除：简单的一次性操作（如单次 grep 查找、单次文件编辑）不算
 
 **创建新 skill 规则**：
-- 名称以 `auto-evolve-created-` 为前缀
-- 安装到 `{ANALYZER_SKILL_DIR}/auto-evolve-created-<name>/SKILL.md`（嵌套于 auto-evolve 目录内，与其他 auto-evolve 依赖 skill 同级）
+- 名称以 `huawei-auto-evolve-created-` 为前缀
+- 安装到 `{ANALYZER_SKILL_DIR}/huawei-auto-evolve-created-<name>/SKILL.md`（嵌套于 huawei-auto-evolve 目录内，与其他 huawei-auto-evolve 依赖 skill 同级）
 - **必须通过调用 skill-creator skill 来创建新 skill**，而非直接写文件。具体流程：
   1. 加载 `skill-creator` skill（使用 skill 工具加载）
   2. 按照skill-creator的流程执行：
      - **Step 1（理解skill）**：基于从session中分析出的模式，明确skill的功能、触发场景、使用示例
      - **Step 2（规划资源）**：确定是否需要scripts/、references/、assets/目录，以及具体内容
-     - **Step 3（初始化）**：运行 `{ANALYZER_SKILL_DIR}/skill-creator/scripts/init_skill.py auto-evolve-created-<name> --path {ANALYZER_SKILL_DIR}` 创建模板目录（若 skill-creator 位于同级 `{SKILLS_DIR}/skill-creator/`，则路径相应改为 `{SKILLS_DIR}/skill-creator/scripts/init_skill.py`，init 的 `--path` 也相应指向 `{SKILLS_DIR}`）
+     - **Step 3（初始化）**：运行 `{ANALYZER_SKILL_DIR}/skill-creator/scripts/init_skill.py huawei-auto-evolve-created-<name> --path {ANALYZER_SKILL_DIR}` 创建模板目录（若 skill-creator 位于同级 `{SKILLS_DIR}/skill-creator/`，则路径相应改为 `{SKILLS_DIR}/skill-creator/scripts/init_skill.py`，init 的 `--path` 也相应指向 `{SKILLS_DIR}`）
      - **Step 4（编辑skill）**：填充SKILL.md和资源文件，遵循skill-creator的设计原则：
        - frontmatter中description必须写清功能+触发词+使用场景（这是AI决定何时调用的唯一依据）
        - body使用祈使句/不定式
        - 遵循progressive disclosure原则：核心流程在SKILL.md（<500行），详细参考放references/
        - 只包含AI不知道的非显而易见的信息，不写AI已知的一般性解释
        - 设置适当的自由度：脆弱操作用具体脚本（低自由度），多种方案都可行时用文本指令（高自由度）
-     - **Step 5（打包）**：跳过打包步骤（auto-evolve-created skill不需要打包分发）
+     - **Step 5（打包）**：跳过打包步骤（huawei-auto-evolve-created skill不需要打包分发）
      - **Step 6（迭代）**：后续分析session时根据实际使用反馈迭代更新
   3. 创建完成后，验证SKILL.md的frontmatter格式正确、description包含完整触发词
 - **降级策略**：如果skill-creator不可用（未安装且自动安装失败），退化为直接创建目录+写SKILL.md，但必须在报告中提示用户手动安装skill-creator以获得更高质量的skill
 - SKILL.md 中应包含完整的执行流程、工具使用方法、输出格式，确保下次 AI 加载该 skill 后无需重新摸索即可执行
 
 **更新已有 skill 规则**：
-- **修改范围限制**：自演进引擎只能修改以下两类 skill，**禁止修改其他任何 skill**（如 skill-creator、mr-reviewer、ppt-master-huawei 等非 auto-evolve-created 的 skill 属于第三方或手动安装的，不得擅自修改）：
-  1. `{ANALYZER_SKILL_DIR}/auto-evolve-created-*` 目录下的所有 skill（嵌套于 auto-evolve 目录内）
-  2. `auto-evolve` 自身（`{ANALYZER_SKILL_DIR}/`）
-- 遍历 `{ANALYZER_SKILL_DIR}/auto-evolve-created-*` 目录 + `auto-evolve` 自身目录（`{ANALYZER_SKILL_DIR}/`）。注意：auto-evolve-created skill 现在嵌套在 auto-evolve 目录内，而非 `{SKILLS_DIR}` 下
-- **如果不存在任何 `auto-evolve-created-*` 目录**（首次运行场景），跳过"更新已有 skill"步骤，仅执行"创建新 skill"步骤。不要报错或警告，这是正常的首次运行行为
-- **不跳过任何 skill**，包括 `auto-evolve` 自身。自演进引擎必须能根据 session 中的经验更新自身的流程、规则和注意事项，而不是等用户提醒才更新。`auto-evolve-created-global-memory` 在步骤3中单独更新，此处也纳入检查但以步骤3的更新为准
-- **更新 auto-evolve 自身时的特殊规则**：自演进引擎是通用工具，设计目标是可分享给其他用户。因此更新自身时必须区分两类经验：
-  - **通用方法论 → 更新到 auto-evolve**：任何用户都会受益的分析能力改进，如"历史 bug 回溯验证"、"举一反三泛化"、"修 bug 要修三件事"等。这些是引擎本身的能力缺陷，不依赖特定用户
+- **修改范围限制**：自演进引擎只能修改以下两类 skill，**禁止修改其他任何 skill**（如 skill-creator、mr-reviewer、ppt-master-huawei 等非 huawei-auto-evolve-created 的 skill 属于第三方或手动安装的，不得擅自修改）：
+  1. `{ANALYZER_SKILL_DIR}/huawei-auto-evolve-created-*` 目录下的所有 skill（嵌套于 huawei-auto-evolve 目录内）
+  2. `huawei-auto-evolve` 自身（`{ANALYZER_SKILL_DIR}/`）
+- 遍历 `{ANALYZER_SKILL_DIR}/huawei-auto-evolve-created-*` 目录 + `huawei-auto-evolve` 自身目录（`{ANALYZER_SKILL_DIR}/`）。注意：huawei-auto-evolve-created skill 现在嵌套在 huawei-auto-evolve 目录内，而非 `{SKILLS_DIR}` 下
+- **如果不存在任何 `huawei-auto-evolve-created-*` 目录**（首次运行场景），跳过"更新已有 skill"步骤，仅执行"创建新 skill"步骤。不要报错或警告，这是正常的首次运行行为
+- **不跳过任何 skill**，包括 `huawei-auto-evolve` 自身。自演进引擎必须能根据 session 中的经验更新自身的流程、规则和注意事项，而不是等用户提醒才更新。`huawei-auto-evolve-created-global-memory` 在步骤3中单独更新，此处也纳入检查但以步骤3的更新为准
+- **更新 huawei-auto-evolve 自身时的特殊规则**：自演进引擎是通用工具，设计目标是可分享给其他用户。因此更新自身时必须区分两类经验：
+  - **通用方法论 → 更新到 huawei-auto-evolve**：任何用户都会受益的分析能力改进，如"历史 bug 回溯验证"、"举一反三泛化"、"修 bug 要修三件事"等。这些是引擎本身的能力缺陷，不依赖特定用户
   - **个人偏好 → 只更新到 global-memory**：特定用户的工作习惯，如特定的构建命令、项目特有的依赖配置等。这些是用户个人项目的知识，不应写入通用引擎
   - **判断标准**：如果去掉用户身份和项目上下文，这条经验对其他用户是否仍然有价值？如果是 → 通用方法论；如果否 → 个人偏好
 - 检查新 session 中是否有与该 skill 相关的新经验
 - 新经验包括：新的踩坑点、流程改进、规则补充、异常处理补充、**代码风格反馈**（用户对命名、断言、常量等风格的纠正）
 - **主动触发规则**：如果在单个 session 中用户对同一 skill 的行为纠正了 **3次及以上**，说明该 skill 存在系统性缺陷，**必须更新**该 skill 的 SKILL.md 加入预防规则，不得以"用户只在单次 session 中纠正"为由跳过。典型案例：用户在一个 session 中反复纠正 UT 编码规范（常量提取、断言风格、硬编码字符串等），说明 ut-writer skill 缺少这些规则，必须补充
-- **用户纠偏必沉淀规则**：只要用户在调用任何 skill 的过程中对 AI 的行为进行了纠正（包括但不限于：指出遗漏、纠正做法、补充步骤、要求举一反三、指出没确认就执行、指出只修根因没修现状等），**必须**将该纠偏沉淀到对应 skill 的 SKILL.md 中，作为预防规则。纠偏出现1次就更新，不需要等重复。这是 skill 自我完善的核心机制——用户每纠正一次，skill 就应该进化一次，确保同类问题不再发生。典型案例：用户纠正"commit message 没确认就提交了"→ 更新 mr-sender skill 加入"commit message 必须确认"规则；用户纠正"你只修了代码没修 SKILL.md"→ 更新 auto-evolve skill 加入"修 bug 要修三件事"规则
+- **用户纠偏必沉淀规则**：只要用户在调用任何 skill 的过程中对 AI 的行为进行了纠正（包括但不限于：指出遗漏、纠正做法、补充步骤、要求举一反三、指出没确认就执行、指出只修根因没修现状等），**必须**将该纠偏沉淀到对应 skill 的 SKILL.md 中，作为预防规则。纠偏出现1次就更新，不需要等重复。这是 skill 自我完善的核心机制——用户每纠正一次，skill 就应该进化一次，确保同类问题不再发生。典型案例：用户纠正"commit message 没确认就提交了"→ 更新 mr-sender skill 加入"commit message 必须确认"规则；用户纠正"你只修了代码没修 SKILL.md"→ 更新 huawei-auto-evolve skill 加入"修 bug 要修三件事"规则
 - **用户反馈必沉淀规则（比纠偏更广）**：不仅"纠正"要沉淀，所有用户对 skill 行为的**反馈**都必须沉淀。用户不一定要说"你做错了"才算反馈——以下表达都算反馈，必须更新到对应 skill：
   - "又忘了xxx" → 说明规则存在但无效，需加强
   - "不对吧" / "你没有xxx" → 说明 AI 行为与用户预期不符
@@ -585,7 +585,7 @@ for sid, title, tc in unique_sessions:
 ### 5. 执行更新
 
 **更新记忆 skill**：
-- 读取 `{ANALYZER_SKILL_DIR}/{MEMORY_SKILL_NAME}/SKILL.md`（记忆 skill 作为 auto-evolve-created skill，嵌套于 auto-evolve 目录内）
+- 读取 `{ANALYZER_SKILL_DIR}/{MEMORY_SKILL_NAME}/SKILL.md`（记忆 skill 作为 huawei-auto-evolve-created skill，嵌套于 huawei-auto-evolve 目录内）
 - 如果不存在，**首次创建**：
   1. 创建目录 `{ANALYZER_SKILL_DIR}/{MEMORY_SKILL_NAME}/` 和基础 SKILL.md（含 frontmatter 和标题）
   2. 依次检测外部数据源（W3、CloudDevOps Wiki、WeLink），可用的全部采集
@@ -604,7 +604,7 @@ for sid, title, tc in unique_sessions:
 **创建新 skill**：
 - **必须调用 skill-creator skill 来创建**，具体流程见步骤4"创建新 skill 规则"
 - 简要流程：加载skill-creator → init_skill.py初始化 → 编辑SKILL.md和资源文件 → 验证
-- 如果skill-creator不可用（未安装且自动安装失败），降级为：创建目录 `{ANALYZER_SKILL_DIR}/auto-evolve-created-<name>` → 直接写入SKILL.md
+- 如果skill-creator不可用（未安装且自动安装失败），降级为：创建目录 `{ANALYZER_SKILL_DIR}/huawei-auto-evolve-created-<name>` → 直接写入SKILL.md
 
 **更新已有 skill**：
 - 直接编辑对应的 SKILL.md
@@ -653,15 +653,15 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
    - **注意**：`agentcenter search skill` 可能进入交互式选择模式（需要箭头键），在非交互环境中会报错。遇到此情况，改用 `agentcenter skill add <skill-name> --client <client> -g -f` 直接安装，或先通过 API/Web 端搜索获取 skill 名称
 3. **筛选推荐列表**：
    - 排除用户已安装的 skill
-   - 排除功能与已有 auto-evolve-created skill 完全重叠的 skill
+   - 排除功能与已有 huawei-auto-evolve-created skill 完全重叠的 skill
    - 优先推荐：下载量高、版本号高（说明维护积极）、description 与用户场景高度匹配的 skill
    - 每次最多推荐 5 个 skill
 4. **展示推荐**：向用户展示推荐列表（名称、版本、描述、推荐理由），**询问用户是否安装**
 5. **用户确认后安装**：
    ```bash
-   agentcenter skill add <skill-name> --client auto-evolve --path {ANALYZER_SKILL_DIR} -f
+   agentcenter skill add <skill-name> --client huawei-auto-evolve --path {ANALYZER_SKILL_DIR} -f
    ```
-   - **关键**：必须用非内置的 `--client auto-evolve`（或任意非内置值）配合 `--path {ANALYZER_SKILL_DIR}`，才能将 skill 安装到 auto-evolve 目录内。若用内置 client（`claudecode`/`opencode`/`cac` 等）加 `-g`，`--path` 会被忽略，skill 会落到该 client 的全局 skills 目录，违反"依赖 skill 安装在 auto-evolve 文件夹内"的约束
+   - **关键**：必须用非内置的 `--client huawei-auto-evolve`（或任意非内置值）配合 `--path {ANALYZER_SKILL_DIR}`，才能将 skill 安装到 huawei-auto-evolve 目录内。若用内置 client（`claudecode`/`opencode`/`cac` 等）加 `-g`，`--path` 会被忽略，skill 会落到该 client 的全局 skills 目录，违反"依赖 skill 安装在 huawei-auto-evolve 文件夹内"的约束
    - 安装后验证 `{ANALYZER_SKILL_DIR}/<skill-name>/SKILL.md` 是否存在
 6. 如果 agentcenter 不可用，跳过此步骤，在报告中说明
 
@@ -672,14 +672,14 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
 
 ### 9. 检查并更新 skill 新版本
 
-检查用户已安装的所有 skill（包括 auto-evolve-created 和从 agentcenter 安装的）是否有新版本，有则更新。
+检查用户已安装的所有 skill（包括 huawei-auto-evolve-created 和从 agentcenter 安装的）是否有新版本，有则更新。
 
 **前置条件**：`agentcenter` CLI 已安装且已认证。
 
 **执行流程**：
 
-1. **遍历已安装 skill**：扫描 `{ANALYZER_SKILL_DIR}/` 下所有包含 `SKILL.md` 的子目录（即 auto-evolve 目录内的所有依赖 skill，含 skill-creator、clouddevops-wiki 等）
-2. **对每个非 auto-evolve-created 的 skill**，在 agentcenter 市场中搜索其最新版本：
+1. **遍历已安装 skill**：扫描 `{ANALYZER_SKILL_DIR}/` 下所有包含 `SKILL.md` 的子目录（即 huawei-auto-evolve 目录内的所有依赖 skill，含 skill-creator、clouddevops-wiki 等）
+2. **对每个非 huawei-auto-evolve-created 的 skill**，在 agentcenter 市场中搜索其最新版本：
    ```bash
    agentcenter search skill --keyword <skill-name> --json
    ```
@@ -688,13 +688,13 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
    - 读取已安装 skill 的 SKILL.md frontmatter 中的版本信息（如有）
    - 与市场中的最新版本比较
    - 如果市场版本 > 已安装版本，标记为可更新
-4. **对于 auto-evolve-created 开头的 skill**：这些是本地生成的，不在市场中发布，跳过版本检查
+4. **对于 huawei-auto-evolve-created 开头的 skill**：这些是本地生成的，不在市场中发布，跳过版本检查
 5. **展示更新列表**：向用户展示可更新的 skill（名称、当前版本→最新版本、更新内容摘要），**询问用户是否更新**
 6. **用户确认后更新**：
    ```bash
-   agentcenter skill add <skill-name> --client auto-evolve --path {ANALYZER_SKILL_DIR} -f
+   agentcenter skill add <skill-name> --client huawei-auto-evolve --path {ANALYZER_SKILL_DIR} -f
    ```
-   - 同步骤8，必须用非内置 `--client auto-evolve` + `--path {ANALYZER_SKILL_DIR}` 安装到 auto-evolve 目录内
+   - 同步骤8，必须用非内置 `--client huawei-auto-evolve` + `--path {ANALYZER_SKILL_DIR}` 安装到 huawei-auto-evolve 目录内
    注意：更新会覆盖已有文件，如果用户对 skill 有本地修改，需先备份
 7. 如果 agentcenter 不可用，跳过此步骤，在报告中说明
 
@@ -705,7 +705,7 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
 
 ## 注意事项
 
-- **依赖 skill 必须安装在 auto-evolve 文件夹内**：所有 auto-evolve 依赖、创建或更新的 skill（skill-creator、clouddevops-wiki、auto-evolve-created-*、{MEMORY_SKILL_NAME} 等）必须安装在 `{ANALYZER_SKILL_DIR}/` 下，**禁止安装到全局/客户端 skills 目录**（如 `~/.claude/skills`、`~/.cac/skills`、`~/.config/opencode/skills`）。通过 agentcenter 安装时，必须使用 `--client auto-evolve --path {ANALYZER_SKILL_DIR}`（非内置 client 值才能让 `--path` 生效），**禁止**使用内置 client（`claudecode`/`opencode`/`cac` 等）加 `-g`，否则 `--path` 被忽略、skill 落到全局目录
+- **依赖 skill 必须安装在 huawei-auto-evolve 文件夹内**：所有 huawei-auto-evolve 依赖、创建或更新的 skill（skill-creator、clouddevops-wiki、huawei-auto-evolve-created-*、{MEMORY_SKILL_NAME} 等）必须安装在 `{ANALYZER_SKILL_DIR}/` 下，**禁止安装到全局/客户端 skills 目录**（如 `~/.claude/skills`、`~/.cac/skills`、`~/.config/opencode/skills`）。通过 agentcenter 安装时，必须使用 `--client huawei-auto-evolve --path {ANALYZER_SKILL_DIR}`（非内置 client 值才能让 `--path` 生效），**禁止**使用内置 client（`claudecode`/`opencode`/`cac` 等）加 `-g`，否则 `--path` 被忽略、skill 落到全局目录
 - **AI 必须先加载本 skill 再执行分析**，不要自行实现分析逻辑。当用户触发分析时，第一步就是调用本 skill
 - 分析时不要把当前 session 自身算作"新 session"（当前 session 还在进行中）
 - 创建 skill 时确保 description 写清触发词，否则 AI 不知道何时调用
