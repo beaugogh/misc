@@ -54,7 +54,7 @@ NO_PROXY=cmc.centralrepo.rnd.huawei.com npm install -g @aimarket/agentcenter --@
 |----------|------|----------|----------|
 | welink-cli | 分析时间段内的聊天记录 | 检查 PATH 中是否有 `welink-cli`，`welink-cli auth status` 是否已登录 | 若未安装，**自动安装** `npm install -g @welink/welink-cli`；若 token 过期，**自动刷新** `welink-cli auth login`；均失败才跳过 |
 | W3 搜索 MCP 工具 | 搜索用户公开信息 | 尝试调用 W3 搜索 MCP 工具或 API | 跳过 W3 数据源 |
-| CloudDevOps Wiki MCP | 获取用户 Wiki | 优先 `wiki-mcp.py`（自包含，读无需认证）；或 `clouddevops.py`（需 X-AUTH-TOKEN） | 跳过 Wiki 数据源 |
+| CloudDevOps Wiki MCP | 获取用户 Wiki | `wiki-mcp.py`（自包含，读操作无需认证） | 跳过 Wiki 数据源 |
 | git (CodeHub/GitHub) | 获取代码提交记录 | `git --version`；可选 CodeHub MCP（`codehub.py --list-tools`）或 GitHub MCP（`github_mcp.py --list-tools`），按仓库 remote 归属选择 | 跳过 MCP 协作层数据（本地 git 仍可用） |
 | agentcenter CLI | 推荐安装 skill、检查 skill 新版本 | `agentcenter --version`；若报 module not found（shim 存在但包丢失），**自动重装**（见下方"agentcenter 自动修复"） | **阻塞**：agentcenter 是必备依赖，不可跳过。自动修复失败才提示用户 |
 
@@ -253,7 +253,7 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 
 **用途**：获取用户撰写的 Wiki 文档，了解其专业领域和工作重点
 
-**检测方式**：优先使用本仓库自包含的 Wiki MCP 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/huawei-wiki/wiki_mcp.py`，纯标准库、无需安装、读操作无需认证）；或尝试 `clouddevops` MCP 工具（`mcp-tools/huawei-clouddevops/clouddevops.py`，需 `CLOUDDEVOPS_X_AUTH_TOKEN`）
+**检测方式**：使用本仓库自包含的 Wiki MCP 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/huawei-wiki/wiki_mcp.py`，纯标准库、无需安装、读操作无需认证）
 
 **采集方式**：
 - **首选：调用 wiki-mcp 自包含脚本**（任何有 Bash + Python 3 的环境都能用）：
@@ -266,11 +266,6 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
   python3 mcp-tools/huawei-wiki/wiki_mcp.py list-wiki-documents --url <wiki-url> --query-range category --query-type all
   ```
   用户级查询（如 list-my-initiated-wiki-countersigns）和写操作需 `WIKI_X_AUTH_TOKEN` 环境变量
-- **备选 A：clouddevops MCP 工具**（`mcp-tools/huawei-clouddevops/clouddevops.py`，65 个工具覆盖整个云捷平台，但所有调用需 `CLOUDDEVOPS_X_AUTH_TOKEN`）：
-  ```bash
-  export CLOUDDEVOPS_X_AUTH_TOKEN=<token>
-  python3 mcp-tools/huawei-clouddevops/clouddevops.py search-knowledge --search-key "<用户姓名>" --json
-  ```
 - 按作者搜索用户撰写的所有 Wiki
 - 统计各域的文档数量，识别核心关注领域
 - 抽样阅读高星/高引用文档，提取专业观点和方法论
@@ -424,7 +419,7 @@ for sid, title, tc in unique_sessions:
    - 搜索用户近期公开信息
 
 4. **CloudDevOps Wiki**（可选）：
-   - 检测 wiki-mcp / clouddevops MCP 工具可用性
+   - 检测 huawei-wiki MCP 工具可用性
    - 搜索用户近期撰写的 Wiki 文档
 
 5. **AI 辅助研发 Token 消耗**（可选）：
