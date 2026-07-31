@@ -19,36 +19,26 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
 | 数据库非空 | 查询 `session` 表是否有记录 | 提示用户先使用 opencode 产生一些 session |
 | skill-creator skill | 检查 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md`（huawei-auto-evolve 自身目录内的嵌套副本，优先）或 `{SKILLS_DIR}/skill-creator/SKILL.md`（同级副本，备选）是否存在 | 自动安装（见下方"skill-creator 自动安装"流程），安装失败则退化为直接写文件模式 |
 
-**skill-creator 自动安装流程**：
+**skill-creator 加载机制**：
 
-当检测到 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md`（优先，嵌套于 huawei-auto-evolve 自身目录）与 `{SKILLS_DIR}/skill-creator/SKILL.md`（备选，同级副本）**均不存在**时，分析器应**自动执行**以下安装步骤，而非仅提示用户。安装目标默认为 `{ANALYZER_SKILL_DIR}/skill-creator/`（嵌套于 huawei-auto-evolve 目录内），如该目录不可写则回退到 `{SKILLS_DIR}/skill-creator/`：
+skill-creator 随本仓库一同发布（`{ANALYZER_SKILL_DIR}/skill-creator/`），`git clone` 后即可使用，无需安装。仅当该目录不存在时（被删除或 clone 不完整），才通过 agentcenter 从市场安装作为回退：
 
-1. **前置条件检查**：确认 Node.js ≥ v18（`node -v`），未安装则提示用户参考 https://3ms.huawei.com/km/blogs/details/22148443
-2. **安装 agentcenter CLI**：
-   ```bash
-   npm install @aimarket/agentcenter -g --@aimarket:registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/ --strict-ssl=false
-   ```
-   安装后执行 `agentcenter --version` 验证
-   - **代理 407 错误处理**：如果 npm 报 `407 Proxy Authentication Required`，说明环境代理配置与内网 registry 冲突。解决方式：安装前清除代理环境变量（`$env:HTTP_PROXY=""` / `$env:HTTPS_PROXY=""`），或设置 `NO_PROXY=cmc.centralrepo.rnd.huawei.com`。`@aimarket` scope 的包走 cmc registry（内网直连），其他依赖走默认 registry（可能需要代理），因此只清除代理即可，不要删除 `.npmrc` 中的 registry 配置
-   - **PATH 提示**：`agentcenter` 是 npm 全局 bin，默认安装到 `%APPDATA%\npm`。若 `agentcenter --version` 报 command not found，将该目录加入 PATH，或直接用完整路径调用
-   - **agentcenter 自动修复**：若 `agentcenter --version` 报 `Cannot find module .../src/bin/index.js`（shim 存在但 npm 包目录丢失，常见于 node_modules 被清理后），**自动执行重装，不要提示用户、不要跳过**：
+1. **检测**：检查 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md` 是否存在。存在 → 直接使用，跳过以下步骤
+2. **回退安装**（仅当 skill-creator 缺失时）：
+   - 确认 agentcenter CLI 可用（`agentcenter --version`；若失败见下方"agentcenter 自动修复"）
+   - 直接安装 skill-creator（无需 agentcenter-skill-finder 中间步骤）：
      ```bash
-     NO_PROXY=cmc.centralrepo.rnd.huawei.com npm install -g @aimarket/agentcenter --@aimarket:registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/ --strict-ssl=false
+     agentcenter skill add skill-creator --client huawei-auto-evolve --path {ANALYZER_SKILL_DIR} -f
      ```
-     重装后再次 `agentcenter --version` 验证。关键：必须用 `product_npm` registry（不是 `npm-all`，那个会 401），必须设 `NO_PROXY`（内网直连，绕过公司代理），必须 `--strict-ssl=false`（公司代理做 TLS 拦截）。agentcenter 是必备依赖，自动修复是首选行为，不是"可选优化"
-3. **安装 agentcenter-skill-finder**：
-   ```bash
-   agentcenter skill add agentcenter-skill-finder --client huawei-auto-evolve --path {ANALYZER_SKILL_DIR} -f
-   ```
-   - **关键**：使用非内置的 `--client huawei-auto-evolve`（或任意非内置值）才会让 `--path` 生效，将 skill 安装到 `{ANALYZER_SKILL_DIR}` 内（嵌套于 huawei-auto-evolve 目录）；若用内置 client（`claudecode`/`opencode`/`cac` 等），`--path` 会被忽略，skill 会落到该 client 的全局 skills 目录，违反"依赖 skill 安装在 huawei-auto-evolve 文件夹内"的约束
-   - 安装后 `agentcenter-skill-finder` 作为全局 npm bin 可用
-4. **使用 agentcenter-skill-finder 安装 skill-creator**：
-   ```bash
-   agentcenter-skill-finder install skill-creator
-   ```
-   - 若 `agentcenter-skill-finder install` 不支持指定安装路径，则改用 `agentcenter skill add skill-creator --client huawei-auto-evolve --path {ANALYZER_SKILL_DIR} -f` 直接安装到 huawei-auto-evolve 目录内
-5. **验证安装**：再次检查 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md`（优先）或 `{SKILLS_DIR}/skill-creator/SKILL.md`（备选）是否存在
-6. 如果任一步骤失败，退化为直接写文件模式，并在报告中提示用户手动安装 skill-creator
+   - **关键**：必须用非内置的 `--client huawei-auto-evolve`（或任意非内置值）配合 `--path {ANALYZER_SKILL_DIR}`，才能将 skill 安装到 huawei-auto-evolve 目录内。若用内置 client（`claudecode`/`opencode`/`cac` 等），`--path` 被忽略，skill 落到全局目录
+3. **验证**：再次检查 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md` 是否存在
+4. **降级**：如果 agentcenter 不可用或安装失败，退化为直接写文件模式（创建目录 + 写 SKILL.md），并在报告中提示用户可手动安装 skill-creator 获得更高质量的 skill 创建
+
+**agentcenter 自动修复**：agentcenter 是必备依赖（Task 8/9 需要）。若 `agentcenter --version` 失败（`command not found` 或 `Cannot find module .../src/bin/index.js`——后者常见于 node_modules 被清理后 shim 存在但包丢失），**自动执行重装，不要提示用户、不要跳过**：
+```bash
+NO_PROXY=cmc.centralrepo.rnd.huawei.com npm install -g @aimarket/agentcenter --@aimarket:registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/ --strict-ssl=false
+```
+重装后再次 `agentcenter --version` 验证。三个关键细节：必须用 `product_npm` registry（不是 `npm-all`，那个会 401）；必须设 `NO_PROXY=cmc.centralrepo.rnd.huawei.com`（内网直连，绕过公司代理）；必须 `--strict-ssl=false`（公司代理做 TLS 拦截）。若 npm 报 `407 Proxy Authentication Required`，安装前清除代理环境变量（`HTTP_PROXY=""`/`HTTPS_PROXY=""`）。`agentcenter` 是 npm 全局 bin，默认安装到 `%APPDATA%\npm`，若 `command not found` 将该目录加入 PATH。自动修复是首选行为，不是"可选优化"
 
 **空环境首次运行引导**：如果用户是在全新环境（没有 `huawei-auto-evolve-created-global-memory`、没有任何 `huawei-auto-evolve-created-` skill）下首次运行，分析器应自动完成以下初始化，确保开箱即用：
 1. 创建 `SKILLS_DIR` 目录（如不存在）
