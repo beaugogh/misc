@@ -1,5 +1,5 @@
 {
-  "name": "huawei-github",
+  "name": "github",
   "version": "0.1.0",
   "description": "Interact with GitHub repositories, issues, PRs, actions, and more via the official GitHub MCP server (api.githubcopilot.com/mcp/). Remote Streamable HTTP endpoint — install-free (pure-stdlib wrapper), but requires a GitHub Personal Access Token. This is the first EXTERNAL-host MCP tool in this repo: unlike the Huawei intranet tools (which bypass the corporate proxy), GitHub must go THROUGH the corporate proxy. Usable by any MCP-capable agent (load the bundled config) or any agent with Bash + Python 3 (run the bundled wrapper script).",
   "transport": "remote",

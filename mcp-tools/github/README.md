@@ -1,4 +1,4 @@
-# huawei-github
+# github
 
 Interact with **GitHub** repositories, issues, PRs, actions, and more via the
 official **GitHub MCP server** (`api.githubcopilot.com/mcp/`). Covers the full
@@ -60,16 +60,16 @@ key tools; `--list-tools` shows the full live list. Key tools:
 
 ```bash
 export GITHUB_MCP_PAT=ghp_xxxxxxxxxxxx
-python3 mcp-tools/huawei-github/github_mcp.py list-commits --owner beaugogh --repo misc --json
-python3 mcp-tools/huawei-github/github_mcp.py list-pull-requests --owner beaugogh --repo misc --state all
-python3 mcp-tools/huawei-github/github_mcp.py --list-tools
+python3 mcp-tools/github/github_mcp.py list-commits --owner beaugogh --repo misc --json
+python3 mcp-tools/github/github_mcp.py list-pull-requests --owner beaugogh --repo misc --state all
+python3 mcp-tools/github/github_mcp.py --list-tools
 ```
 
 ### B/C. Claude Code / opencode
 
 Edit the config to put your real PAT in the `Authorization` header, then:
-`cp mcp-tools/huawei-github/claude-code.mcp.json .mcp.json` (Claude Code) or
-`codeagent --mcp-config mcp-tools/huawei-github/opencode.mcp.json` (opencode).
+`cp mcp-tools/github/claude-code.mcp.json .mcp.json` (Claude Code) or
+`codeagent --mcp-config mcp-tools/github/opencode.mcp.json` (opencode).
 
 Note: the agent's MCP client must also route through the proxy. Set
 `HTTPS_PROXY=http://proxyuk.huawei.com:8080` in the shell that launches the

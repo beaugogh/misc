@@ -125,7 +125,7 @@ def _initialize() -> str:
         "params": {
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "github_mcp.py", "version": "1.0"},
+            "clientInfo": {"name": "github-mcp.py", "version": "1.0"},
         },
     })
     if "error" in resp:
