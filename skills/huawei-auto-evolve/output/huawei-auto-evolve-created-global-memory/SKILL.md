@@ -55,7 +55,7 @@ description: 长期记忆 skill。存储用户身份、工作习惯、开发环�
 
 - **misc 仓库**（`D:\workspace\misc`）：技能/插件/MCP工具集合，供任何 agent/harness 使用
   - 三类 artifact：skills、opencli-plugins、mcp-tools
-  - 四个 MCP 工具：huawei-w3-search、huawei-codehub、huawei-wiki-mcp、huawei-clouddevops
+  - 四个 MCP 工具：huawei-w3-search、huawei-codehub、huawei-wiki、huawei-clouddevops
   - 三个子模块：anthropic-skills、superpowers、mattpocock-skills（位于 skills/ 下）
   - Git 子模块 relocated from root to skills/
 - **auto-evolve / huawei-auto-evolve**：自演进引擎 skill，本次 session 的核心工作对象

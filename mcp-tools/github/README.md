@@ -8,7 +8,7 @@ workflow runs, notifications, code search.
 ## ⚠️ First EXTERNAL-host MCP tool in this repo
 
 Unlike the other four `mcp-tools/` entries (`huawei-w3-search`,
-`huawei-codehub`, `huawei-wiki-mcp`, `huawei-clouddevops`) which hit **Huawei
+`huawei-codehub`, `huawei-wiki`, `huawei-clouddevops`) which hit **Huawei
 intranet** hosts and must **bypass** the corporate proxy, GitHub is an
 **external** host that must go **through** the proxy:
 

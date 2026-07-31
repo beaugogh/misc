@@ -1,5 +1,5 @@
 {
-  "name": "huawei-wiki-mcp",
+  "name": "huawei-wiki",
   "version": "0.1.0",
   "description": "Read and write Huawei CloudDevOps Wiki documents via the remote `wiki-mcp` MCP server (mcpgateway.his.huawei.com). Exposes fetch/create/overwrite wiki content, comments, document search/listing, and the full countersign (会签) workflow. No authentication required — the server is an unauthenticated remote MCP endpoint on the intranet. Usable by any MCP-capable agent (load the bundled config) or any agent with Bash + Python 3 (run the bundled wrapper script).",
   "transport": "remote",
@@ -17,7 +17,7 @@
   "auth": "optional-token",
   "auth_detail": "Most tools (fetch/search/list content) need no auth. User-scoped tools (list_my_*) and write tools require X-Auth-Token. Set WIKI_X_AUTH_TOKEN in the environment (wrapper) or add X-Auth-Token to headers (config).",
   "server_info": {
-    "name": "huawei-wiki-mcp",
+    "name": "huawei-wiki",
     "version": "3.1.0"
   },
   "tools": [

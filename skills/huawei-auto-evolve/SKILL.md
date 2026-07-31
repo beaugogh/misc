@@ -253,17 +253,17 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 
 **用途**：获取用户撰写的 Wiki 文档，了解其专业领域和工作重点
 
-**检测方式**：优先使用本仓库自包含的 Wiki MCP 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/huawei-wiki-mcp/wiki_mcp.py`，纯标准库、无需安装、读操作无需认证）；或尝试 `clouddevops` MCP 工具（`mcp-tools/huawei-clouddevops/clouddevops.py`，需 `CLOUDDEVOPS_X_AUTH_TOKEN`）
+**检测方式**：优先使用本仓库自包含的 Wiki MCP 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/huawei-wiki/wiki_mcp.py`，纯标准库、无需安装、读操作无需认证）；或尝试 `clouddevops` MCP 工具（`mcp-tools/huawei-clouddevops/clouddevops.py`，需 `CLOUDDEVOPS_X_AUTH_TOKEN`）
 
 **采集方式**：
 - **首选：调用 wiki-mcp 自包含脚本**（任何有 Bash + Python 3 的环境都能用）：
   ```bash
   # 搜索某知识库内的 Wiki（读操作无需 token）
-  python3 mcp-tools/huawei-wiki-mcp/wiki_mcp.py search-wiki-documents --url <wiki-url> --search-range knowledge --search-key "<用户姓名>" --json
+  python3 mcp-tools/huawei-wiki/wiki_mcp.py search-wiki-documents --url <wiki-url> --search-range knowledge --search-key "<用户姓名>" --json
   # 获取文档内容
-  python3 mcp-tools/huawei-wiki-mcp/wiki_mcp.py fetch-wiki-content --url <wiki-url> --json
+  python3 mcp-tools/huawei-wiki/wiki_mcp.py fetch-wiki-content --url <wiki-url> --json
   # 列出某类目下的文档
-  python3 mcp-tools/huawei-wiki-mcp/wiki_mcp.py list-wiki-documents --url <wiki-url> --query-range category --query-type all
+  python3 mcp-tools/huawei-wiki/wiki_mcp.py list-wiki-documents --url <wiki-url> --query-range category --query-type all
   ```
   用户级查询（如 list-my-initiated-wiki-countersigns）和写操作需 `WIKI_X_AUTH_TOKEN` 环境变量
 - **备选 A：clouddevops MCP 工具**（`mcp-tools/huawei-clouddevops/clouddevops.py`，65 个工具覆盖整个云捷平台，但所有调用需 `CLOUDDEVOPS_X_AUTH_TOKEN`）：
