@@ -25,7 +25,7 @@ of curl's `--ssl-no-revoke`, documented in the repo's
 
 ## Prerequisites
 
-1. **GitHub PAT** (Personal Access Token) — set `GITHUB_MCP_PAT` in the
+1. **GitHub PAT** (Personal Access Token) — set `GITHUB_TOKEN` in the
    environment. Generate at github.com/settings/tokens (`repo` scope minimum).
    The server returns `401` without it.
 2. **Corporate proxy** — the wrapper routes through `proxyuk.huawei.com:8080`
@@ -59,7 +59,7 @@ key tools; `--list-tools` shows the full live list. Key tools:
 ### A. Any agent with Bash + Python 3
 
 ```bash
-export GITHUB_MCP_PAT=ghp_xxxxxxxxxxxx
+export GITHUB_TOKEN=ghp_xxxxxxxxxxxx
 python3 mcp-tools/github/github_mcp.py list-commits --owner beaugogh --repo misc --json
 python3 mcp-tools/github/github_mcp.py list-pull-requests --owner beaugogh --repo misc --state all
 python3 mcp-tools/github/github_mcp.py --list-tools

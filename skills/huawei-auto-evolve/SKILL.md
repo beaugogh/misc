@@ -206,7 +206,7 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 
 **检测方式**：优先使用本仓库自包含的 GitHub 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/github/github_mcp.py`）；或检查 opencode 的 MCP 配置（`~/.config/opencode/opencode.json` 的 `mcp.github_mcp`）是否 `enabled: true`
 
-**前置条件**：需设置 `GITHUB_MCP_PAT` 环境变量（GitHub Personal Access Token，从 github.com/settings/tokens 获取，repo scope）。该工具是**外部主机**——与内网工具不同，它必须**通过**公司代理（`proxyuk.huawei.com:8080`），wrapper 自动处理（`ProxyHandler` + `ssl.CERT_NONE` 应对 TLS 拦截）
+**前置条件**：需设置 `GITHUB_TOKEN` 环境变量（GitHub Personal Access Token，从 github.com/settings/tokens 获取，repo scope）。该工具是**外部主机**——与内网工具不同，它必须**通过**公司代理（`proxyuk.huawei.com:8080`），wrapper 自动处理（`ProxyHandler` + `ssl.CERT_NONE` 应对 TLS 拦截）
 
 **凭据管理**：PAT 存于 `{ANALYZER_SKILL_DIR}/.env`（与 `CODEHUB_TOKEN` 同文件），加载方式相同：
 ```bash
@@ -215,7 +215,7 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 
 - **首选：调用自包含脚本**（任何有 Bash + Python 3 的环境都能用）：
   ```bash
-  export GITHUB_MCP_PAT=<your-github-pat>
+  export GITHUB_TOKEN=<your-github-pat>
   # 1. 列举仓库提交
   python3 mcp-tools/github/github_mcp.py list-commits --owner <owner> --repo <repo> --json
   # 2. 列举 PR（按状态）

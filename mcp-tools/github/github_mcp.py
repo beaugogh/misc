@@ -18,7 +18,7 @@ route via proxyuk.huawei.com:8080. The proxy does TLS interception, so cert
 verification is disabled (ssl.CERT_NONE) — the urllib equivalent of curl's
 --ssl-no-revoke.
 
-Requires GITHUB_MCP_PAT in the environment (GitHub Personal Access Token).
+Requires GITHUB_TOKEN in the environment (GitHub Personal Access Token).
 The server returns 401 without it.
 """
 from __future__ import annotations
@@ -59,12 +59,12 @@ class GitHubError(RuntimeError):
 
 def _get_pat() -> str:
     """Read the GitHub PAT from the environment."""
-    pat = os.environ.get("GITHUB_MCP_PAT", "")
+    pat = os.environ.get("GITHUB_TOKEN", "")
     if not pat:
         raise GitHubError(
-            "GITHUB_MCP_PAT is not set. Generate a GitHub Personal Access Token "
+            "GITHUB_TOKEN is not set. Generate a GitHub Personal Access Token "
             "at github.com/settings/tokens (repo scope minimum) and run:\n"
-            "  export GITHUB_MCP_PAT=ghp_xxxxxxxxxxxx"
+            "  export GITHUB_TOKEN=ghp_xxxxxxxxxxxx"
         )
     return pat
 
@@ -220,7 +220,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
             remaining.append(tok)
     p = argparse.ArgumentParser(
         description="Call the GitHub MCP server (remote, via corporate proxy). "
-                    "Requires GITHUB_MCP_PAT in the environment.",
+                    "Requires GITHUB_TOKEN in the environment.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="examples:\n"
                "  %(prog)s list-commits --owner beaugogh --repo misc --json\n"
@@ -297,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
         if body:
             print(f"  body: {body}", file=sys.stderr)
         if e.code == 401:
-            print("hint: check that GITHUB_MCP_PAT is a valid GitHub PAT with sufficient scope.",
+            print("hint: check that GITHUB_TOKEN is a valid GitHub PAT with sufficient scope.",
                   file=sys.stderr)
         return 2
     except urllib.error.URLError as e:

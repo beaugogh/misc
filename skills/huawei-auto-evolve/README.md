@@ -42,7 +42,7 @@ CODEHUB_HOST=https://codehub-g.huawei.com/
 
 ---
 
-## GITHUB_MCP_PAT — GitHub 个人访问令牌
+## GITHUB_TOKEN — GitHub 个人访问令牌
 
 **用途**：GitHub MCP 工具（`github`）访问 GitHub 托管仓库的 PR、review、issue、commit 数据。
 
@@ -65,7 +65,7 @@ CODEHUB_HOST=https://codehub-g.huawei.com/
 
 **填入 `.env`**：
 ```
-GITHUB_MCP_PAT=你的GitHub令牌
+GITHUB_TOKEN=你的GitHub令牌
 ```
 
 **网络注意**：GitHub 是外部主机，**必须通过**公司代理（`proxyuk.huawei.com:8080`），与 CodeHub 相反。`github_mcp.py` wrapper 自动处理（`ProxyHandler` + `ssl.CERT_NONE` 应对 TLS 拦截）。
