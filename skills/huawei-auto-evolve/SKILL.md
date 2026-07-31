@@ -121,7 +121,7 @@ MEMORY_SKILL_NAME = "huawei-auto-evolve-created-global-memory"
 
 ## Session 数据源
 
-auto-evolve 从两个 session 存储中读取数据，**两者都检测，有数据的即采集**：
+huawei-auto-evolve 从两个 session 存储中读取数据，**两者都检测，有数据的即采集**：
 
 ### 来源 A：opencode session DB（`DB_PATH`）
 
