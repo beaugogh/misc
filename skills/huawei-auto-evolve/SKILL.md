@@ -55,7 +55,7 @@ NO_PROXY=cmc.centralrepo.rnd.huawei.com npm install -g @aimarket/agentcenter --@
 | welink-cli | 分析时间段内的聊天记录 | 检查 PATH 中是否有 `welink-cli`，`welink-cli auth status` 是否已登录 | 若未安装，**自动安装** `npm install -g @welink/welink-cli`；若 token 过期，**自动刷新** `welink-cli auth login`；均失败才跳过 |
 | W3 搜索 MCP 工具 | 搜索用户公开信息 | 尝试调用 W3 搜索 MCP 工具或 API | 跳过 W3 数据源 |
 | CloudDevOps Wiki MCP | 获取用户 Wiki | 优先 `wiki-mcp.py`（自包含，读无需认证）；或 `clouddevops.py`（需 X-AUTH-TOKEN） | 跳过 Wiki 数据源 |
-| git (CodeHub) | 获取代码提交记录 | `git --version`；可选 CodeHub MCP 工具（`codehub.py --list-tools` 或 opencode `mcp.Codehub-Mcp-Server`） | 跳过代码提交数据源（本地 git 仍可用；缺 MCP 则跳过 MR/检视/Issue 协作层数据） |
+| git (CodeHub/GitHub) | 获取代码提交记录 | `git --version`；可选 CodeHub MCP（`codehub.py --list-tools`）或 GitHub MCP（`github_mcp.py --list-tools`），按仓库 remote 归属选择 | 跳过 MCP 协作层数据（本地 git 仍可用） |
 | agentcenter CLI | 推荐安装 skill、检查 skill 新版本 | `agentcenter --version`；若报 module not found（shim 存在但包丢失），**自动重装**（见下方"agentcenter 自动修复"） | **阻塞**：agentcenter 是必备依赖，不可跳过。自动修复失败才提示用户 |
 
 ## 核心功能
@@ -199,6 +199,36 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 - **备选：调用 MCP 工具**（服务器 `Codehub-Mcp-Server`，需将 `mcp-tools/huawei-codehub/opencode.mcp.json` 或 `claude-code.mcp.json` 载入 harness，并填入真实 `PRIVATE_TOKEN`）。此时须在启动 agent 的 shell 设置 `NO_PROXY=cmc.centralrepo.rnd.huawei.com,mirrors.tools.huawei.com,codehub-y.huawei.com`
 - **提取**：MR 标题/状态/分支、**检视意见（review comments）**、Issue 标题/状态/讨论
 - **重点**：反复出现的检视意见揭示反复犯的错误；MR 的门禁状态（`get-merge-request-mergeable-state`）反映代码质量阻塞点；这些是 session 中通常不会记录的协作信号
+
+**C. GitHub MCP 工具**（可选，补充 GitHub 托管仓库的协作层数据）：
+
+> 与 CodeHub MCP 对称——CodeHub MCP 覆盖华为内部 Git 仓库，GitHub MCP 覆盖 GitHub 托管仓库。如果用户的仓库在 GitHub（如本 misc 仓库），用 GitHub MCP 获取 PR、review、issue 数据。
+
+**检测方式**：优先使用本仓库自包含的 GitHub 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/github/github_mcp.py`）；或检查 opencode 的 MCP 配置（`~/.config/opencode/opencode.json` 的 `mcp.github_mcp`）是否 `enabled: true`
+
+**前置条件**：需设置 `GITHUB_MCP_PAT` 环境变量（GitHub Personal Access Token，从 github.com/settings/tokens 获取，repo scope）。该工具是**外部主机**——与内网工具不同，它必须**通过**公司代理（`proxyuk.huawei.com:8080`），wrapper 自动处理（`ProxyHandler` + `ssl.CERT_NONE` 应对 TLS 拦截）
+
+**凭据管理**：PAT 存于 `{ANALYZER_SKILL_DIR}/.env`（与 `PRIVATE_TOKEN` 同文件），加载方式相同：
+```bash
+set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
+```
+
+- **首选：调用自包含脚本**（任何有 Bash + Python 3 的环境都能用）：
+  ```bash
+  export GITHUB_MCP_PAT=<your-github-pat>
+  # 1. 列举仓库提交
+  python3 mcp-tools/github/github_mcp.py list-commits --owner <owner> --repo <repo> --json
+  # 2. 列举 PR（按状态）
+  python3 mcp-tools/github/github_mcp.py list-pull-requests --owner <owner> --repo <repo> --state all
+  # 3. 获取某 PR 的检视意见 —— 与 CodeHub MR 检视意见同等价值
+  python3 mcp-tools/github/github_mcp.py get-pull-request-reviews --owner <owner> --repo <repo> --pull-request-number <N> --json
+  # 4. 获取 PR 变更文件
+  python3 mcp-tools/github/github_mcp.py get-pull-request-files --owner <owner> --repo <repo> --pull-request-number <N>
+  ```
+  工具名用 kebab-case，脚本自动映射为服务器的 snake_case 名。`--list-tools` 可列出全部工具
+- **备选：调用 MCP 工具**（需将 `mcp-tools/github/claude-code.mcp.json` 或 `opencode.mcp.json` 载入 harness，并填入真实 `Authorization: Bearer <PAT>` 头）。此时须在启动 agent 的 shell 设置 `HTTPS_PROXY=http://proxyuk.huawei.com:8080`（外部主机走代理）
+- **提取**：PR 标题/状态/分支、**检视意见（reviews）**、Issue、CI/CD workflow runs
+- **判断仓库归属**：从 session 的 `directory` 字段或 git remote 判断仓库在 CodeHub 还是 GitHub——`git remote -v` 含 `codehub-*` → 用 CodeHub MCP；含 `github.com` → 用 GitHub MCP
 
 ### 数据源 3：W3 搜索
 
