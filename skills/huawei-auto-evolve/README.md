@@ -30,10 +30,10 @@ set -a; source skills/huawei-auto-evolve/.env; set +a
 **填入 `.env`**：
 ```
 CODEHUB_TOKEN=你的CodeHub令牌
-WEB_HOST=https://codehub-g.huawei.com/
+CODEHUB_HOST=https://codehub-g.huawei.com/
 ```
 
-**WEB_HOST 说明**：
+**CODEHUB_HOST 说明**：
 - `codehub-g.huawei.com`：大多数华为网络可直接访问（推荐）
 - `codehub-y.huawei.com`：部分网络段不可达，如遇到超时请切换为 `-g`
 - 验证可达性：`NO_PROXY=*.huawei.com curl -sS -o /dev/null -w "%{http_code}\n" https://codehub-g.huawei.com/`

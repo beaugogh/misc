@@ -78,6 +78,6 @@ description: 长期记忆 skill。存储用户身份、工作习惯、开发环�
 - **misc 仓库根**：`D:\workspace\misc`
 - **huawei-auto-evolve 目录**：`skills/huawei-auto-evolve/`
 - **MCP 工具目录**：`mcp-tools/huawei-{w3-search,codehub,wiki-mcp,clouddevops}/`
-- **CodeHub .env**：`skills/huawei-auto-evolve/.env`（CODEHUB_TOKEN + WEB_HOST，gitignored）
+- **CodeHub .env**：`skills/huawei-auto-evolve/.env`（CODEHUB_TOKEN + CODEHUB_HOST，gitignored）
 - **catalog 生成**：`./scripts/generate-catalog.sh`（从 manifests 自动生成 CATALOG.md）
 - **adversarial-review skill**：`skills/adversarial-review/`（用于代码审查）

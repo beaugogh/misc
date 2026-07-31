@@ -195,6 +195,6 @@ crashes at startup — check the agent's MCP server logs.
 
 **Server starts but every tool returns an auth error**
 
-The token is invalid or expired, or `WEB_HOST` points at a CodeHub instance
-where the token isn't valid. Regenerate the token and confirm `WEB_HOST`
+The token is invalid or expired, or `CODEHUB_HOST` points at a CodeHub instance
+where the token isn't valid. Regenerate the token and confirm `CODEHUB_HOST`
 matches (default `https://codehub-y.huawei.com/`).

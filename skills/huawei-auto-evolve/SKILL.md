@@ -181,7 +181,7 @@ git show <hash> --stat
 ```bash
 set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 ```
-该 `.env` 含 `CODEHUB_TOKEN` 和 `WEB_HOST`（默认 `https://codehub-g.huawei.com/`，直接可达；`codehub-y.huawei.com` 在部分网络段不可达）。加载后 `codehub.py` 会从环境读取。Windows 上 uvx 受 TLS 拦截影响需 `--allow-insecure-host`（已在默认参数中，参见 `mcp-tools/huawei-codehub/README.md` 的 Troubleshooting）
+该 `.env` 含 `CODEHUB_TOKEN` 和 `CODEHUB_HOST`（默认 `https://codehub-g.huawei.com/`，直接可达；`codehub-y.huawei.com` 在部分网络段不可达）。加载后 `codehub.py` 会从环境读取。Windows 上 uvx 受 TLS 拦截影响需 `--allow-insecure-host`（已在默认参数中，参见 `mcp-tools/huawei-codehub/README.md` 的 Troubleshooting）
 
 - **首选：调用自包含脚本**（任何有 Bash + Python 3 的环境都能用，无需 MCP 支持）：
   ```bash

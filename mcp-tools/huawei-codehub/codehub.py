@@ -100,12 +100,14 @@ class ServerProcess:
 
     def __init__(self) -> None:
         env = dict(os.environ)
-        # Translate CODEHUB_TOKEN (user-facing name in .env) to PRIVATE_TOKEN
-        # (the name the CodeHub MCP server expects). The server reads
-        # PRIVATE_TOKEN/X_AUTH_TOKEN at startup.
+        # Translate user-facing env var names (CODEHUB_TOKEN, CODEHUB_HOST)
+        # to the names the CodeHub MCP server expects (PRIVATE_TOKEN, WEB_HOST).
         codehub_token = env.get("CODEHUB_TOKEN", "")
         if codehub_token and not env.get("PRIVATE_TOKEN"):
             env["PRIVATE_TOKEN"] = codehub_token
+        codehub_host = env.get("CODEHUB_HOST", "")
+        if codehub_host and not env.get("WEB_HOST"):
+            env["WEB_HOST"] = codehub_host
         # uvx must reach the intranet artifactory + PyPI mirror directly, not
         # through the corporate proxy. The TLS-interception problem is handled
         # by --allow-insecure-host in DEFAULT_UVX_ARGS (the proxy re-signs the
@@ -441,8 +443,8 @@ def main(argv: list[str] | None = None) -> int:
         print("hint: get a personal access token from CodeHub (codehub-g.huawei.com) and run:", file=sys.stderr)
         print("  export CODEHUB_TOKEN=<your-token>", file=sys.stderr)
         return 2
-    if not os.environ.get("WEB_HOST"):
-        os.environ["WEB_HOST"] = "https://codehub-y.huawei.com/"
+    if not os.environ.get("CODEHUB_HOST") and not os.environ.get("WEB_HOST"):
+        os.environ["CODEHUB_HOST"] = "https://codehub-g.huawei.com/"
 
     try:
         server = ServerProcess()
