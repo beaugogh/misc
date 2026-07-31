@@ -41,6 +41,7 @@ Output: a list of task dicts:
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Iterator
 
@@ -139,12 +140,18 @@ def _extract_output_artifacts(events: list[dict]) -> list[str]:
 
 
 def _extract_inputs(events: list[dict]) -> list[str]:
-    """Pull input artifacts: user messages that started the task, files Read, URLs fetched."""
+    """Pull input artifacts: user messages, files Read, URLs fetched, and non-tool events.
+
+    Handles both AI-session tool_use events AND non-AI events (browser visits, searches,
+    meetings, emails, commits) so the ``inputs`` list is useful for every source_kind,
+    not just ai_session. Each entry is prefixed with its type for readability.
+    """
     inputs = []
     for ev in events:
-        if ev.get("kind") == "user_message" and ev.get("text"):
+        kind = ev.get("kind")
+        if kind == "user_message" and ev.get("text"):
             inputs.append(f"prompt: {ev['text'][:100]}")
-        elif ev.get("kind") == "tool_use":
+        elif kind == "tool_use":
             name = ev.get("tool_name")
             ti = ev.get("tool_input") or {}
             if name == "Read" and ti.get("file_path"):
@@ -155,6 +162,33 @@ def _extract_inputs(events: list[dict]) -> list[str]:
                 inputs.append(f"search: {ti['query']}")
             elif name == "Grep" and ti.get("pattern"):
                 inputs.append(f"grep: {ti['pattern']}")
+        elif kind == "visit":
+            ti = ev.get("tool_input") or {}
+            title = (ti.get("title") or ev.get("text") or "")[:60]
+            url = (ti.get("url") or "")[:80]
+            inputs.append(f"visit: {title}" + (f" ({url})" if url else ""))
+        elif kind == "search":
+            q = (ev.get("text") or (ev.get("tool_input") or {}).get("query") or "")[:80]
+            inputs.append(f"search: {q}")
+        elif kind == "download":
+            ti = ev.get("tool_input") or {}
+            fname = (ti.get("target_path") or ev.get("text") or "")[:80]
+            inputs.append(f"download: {os.path.basename(fname) if fname else '?'}")
+        elif kind == "meeting":
+            ti = ev.get("tool_input") or {}
+            subj = (ti.get("subject") or ev.get("text") or "(no subject)")[:60]
+            org = ti.get("organizer")
+            atts = _attendee_count(ti.get("attendees"))
+            inputs.append(f"meeting: {subj}" + (f" ({org}, {atts} attendees)" if org or atts else ""))
+        elif kind == "email":
+            ti = ev.get("tool_input") or {}
+            subj = (ti.get("subject") or ev.get("text") or "(no subject)")[:60]
+            sender = ti.get("from") or ti.get("from_email")
+            inputs.append(f"email: {subj}" + (f" (from {sender})" if sender else ""))
+        elif kind == "commit":
+            ti = ev.get("tool_input") or {}
+            subj = (ti.get("subject") or ev.get("text") or "")[:80]
+            inputs.append(f"commit: {subj}")
     # dedupe
     seen = set()
     deduped = []
@@ -163,6 +197,290 @@ def _extract_inputs(events: list[dict]) -> list[str]:
             seen.add(i)
             deduped.append(i)
     return deduped[:15]
+
+
+def _attendee_count(attendees: object) -> int | None:
+    """Count attendees from the various shapes adapters produce (list/str/int)."""
+    if attendees is None:
+        return None
+    if isinstance(attendees, list):
+        return len(attendees)
+    if isinstance(attendees, (int, float)):
+        return int(attendees)
+    s = str(attendees).strip()
+    if s.isdigit():
+        return int(s)
+    # Some adapters stringify a list — count separators as a rough estimate.
+    if "," in s or ";" in s:
+        return s.count(",") + s.count(";") + 1
+    return None
+
+
+def _attendee_names(attendees: object, cap: int = 5) -> list[str]:
+    """Extract readable attendee names from the various shapes adapters produce."""
+    if not attendees:
+        return []
+    names: list[str] = []
+    if isinstance(attendees, list):
+        for a in attendees[:cap * 2]:
+            if isinstance(a, dict):
+                name = a.get("name") or a.get("staff_name") or a.get("account") or a.get("email")
+                if name:
+                    names.append(str(name)[:40])
+            elif isinstance(a, str):
+                names.append(a[:40])
+    elif isinstance(attendees, str):
+        # Stringified list — split on delimiters.
+        for part in attendees.replace(";", ",").split(","):
+            part = part.strip().strip('"').strip("'")
+            if part and len(part) < 60:
+                names.append(part)
+    return names[:cap]
+
+
+def _extract_context(events: list[dict], source_kind: str) -> dict:
+    """Pull the most diagnostic signals from events for the report/drill-down.
+
+    Returns a structured dict (possibly empty) that lets the report answer
+    "why did this task take as long as it did?" inline, without requiring the
+    user to run a separate ``--task <id> --drill``. The data is already in the
+    events — this function just surfaces it per source_kind:
+
+      - meeting  → organizer, attendee count + names, location, is_all_day
+      - browser  → search queries, top URLs/titles, downloads, visit count
+      - comm     → senders, subjects, whether a reply was sent
+      - ai_session → error samples + synthesized blocker, retry targets,
+                     dominant tools, files touched
+      - vcs      → commit subjects (if not already in git_commits)
+      - filesystem → files touched
+
+    All lists are capped (5 items, 120 chars each) to keep the task dict compact.
+    """
+    ctx: dict = {}
+    if source_kind == "meeting":
+        for ev in events:
+            if ev.get("kind") != "meeting":
+                continue
+            ti = ev.get("tool_input") or {}
+            organizer = ti.get("organizer")
+            attendees = ti.get("attendees")
+            location = ti.get("location")
+            is_all_day = ti.get("is_all_day")
+            ctx.setdefault("organizer", organizer)
+            ctx.setdefault("attendees", _attendee_count(attendees))
+            ctx.setdefault("attendee_names", _attendee_names(attendees))
+            ctx.setdefault("location", location)
+            if is_all_day is not None:
+                ctx.setdefault("is_all_day", bool(is_all_day))
+            ctx.setdefault("subject", ti.get("subject") or ev.get("text"))
+            break  # one meeting event is enough; a task = one meeting
+        return ctx
+
+    if source_kind == "browser":
+        queries, urls, titles, downloads = [], [], [], 0
+        for ev in events:
+            kind = ev.get("kind")
+            ti = ev.get("tool_input") or {}
+            if kind == "search":
+                q = (ev.get("text") or ti.get("query") or "").strip()
+                if q:
+                    queries.append(q[:120])
+            elif kind == "visit":
+                title = (ti.get("title") or ev.get("text") or "").strip()
+                url = (ti.get("url") or "").strip()
+                if title:
+                    titles.append(title[:120])
+                if url:
+                    urls.append(url[:120])
+            elif kind == "download":
+                downloads += 1
+        # dedupe preserving order
+        ctx["queries"] = _dedupe(queries)[:5]
+        ctx["top_titles"] = _dedupe(titles)[:5]
+        ctx["top_urls"] = _dedupe(urls)[:5]
+        ctx["downloads"] = downloads
+        ctx["n_visits"] = sum(1 for e in events if e.get("kind") == "visit")
+        return ctx
+
+    if source_kind == "comm":
+        senders, subjects = [], []
+        directions = set()
+        for ev in events:
+            if ev.get("kind") != "email":
+                continue
+            ti = ev.get("tool_input") or {}
+            sender = ti.get("from") or ti.get("from_email")
+            if sender:
+                senders.append(str(sender)[:60])
+            subj = ti.get("subject") or ev.get("text")
+            if subj:
+                subjects.append(str(subj)[:80])
+            d = ti.get("direction")
+            if d:
+                directions.add(d)
+        ctx["senders"] = _dedupe(senders)[:5]
+        ctx["subjects"] = _dedupe(subjects)[:5]
+        ctx["has_reply"] = "sent" in directions and "received" in directions
+        return ctx
+
+    if source_kind == "ai_session":
+        # Error samples + synthesized blocker — the key signal for coding pain.
+        error_texts, retry_targets = [], []
+        files_touched = set()
+        tool_counter: dict[str, int] = {}
+        # Track tool_use calls by (tool, target) for retry detection.
+        call_counts: dict[str, int] = {}
+        for ev in events:
+            kind = ev.get("kind")
+            if kind == "tool_result" and ev.get("tool_is_error") is True:
+                text = (ev.get("text") or "").strip()
+                if text:
+                    error_texts.append(text[:120])
+            elif kind == "tool_use":
+                name = ev.get("tool_name") or ""
+                ti = ev.get("tool_input") or {}
+                if name in ("Edit", "Write", "NotebookEdit") and ti.get("file_path"):
+                    files_touched.add(str(ti["file_path"]))
+                tool_counter[name] = tool_counter.get(name, 0) + 1
+                # Retry target — same tool on same file/command.
+                target = _retry_target_key(name, ti)
+                if target:
+                    key = f"{name}:{target}"
+                    call_counts[key] = call_counts.get(key, 0) + 1
+        # Synthesize a one-line blocker from the error texts.
+        ctx["error_samples"] = _dedupe(error_texts)[:5]
+        ctx["blocker"] = _synthesize_blocker(error_texts)
+        # Retry targets: tools called 2+× on the same target.
+        retries = [(k.split(":", 1)[0], k.split(":", 1)[1], v)
+                   for k, v in call_counts.items() if v >= 2]
+        retries.sort(key=lambda x: -x[2])
+        ctx["retry_targets"] = [f"{t} on {_short_target(tg)} ({n}×)"
+                                for t, tg, n in retries[:5]]
+        ctx["dominant_tools"] = [t for t, _ in sorted(tool_counter.items(),
+                                                      key=lambda x: -x[1])[:5]]
+        ctx["files_touched"] = sorted(files_touched)[:5]
+        return ctx
+
+    if source_kind == "vcs":
+        subjects = []
+        for ev in events:
+            if ev.get("kind") == "commit":
+                ti = ev.get("tool_input") or {}
+                subj = ti.get("subject") or ev.get("text")
+                if subj:
+                    subjects.append(str(subj)[:80])
+        if subjects:
+            ctx["commit_subjects"] = _dedupe(subjects)[:5]
+        return ctx
+
+    if source_kind == "filesystem":
+        files = set()
+        for ev in events:
+            ti = ev.get("tool_input") or {}
+            f = ti.get("path") or ti.get("file_path") or ev.get("text")
+            if f:
+                files.add(str(f)[:120])
+        if files:
+            ctx["files"] = sorted(files)[:5]
+        return ctx
+
+    return ctx
+
+
+def _is_truthy(val: object) -> bool:
+    """Check truthiness for values from external APIs that may return strings.
+
+    Handles: True, "true", "True", "TRUE", 1, "1", "yes" → True.
+    Handles: False, "false", "False", 0, "0", "", None → False.
+    """
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return val != 0
+    if isinstance(val, str):
+        return val.strip().lower() in ("true", "1", "yes", "y")
+    return bool(val)
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    """Deduplicate a list preserving order."""
+    seen = set()
+    out = []
+    for x in items:
+        if x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out
+
+
+def _retry_target_key(tool_name: str, ti: dict) -> str | None:
+    """Return a target key for retry grouping (mirrors drill_down._extract_retry_target
+    but simplified — we only need grouping, not hash precision)."""
+    if tool_name in ("Edit", "Write", "NotebookEdit"):
+        fp = ti.get("file_path") or ti.get("notebook_path")
+        return str(fp) if fp else None
+    if tool_name == "Bash":
+        return str(ti.get("command", ""))[:80]
+    if tool_name == "WebSearch":
+        return str(ti.get("query", ""))
+    if tool_name == "WebFetch":
+        return str(ti.get("url", ""))
+    if tool_name == "Grep":
+        return str(ti.get("pattern", ""))
+    return None
+
+
+def _short_target(target: str) -> str:
+    """Shorten a retry target for display (basename for paths)."""
+    if "/" in target or "\\" in target:
+        return os.path.basename(target.rstrip("/\\"))
+    if len(target) > 50:
+        return target[:50] + "..."
+    return target
+
+
+def _synthesize_blocker(error_texts: list[str]) -> str | None:
+    """Synthesize a one-line 'blocker' description from error text samples.
+
+    Groups similar errors by pattern and returns the most common pattern as a
+    human-readable string. Returns None if no errors. This is deterministic
+    pattern matching — not an LLM summary.
+    """
+    if not error_texts:
+        return None
+    from collections import Counter
+    # Classify each error into a pattern bucket.
+    patterns: list[str] = []
+    for text in error_texts:
+        t = text.lower()
+        if "407" in t or ("proxy" in t and "tunnel" in t):
+            patterns.append("corporate proxy auth (407)")
+        elif "timeout" in t or "timed out" in t:
+            patterns.append("command timeout")
+        elif "rejected" in t or "doesn't want to proceed" in t:
+            patterns.append("user rejected tool use")
+        elif "not found" in t or "no such file" in t or "does not exist" in t:
+            patterns.append("file/path not found")
+        elif "permission denied" in t or "access is denied" in t:
+            patterns.append("permission denied")
+        elif "exit code 128" in t or "merge conflict" in t:
+            patterns.append("git failure (exit 128)")
+        elif "exit code 1" in t:
+            patterns.append("command failed (exit 1)")
+        elif "syntaxerror" in t or "indentationerror" in t:
+            patterns.append("Python syntax/indent error")
+        elif "modulenotfounderror" in t or "importerror" in t:
+            patterns.append("module import error")
+        elif "connection" in t and ("refused" in t or "reset" in t or "closed" in t):
+            patterns.append("network connection error")
+        else:
+            patterns.append("other error")
+    counts = Counter(patterns)
+    top_pattern, top_n = counts.most_common(1)[0]
+    if top_pattern == "other error":
+        # Don't synthesize a vague "other error" — show the first raw snippet instead.
+        return error_texts[0][:100]
+    return f"{top_pattern} ({top_n} of {len(error_texts)} errors)"
 
 
 def _compute_active_seconds(events: list[dict], gap_threshold: float = GAP_THRESHOLD_SECONDS) -> tuple[float, float]:
@@ -197,6 +515,27 @@ def _compute_active_seconds(events: list[dict], gap_threshold: float = GAP_THRES
                      if (e.get("extra") or {}).get("end_ts") is not None]
     if end_ts_values:
         real_end = max(end_ts_values)
+
+        # All-day calendar entries (holiday markers, "月末周六工作日") have
+        # start=midnight, end=midnight+86400. These are day-markers, not real
+        # meetings — the user didn't spend 24h in a meeting. Return 0 active.
+        # The is_all_day flag is on the event's tool_input (set by welink_cli/
+        # outlook adapters).
+        is_all_day = any(
+            _is_truthy((e.get("tool_input") or {}).get("is_all_day"))
+            for e in events
+        )
+        if is_all_day:
+            return 0.0, max(0.0, real_end - ts_list[0])
+
+        # Multi-day events (e.g. "下一代智能运维平台集中研讨" spanning 2 days at a
+        # location): nobody attends a 48h meeting non-stop. Cap at 8h (a working
+        # day) and flag the rest as excised. The actual attendance is unknown.
+        raw_duration = real_end - ts_list[0]
+        if raw_duration > 8 * 3600:
+            capped = 8 * 3600
+            return float(capped), max(0.0, raw_duration - capped)
+
         # C2 fix: clamp real_end to MAX_MEETING_DURATION from the task start.
         # A corrupt millis value, year-2099 calendar entry, or all-day event
         # can produce active_seconds of hours/days/years. No real meeting is
@@ -582,11 +921,18 @@ def _make_task(tid: str, flavor: str, events: list[dict], subject: str | None,
     # event text so the report shows the real title instead of "(no subject)".
     if not subject or subject == "(no subject)":
         subject = _derive_subject_from_events(events)
-    # For meetings with a real end_ts, the active time IS the real duration and
-    # may exceed the task's wall_clock (which was computed from event timestamps
-    # that may not include the meeting's actual end). Use the real duration for
-    # both — it's the grounded number.
-    if active > wall_clock:
+    # For meetings with a real end_ts, the wall_clock should reflect the full
+    # meeting span (real_end - start), not the event-timestamp span (which for
+    # single-event meetings is 0). The active time may be less than wall_clock
+    # (all-day → 0h, multi-day → capped 8h) — that's the honest picture.
+    end_ts_values = [e["extra"]["end_ts"] for e in events
+                     if (e.get("extra") or {}).get("end_ts") is not None]
+    if end_ts_values:
+        real_end = max(end_ts_values)
+        if MAX_MEETING_DURATION and real_end - start > MAX_MEETING_DURATION:
+            real_end = start + MAX_MEETING_DURATION
+        wall_clock = round(real_end - start, 1) if real_end > start else 0.0
+    elif active > wall_clock:
         wall_clock = active
     source_kind = first.get("source_kind", "ai_session")
     success, success_evidence = _determine_success(flavor, events, task_status, source_kind)
@@ -616,6 +962,7 @@ def _make_task(tid: str, flavor: str, events: list[dict], subject: str | None,
         "success": success,
         "success_evidence": success_evidence,
         "task_status": task_status,
+        "context": _extract_context(events, source_kind),
     }
 
 

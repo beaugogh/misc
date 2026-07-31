@@ -490,5 +490,126 @@ class TestWeLinkCLIAdapter(unittest.TestCase):
         self.assertIsNone(a._meeting_to_event({"meetingStartTime": "garbage"}))
 
 
+class TestContextExtraction(unittest.TestCase):
+    """Tests for _extract_context — the 'why this took so long' signal layer.
+
+    Verifies that meeting, browser, and coding (ai_session) events produce
+    structured context dicts that the report can surface inline.
+    """
+
+    def test_context_extracted_for_meeting(self):
+        """Meeting events populate organizer, attendee count/names, location."""
+        from segment_tasks import _extract_context
+        events = [{"kind": "meeting", "text": "站会",
+                   "tool_input": {"organizer": "zhang",
+                                   "attendees": [{"name": "a"}, {"name": "b"}],
+                                   "location": "room1", "subject": "站会"}}]
+        ctx = _extract_context(events, "meeting")
+        self.assertEqual(ctx["organizer"], "zhang")
+        self.assertEqual(ctx["attendees"], 2)
+        self.assertEqual(ctx["attendee_names"], ["a", "b"])
+        self.assertEqual(ctx["location"], "room1")
+
+    def test_context_meeting_attendee_count_from_int(self):
+        """Attendee count handles int/str/list shapes from different adapters."""
+        from segment_tasks import _extract_context
+        events = [{"kind": "meeting", "text": "m",
+                   "tool_input": {"attendees": 5}}]
+        ctx = _extract_context(events, "meeting")
+        self.assertEqual(ctx["attendees"], 5)
+
+    def test_context_extracted_for_browser(self):
+        """Browser events populate queries, titles, urls, downloads, visit count."""
+        from segment_tasks import _extract_context
+        events = [
+            {"kind": "search", "text": "pelt penalty", "tool_input": {"query": "pelt penalty"}},
+            {"kind": "visit", "text": "docs", "tool_input": {"url": "http://docs", "title": "docs"}},
+            {"kind": "visit", "text": "so", "tool_input": {"url": "http://so", "title": "so"}},
+            {"kind": "download", "text": "f.pdf", "tool_input": {"target_path": "C:/f.pdf"}},
+        ]
+        ctx = _extract_context(events, "browser")
+        self.assertEqual(ctx["queries"], ["pelt penalty"])
+        self.assertEqual(ctx["top_titles"], ["docs", "so"])
+        self.assertEqual(ctx["downloads"], 1)
+        self.assertEqual(ctx["n_visits"], 2)
+
+    def test_context_blocker_from_errors(self):
+        """Coding events with errors produce a synthesized blocker + error samples."""
+        from segment_tasks import _extract_context
+        events = [
+            {"kind": "tool_use", "tool_name": "Bash", "tool_input": {"command": "git fetch"}},
+            {"kind": "tool_result", "tool_is_error": True,
+             "text": "fatal: CONNECT tunnel failed, response 407"},
+            {"kind": "tool_result", "tool_is_error": True,
+             "text": "fatal: CONNECT tunnel failed, response 407"},
+            {"kind": "tool_use", "tool_name": "Edit", "tool_input": {"file_path": "D:/p/run.py"}},
+        ]
+        ctx = _extract_context(events, "ai_session")
+        self.assertIn("407", ctx["blocker"])
+        self.assertTrue(len(ctx["error_samples"]) >= 1)
+        self.assertIn("run.py", ctx["files_touched"][0])
+
+    def test_context_retry_targets_detected(self):
+        """Same tool+target called 2+× produces a retry_target entry."""
+        from segment_tasks import _extract_context
+        events = [
+            {"kind": "tool_use", "tool_name": "Bash", "tool_input": {"command": "git fetch"}},
+            {"kind": "tool_use", "tool_name": "Bash", "tool_input": {"command": "git fetch"}},
+            {"kind": "tool_use", "tool_name": "Bash", "tool_input": {"command": "git fetch"}},
+        ]
+        ctx = _extract_context(events, "ai_session")
+        self.assertTrue(len(ctx["retry_targets"]) >= 1)
+        self.assertIn("Bash", ctx["retry_targets"][0])
+
+    def test_context_empty_when_no_events(self):
+        """No events → empty context (meeting returns {}, ai_session returns empty lists)."""
+        from segment_tasks import _extract_context
+        # Meeting with no events → no meeting event found → {}
+        self.assertEqual(_extract_context([], "meeting"), {})
+        # ai_session with no events → populated keys but all empty/None
+        ctx = _extract_context([], "ai_session")
+        self.assertIsNone(ctx.get("blocker"))
+        self.assertEqual(ctx.get("error_samples"), [])
+        self.assertEqual(ctx.get("files_touched"), [])
+
+    def test_context_comm_has_reply_flag(self):
+        """Email events set has_reply when both received and sent directions present."""
+        from segment_tasks import _extract_context
+        events = [
+            {"kind": "email", "text": "re: x",
+             "tool_input": {"subject": "re: x", "from": "a@b", "direction": "received"}},
+            {"kind": "email", "text": "x",
+             "tool_input": {"subject": "x", "from": "me", "direction": "sent"}},
+        ]
+        ctx = _extract_context(events, "comm")
+        self.assertTrue(ctx["has_reply"])
+
+    def test_inputs_includes_non_tool_events(self):
+        """_extract_inputs now captures meeting/visit/search/email events, not just tool_use."""
+        from segment_tasks import _extract_inputs
+        events = [
+            {"kind": "meeting", "text": "standup",
+             "tool_input": {"subject": "standup", "organizer": "zhang"}},
+            {"kind": "visit", "text": "docs",
+             "tool_input": {"url": "http://docs", "title": "docs"}},
+            {"kind": "search", "text": "query1", "tool_input": {"query": "query1"}},
+        ]
+        inputs = _extract_inputs(events)
+        texts = " ".join(inputs)
+        self.assertIn("meeting:", texts)
+        self.assertIn("visit:", texts)
+        self.assertIn("search:", texts)
+
+    def test_make_task_has_context_field(self):
+        """_make_task populates task['context'] for every source_kind."""
+        from segment_tasks import _make_task
+        events = [{"kind": "meeting", "text": "m", "timestamp": 1000.0,
+                   "source_kind": "meeting",
+                   "tool_input": {"organizer": "x", "attendees": 3}}]
+        task = _make_task("t1", "implicit", events, None)
+        self.assertIn("context", task)
+        self.assertEqual(task["context"]["organizer"], "x")
+
+
 if __name__ == "__main__":
     unittest.main()

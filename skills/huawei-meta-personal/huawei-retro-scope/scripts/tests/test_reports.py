@@ -655,5 +655,308 @@ class TestTopTasks(unittest.TestCase):
         self.assertIn("unpaired event", out)
 
 
+class TestContextRendering(unittest.TestCase):
+    """Tests that task['context'] is surfaced in render_task_detail, render_html,
+    and the insights layer — the 'why this took as long as it did' answer.
+    """
+
+    def test_task_detail_shows_context_for_meeting(self):
+        """render_task_detail shows organizer/attendees for a meeting task."""
+        from aggregate import render_task_detail
+        task = {
+            "id": "t1", "subject": "standup", "source_kind": "meeting",
+            "context": {"organizer": "zhang", "attendees": 3,
+                        "attendee_names": ["a", "b", "c"], "location": "room1"},
+        }
+        out = render_task_detail(task)
+        self.assertIn("Why this took as long as it did", out)
+        self.assertIn("zhang", out)
+        self.assertIn("3 attendee(s)", out)
+        self.assertIn("room1", out)
+
+    def test_task_detail_shows_blocker_for_coding(self):
+        """render_task_detail shows the synthesized blocker for a coding task."""
+        from aggregate import render_task_detail
+        task = {
+            "id": "t2", "subject": "sync main", "source_kind": "ai_session",
+            "errors": 46,
+            "context": {"blocker": "corporate proxy auth (407) (12 of 46 errors)",
+                        "retry_targets": ["Bash on git fetch (4×)"],
+                        "files_touched": ["D:/proj/run.py"]},
+        }
+        out = render_task_detail(task)
+        self.assertIn("Blocker:", out)
+        self.assertIn("407", out)
+        self.assertIn("git fetch", out)
+
+    def test_task_detail_no_context_section_when_empty(self):
+        """render_task_detail omits the context section when context is empty."""
+        from aggregate import render_task_detail
+        task = {"id": "t3", "subject": "x", "source_kind": "ai_session"}
+        out = render_task_detail(task)
+        self.assertNotIn("Why this took as long as it did", out)
+
+    def test_render_context_inline_meeting(self):
+        """render_context_inline produces a one-line meeting summary."""
+        from aggregate import render_context_inline
+        task = {"source_kind": "meeting",
+                "context": {"attendees": 5, "organizer": "zhang"}}
+        line = render_context_inline(task)
+        self.assertIn("5 attendee(s)", line)
+        self.assertIn("zhang", line)
+
+    def test_render_context_inline_coding_blocker(self):
+        """render_context_inline surfaces the blocker for coding tasks."""
+        from aggregate import render_context_inline
+        task = {"source_kind": "ai_session", "errors": 10,
+                "context": {"blocker": "command timeout (3 of 10 errors)"}}
+        line = render_context_inline(task)
+        self.assertIn("blocker:", line)
+        self.assertIn("timeout", line)
+
+    def test_render_context_inline_empty(self):
+        """render_context_inline returns '' when no active time and no context."""
+        from aggregate import render_context_inline
+        # No active time and no context → empty
+        self.assertEqual(render_context_inline({"source_kind": "ai_session"}), "")
+        self.assertEqual(render_context_inline({}), "")
+
+    def test_html_top_tasks_has_root_cause_column(self):
+        """render_html top-tasks table includes a 'Root cause' column."""
+        base = 1782967200.0
+        tasks = [
+            {"start": base, "duration_seconds": 3600, "active_seconds": 2400,
+             "wall_clock_seconds": 3600, "excised_gap_seconds": 0,
+             "flavor": "implicit", "tool_names": ["Edit"], "cwd": "/p",
+             "subject": "fix bug", "event_count": 10, "success": True,
+             "source_kind": "ai_session", "errors": 3,
+             "context": {"blocker": "command timeout (3 errors)",
+                         "files_touched": ["run.py"]}},
+        ]
+        agg = aggregate(tasks, "day")
+        html = render_html(agg, "day", tasks=tasks)
+        self.assertIn("Root cause", html)
+        self.assertIn("blocker:", html)
+
+    def test_html_kind_section_shows_context_inline(self):
+        """render_html 'What the work was' section shows context under each item."""
+        base = 1782967200.0
+        tasks = [
+            {"start": base, "duration_seconds": 3600, "active_seconds": 2400,
+             "flavor": "implicit", "tool_names": [], "cwd": "/p",
+             "subject": "standup", "event_count": 3, "success": True,
+             "source_kind": "meeting",
+             "context": {"attendees": 4, "organizer": "li"}},
+        ]
+        agg = aggregate(tasks, "day")
+        html = render_html(agg, "day", tasks=tasks)
+        self.assertIn("why-inline", html)
+        self.assertIn("4 attendee(s)", html)
+
+    def test_insights_include_blocker_for_time_sink(self):
+        """generate_insights surfaces the blocker in the time-sink insight line."""
+        from aggregate import generate_insights
+        tasks = [
+            {"start": 1782967200.0, "active_seconds": 36000, "wall_clock_seconds": 40000,
+             "subject": "sync main", "source_kind": "ai_session", "errors": 46,
+             "tool_names": ["Edit", "Bash"], "id": "t1",
+             "context": {"blocker": "corporate proxy auth (407) (12 of 46 errors)"}},
+        ]
+        insights = generate_insights(tasks, {"2026-07": {}})
+        joined = " ".join(insights)
+        self.assertIn("blocker:", joined)
+        self.assertIn("407", joined)
+
+
+class TestDataAvailability(unittest.TestCase):
+    """Tests for render_data_availability_html — per-source coverage table."""
+
+    def test_shows_no_data_for_missing_sources(self):
+        """Sources with zero tasks in range show 'No data in range'."""
+        from aggregate import render_data_availability_html
+        # Only ai_session tasks — other sources should show "No data"
+        tasks = [
+            {"source_kind": "ai_session", "start": 1782967200.0,
+             "active_seconds": 3600},
+        ]
+        html = render_data_availability_html(tasks, 1782967200.0, 1783053600.0)
+        self.assertIn("ai_session", html)
+        self.assertIn("No data in range", html)
+        self.assertIn("browser", html)  # listed as no data
+        self.assertIn("meeting", html)  # listed as no data
+
+    def test_shows_source_dates_when_data_present(self):
+        """Sources with tasks show task count, active hours, earliest/latest dates."""
+        from aggregate import render_data_availability_html
+        tasks = [
+            {"source_kind": "ai_session", "start": 1782967200.0,
+             "active_seconds": 3600},
+            {"source_kind": "ai_session", "start": 1783053600.0,
+             "active_seconds": 1800},
+        ]
+        html = render_data_availability_html(tasks, 1782967200.0, 1783140000.0)
+        self.assertIn("ai_session", html)
+        self.assertIn("2", html)  # 2 tasks
+        self.assertIn("1.5h", html)  # 1.5h active total
+
+    def test_data_availability_in_render_html(self):
+        """render_html includes data-availability section when since_ts/until_ts given."""
+        base = 1782967200.0
+        tasks = [
+            {"start": base, "duration_seconds": 3600, "active_seconds": 2400,
+             "flavor": "implicit", "tool_names": ["Edit"], "cwd": "/p",
+             "subject": "x", "event_count": 5, "success": True,
+             "source_kind": "ai_session"},
+        ]
+        agg = aggregate(tasks, "day")
+        html = render_html(agg, "day", tasks=tasks,
+                           since_ts=base, until_ts=base + 86400)
+        self.assertIn("Data availability", html)
+        self.assertIn("ai_session", html)
+        self.assertIn("No data in range", html)  # browser/meeting/etc. are empty
+
+    def test_no_data_availability_section_without_dates(self):
+        """render_html omits data-availability when since_ts/until_ts not given."""
+        base = 1782967200.0
+        tasks = [
+            {"start": base, "duration_seconds": 3600, "active_seconds": 2400,
+             "flavor": "implicit", "tool_names": ["Edit"], "cwd": "/p",
+             "subject": "x", "event_count": 5, "success": True},
+        ]
+        agg = aggregate(tasks, "day")
+        html = render_html(agg, "day", tasks=tasks)
+        self.assertNotIn("Data availability", html)
+
+
+class TestRootCauseRendering(unittest.TestCase):
+    """Tests that render_context_inline produces root-cause explanations,
+    not just metadata. The 'why' column should explain WHY a task took long.
+    """
+
+    def test_all_day_meeting_shows_calendar_marker(self):
+        """All-day meeting → 'Calendar day-marker — 0h real meeting time'."""
+        from aggregate import render_context_inline
+        task = {
+            "source_kind": "meeting",
+            "active_seconds": 0,
+            "wall_clock_seconds": 86400,
+            "excised_gap_seconds": 86400,
+            "context": {"is_all_day": True, "organizer": "Bogao"},
+        }
+        line = render_context_inline(task)
+        self.assertIn("Calendar day-marker", line)
+        self.assertIn("0h real meeting", line)
+
+    def test_multi_day_meeting_shows_cap(self):
+        """Multi-day meeting → 'Multi-day event, capped to 8h'.
+
+        Uses _make_task with a real 56h meeting event to verify the full
+        pipeline produces the correct root-cause explanation.
+        """
+        from aggregate import render_context_inline
+        from segment_tasks import _make_task, MAX_MEETING_DURATION
+        events = [{"kind": "meeting", "timestamp": 1000.0,
+                   "source_kind": "meeting",
+                   "extra": {"end_ts": 1000.0 + 56 * 3600},
+                   "tool_input": {"is_all_day": False, "subject": "conference"}}]
+        task = _make_task("t1", "implicit", events, None)
+        line = render_context_inline(task)
+        self.assertIn("Multi-day event", line)
+        self.assertIn("capped", line)
+        # wall_clock should reflect the real span, clamped to MAX_MEETING_DURATION
+        self.assertAlmostEqual(task["wall_clock_seconds"], MAX_MEETING_DURATION, delta=1)
+        # active should be capped to 8h
+        self.assertAlmostEqual(task["active_seconds"], 8 * 3600, delta=1)
+
+    def test_normal_meeting_shows_organizer(self):
+        """Normal 2h meeting → '2.0h meeting, organizer: X'."""
+        from aggregate import render_context_inline
+        task = {
+            "source_kind": "meeting",
+            "active_seconds": 7200,
+            "wall_clock_seconds": 7200,
+            "excised_gap_seconds": 0,
+            "context": {"organizer": "jiangxuyang", "attendees": 5},
+        }
+        line = render_context_inline(task)
+        self.assertIn("2.0h meeting", line)
+        self.assertIn("jiangxuyang", line)
+        self.assertIn("5 attendee", line)
+
+    def test_browser_overnight_inflation_explained(self):
+        """Browser tabs open overnight → explains idle gaps excised."""
+        from aggregate import render_context_inline
+        task = {
+            "source_kind": "browser",
+            "active_seconds": 3600 * 4,  # 4h active
+            "wall_clock_seconds": 3600 * 28,  # 28h wall
+            "excised_gap_seconds": 3600 * 24,  # 24h excised
+            "context": {"n_visits": 300, "queries": [], "downloads": 0},
+        }
+        line = render_context_inline(task)
+        self.assertIn("Tabs open", line)
+        self.assertIn("4.0h active", line)
+        self.assertIn("idle/overnight", line)
+
+    def test_browser_continuous_shows_genuine(self):
+        """Continuous browser session (no gaps) → 'continuous browsing'."""
+        from aggregate import render_context_inline
+        task = {
+            "source_kind": "browser",
+            "active_seconds": 3600 * 3,  # 3h
+            "wall_clock_seconds": 3600 * 3,
+            "excised_gap_seconds": 0,
+            "context": {"n_visits": 830, "queries": [], "downloads": 0},
+        }
+        line = render_context_inline(task)
+        self.assertIn("continuous browsing", line)
+        self.assertNotIn("Tabs open", line)
+
+    def test_coding_blocker_shown(self):
+        """Coding task with blocker → 'blocker: ...'."""
+        from aggregate import render_context_inline
+        task = {
+            "source_kind": "ai_session",
+            "active_seconds": 3600 * 10,
+            "wall_clock_seconds": 3600 * 20,
+            "excised_gap_seconds": 3600 * 10,
+            "errors": 46,
+            "context": {"blocker": "command timeout (21 of 46 errors)",
+                        "retry_targets": ["Bash on fetch (11×)"],
+                        "files_touched": ["run.py"]},
+        }
+        line = render_context_inline(task)
+        self.assertIn("blocker:", line)
+        self.assertIn("timeout", line)
+
+    def test_coding_no_blocker_shows_work_summary(self):
+        """Coding task without errors → shows active time + files edited."""
+        from aggregate import render_context_inline
+        task = {
+            "source_kind": "ai_session",
+            "active_seconds": 3600 * 3,
+            "wall_clock_seconds": 3600 * 3,
+            "excised_gap_seconds": 0,
+            "errors": 0,
+            "tool_calls": 50,
+            "context": {"blocker": None, "files_touched": ["a.py", "b.py"]},
+        }
+        line = render_context_inline(task)
+        self.assertIn("3.0h active", line)
+        self.assertIn("file(s) edited", line)
+
+    def test_vcs_shows_commit_count(self):
+        """VCS task → 'N commit(s): subject'."""
+        from aggregate import render_context_inline
+        task = {
+            "source_kind": "vcs",
+            "active_seconds": 3600,
+            "wall_clock_seconds": 3600,
+            "context": {"commit_subjects": ["fix bug", "add tests"]},
+        }
+        line = render_context_inline(task)
+        self.assertIn("2 commit(s)", line)
+
+
 if __name__ == "__main__":
     unittest.main()

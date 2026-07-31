@@ -641,5 +641,108 @@ class TestM6ZeroLengthNoParallelGroup(unittest.TestCase):
         self.assertEqual(result["n_parallel_groups"], 0)
 
 
+class TestBrowserActiveTimeDeflation(unittest.TestCase):
+    """Tests that browser active_seconds is NOT inflated by overnight tabs.
+
+    The old collar formula (min(span, n_events * 300)) inflated tabs-left-open
+    by 30×. The inter-event-span method excises gaps >30min, so overnight idle
+    time is not counted as active browsing.
+    """
+
+    def test_overnight_gaps_excised(self):
+        """Browser events spread across 24h with overnight gaps → active time
+        reflects only the continuous browsing, not the full span."""
+        # 4 browser visits: 2 close together (active), then 10h gap, then 2 more
+        t0 = _ts(0)       # 09:00
+        t1 = _ts(5)       # 09:05 — 5 min after t0 (active)
+        t2 = _ts(600)     # 19:00 — 10h gap (overnight/idle)
+        t3 = _ts(605)     # 19:05 — 5 min after t2 (active)
+        coding_end = _ts(700)
+
+        tasks = [
+            _make_task("implicit-1", t0, coding_end,
+                       source_kind="ai_session",
+                       tool_calls=5, tool_names=["Edit"],
+                       subject="coding"),
+        ]
+        events = [
+            _make_event(t0, source_kind="browser", kind="visit", text="page1",
+                        tool_input={"url": "http://a"}),
+            _make_event(t1, source_kind="browser", kind="visit", text="page2",
+                        tool_input={"url": "http://b"}),
+            _make_event(t2, source_kind="browser", kind="visit", text="page3",
+                        tool_input={"url": "http://c"}),
+            _make_event(t3, source_kind="browser", kind="visit", text="page4",
+                        tool_input={"url": "http://d"}),
+        ]
+        refined = detect_parallel_tasks(tasks, events)
+        browser = [t for t in refined if t.get("source_kind") == "browser"]
+        self.assertEqual(len(browser), 1)
+        bt = browser[0]
+        # Active should be ~10 min (5min + 5min), NOT the full ~11h span.
+        # The collar formula would have given min(11h, 4*5min=20min) = 20min.
+        # The inter-event-span gives 5+5=10min.
+        active_min = (bt.get("active_seconds") or 0) / 60
+        self.assertLess(active_min, 20,
+                        f"Active should be <20min (no collar inflation), got {active_min:.1f}min")
+        self.assertGreater(active_min, 5,
+                           f"Active should be >5min (real browsing), got {active_min:.1f}min")
+        # Wall span should be the full ~11h
+        wall_h = (bt.get("wall_clock_seconds") or 0) / 3600
+        self.assertGreater(wall_h, 10)
+        # Excised gaps should be large (the 10h overnight gap)
+        excised_h = (bt.get("excised_gap_seconds") or 0) / 3600
+        self.assertGreater(excised_h, 9, f"Overnight gap should be excised, got {excised_h:.1f}h")
+
+    def test_continuous_browsing_not_deflated(self):
+        """Browser events with no big gaps → active ≈ wall (genuine research)."""
+        # 6 visits, each 5 min apart — continuous 25-min session
+        t0 = _ts(0)
+        events = []
+        for i in range(6):
+            events.append(_make_event(_ts(i * 5), source_kind="browser",
+                                      kind="visit", text=f"page{i}",
+                                      tool_input={"url": f"http://p{i}"}))
+        tasks = [
+            _make_task("implicit-1", t0, _ts(30),
+                       source_kind="ai_session",
+                       tool_calls=5, tool_names=["Edit"],
+                       subject="coding"),
+        ]
+        refined = detect_parallel_tasks(tasks, events)
+        browser = [t for t in refined if t.get("source_kind") == "browser"]
+        self.assertEqual(len(browser), 1)
+        bt = browser[0]
+        # Active should be ~25 min (5 gaps × 5 min each)
+        active_min = (bt.get("active_seconds") or 0) / 60
+        self.assertGreater(active_min, 20,
+                           f"Continuous browsing should be ~25min, got {active_min:.1f}min")
+        # Excised should be ~0 (no gaps > 30min)
+        excised_min = (bt.get("excised_gap_seconds") or 0) / 60
+        self.assertLess(excised_min, 1,
+                        f"No gaps to excise, got {excised_min:.1f}min")
+
+    def test_single_visit_gets_minimum(self):
+        """A single browser visit gets a 5-min minimum (we know it happened)."""
+        t0 = _ts(0)
+        events = [
+            _make_event(t0, source_kind="browser", kind="visit", text="page",
+                        tool_input={"url": "http://x"}),
+        ]
+        tasks = [
+            _make_task("implicit-1", t0, _ts(60),
+                       source_kind="ai_session",
+                       tool_calls=5, tool_names=["Edit"],
+                       subject="coding"),
+        ]
+        refined = detect_parallel_tasks(tasks, events)
+        browser = [t for t in refined if t.get("source_kind") == "browser"]
+        self.assertEqual(len(browser), 1)
+        bt = browser[0]
+        active_min = (bt.get("active_seconds") or 0) / 60
+        self.assertGreaterEqual(active_min, 1,
+                                f"Single visit should have non-zero active, got {active_min:.1f}min")
+
+
 if __name__ == "__main__":
     unittest.main()
