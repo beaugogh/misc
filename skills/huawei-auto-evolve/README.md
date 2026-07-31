@@ -25,7 +25,7 @@ set -a; source skills/huawei-auto-evolve/.env; set +a
 1. 登录 CodeHub（`https://codehub-g.huawei.com/`）
 2. 点击右上角头像 → **设置** → **访问令牌**（Access Tokens）
 3. 创建新令牌，勾选所需权限（`api` 或 `read_api` 最小权限）
-4. 复制生成的令牌（格式如 `NQxEyzYs...`）
+4. 复制生成的令牌（格式如 `xxxxxxxxxxxxxxxx...`）
 
 **填入 `.env`**：
 ```

@@ -42,12 +42,6 @@ URL = "https://api.githubcopilot.com/mcp/"
 TIMEOUT = 30
 PROXY = os.environ.get("GITHUB_MCP_PROXY", "http://proxyuk.huawei.com:8080")
 
-# TLS interception workaround: the corporate proxy re-signs certs, so
-# urllib's default cert verification fails. Create an SSL context that
-# skips verification — the urllib equivalent of curl's --ssl-no-revoke.
-SSL_CTX = ssl.create_default_context()
-SSL_CTX.check_hostname = False
-SSL_CTX.verify_mode = ssl.CERT_NONE
 
 PROTOCOL_VERSION = "2025-03-26"
 NO_PROXY_HOST = "api.githubcopilot.com"
@@ -79,7 +73,11 @@ def _build_opener() -> urllib.request.OpenerDirector:
         "http": PROXY,
         "https": PROXY,
     })
-    https_handler = urllib.request.HTTPSHandler(context=SSL_CTX)
+    # TLS interception workaround: corporate proxy re-signs certs.
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    https_handler = urllib.request.HTTPSHandler(context=ssl_ctx)
     return urllib.request.build_opener(proxy_handler, https_handler)
 
 

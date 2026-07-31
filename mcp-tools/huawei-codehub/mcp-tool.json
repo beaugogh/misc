@@ -1,7 +1,7 @@
 {
   "name": "huawei-codehub",
   "version": "0.2.0",
-  "description": "Interact with Huawei CodeHub (codehub-y.huawei.com / codehub-g.huawei.com) Git repositories via the local `Codehub-Mcp-Server` MCP server. Exposes project lookup, merge-request lifecycle (list/detail/changes/reviews/create/merge), issues (list/detail/discussions/create/update), and repo file reading. Unlike remote MCP tools in this repo, this is a LOCAL stdio server launched via `uvx`, so it requires `uv`/`uvx` installed, intranet artifactory reachability (first run fetches the Python tarball), and a CODEHUB_TOKEN. Usable by any MCP-capable agent (load the bundled config) or any agent with Bash + Python 3 (run the bundled wrapper script).",
+  "description": "Interact with Huawei CodeHub (codehub-g.huawei.com / codehub-g.huawei.com) Git repositories via the local `Codehub-Mcp-Server` MCP server. Exposes project lookup, merge-request lifecycle (list/detail/changes/reviews/create/merge), issues (list/detail/discussions/create/update), and repo file reading. Unlike remote MCP tools in this repo, this is a LOCAL stdio server launched via `uvx`, so it requires `uv`/`uvx` installed, intranet artifactory reachability (first run fetches the Python tarball), and a CODEHUB_TOKEN. Usable by any MCP-capable agent (load the bundled config) or any agent with Bash + Python 3 (run the bundled wrapper script).",
   "transport": "local",
   "protocol": "stdio",
   "command": [
@@ -29,13 +29,13 @@
     "note": "This tool is NOT install-free. Unlike the remote w3-search tool (pure-stdlib wrapper hitting a URL), this is a local Python server that must be fetched and launched by uvx. A fresh git clone of this repo cannot run it without: (1) uv/uvx on PATH, (2) intranet/VPN reachability to cmc.centralrepo.rnd.huawei.com + mirrors.tools.huawei.com, (3) a CODEHUB_TOKEN. The corporate proxy does TLS interception, so --allow-insecure-host must cover the artifactory host (see command_note); uv ignores NO_PROXY for this on Windows."
   },
   "environment": {
-    "WEB_HOST": "https://codehub-y.huawei.com/",
+    "WEB_HOST": "https://codehub-g.huawei.com/",
     "CODEHUB_TOKEN": "<your CodeHub token — wrapper translates to PRIVATE_TOKEN for the server>",
     "X_AUTH_TOKEN": "<optional: alternative auth token, used if PRIVATE_TOKEN unset>",
     "REPO_AGENT_HOST": "<optional: needed only for the review-via-repoagent tool variant>"
   },
   "network": {
-    "no_proxy": ["cmc.centralrepo.rnd.huawei.com", "mirrors.tools.huawei.com", "cmc-nkg-artifactory.cmc.tools.huawei.com", "codehub-y.huawei.com"],
+    "no_proxy": ["cmc.centralrepo.rnd.huawei.com", "mirrors.tools.huawei.com", "cmc-nkg-artifactory.cmc.tools.huawei.com", "codehub-g.huawei.com"],
     "note": "uvx must reach the intranet artifactory (cmc.centralrepo.rnd.huawei.com) and the PyPI mirror (mirrors.tools.huawei.com). The corporate proxy (proxyuk.huawei.com:8080) does TLS interception: it re-signs the artifactory's cert, so uv rejects the connection with 'client error (Connect)' UNLESS --allow-insecure-host cmc.centralrepo.rnd.huawei.com is passed (already in the command above). This is the same class of problem the repo's git-corporate-proxy-lfs skill documents for git (http.schannelCheckRevoke=false). Setting NO_PROXY alone does NOT fix uv on Windows — uv reads the registry proxy and ignores the bypass list for TLS verification."
   },
   "auth": "token",

@@ -1,6 +1,6 @@
 # huawei-codehub
 
-Interact with Huawei **CodeHub** Git repositories (`codehub-y.huawei.com` /
+Interact with Huawei **CodeHub** Git repositories (`codehub-g.huawei.com` /
 `codehub-g.huawei.com`) via the local **`Codehub-Mcp-Server`** MCP server.
 Exposes project lookup, the full merge-request lifecycle (list / detail /
 changes / mergeable state / reviews / create / merge), issues (list / detail /
@@ -197,4 +197,4 @@ crashes at startup — check the agent's MCP server logs.
 
 The token is invalid or expired, or `CODEHUB_HOST` points at a CodeHub instance
 where the token isn't valid. Regenerate the token and confirm `CODEHUB_HOST`
-matches (default `https://codehub-y.huawei.com/`).
+matches (default `https://codehub-g.huawei.com/`).
