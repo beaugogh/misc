@@ -831,11 +831,22 @@ def render_context_text(task: dict) -> str:
 
     Returns a multi-line string (without a header), or '' if no context is available.
     Used by render_task_detail(), the drill-down lead-off, and the insight lines.
+
+    When a content-driven ``narrative`` is available, it leads the section —
+    followed by the structured signals (organizer, files, queries, etc.) as
+    supporting detail.
     """
     ctx = task.get("context") or {}
     if not ctx:
         return ""
     lines: list[str] = []
+
+    # Lead with the content-driven narrative (the grounded root-cause story).
+    narrative = ctx.get("narrative")
+    if narrative:
+        lines.append(narrative)
+        lines.append("")  # blank line before structured detail
+
     source_kind = task.get("source_kind", "")
 
     if source_kind == "meeting":
@@ -924,8 +935,17 @@ def render_context_inline(task: dict) -> str:
     The principle: if active ≈ wall, it's genuine work — show what the work was.
     If active << wall, explain where the time went (idle gaps, overnight tabs,
     all-day marker, multi-day cap).
+
+    When a content-driven ``narrative`` is available (from summarize.py), that
+    is used directly — it is grounded in the actual event text (prompts,
+    assistant diagnostics, errors, page titles) and far more informative than
+    a pattern-bucket label.
     """
     ctx = task.get("context") or {}
+    # Prefer the content-driven narrative when available.
+    narrative = ctx.get("narrative")
+    if narrative:
+        return narrative
     source_kind = task.get("source_kind", "")
     active = task.get("active_seconds") or 0
     wall = task.get("wall_clock_seconds") or 0

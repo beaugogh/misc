@@ -45,6 +45,17 @@ import os
 import re
 from typing import Iterator
 
+# Content-driven root-cause summarizer — produces human-interpretable narratives
+# from the actual event text (prompts, assistant diagnostics, errors, page titles).
+# Imported lazily inside _make_task to avoid a circular import (summarize.py
+# imports from segment_tasks for its self-test only, guarded by __main__).
+def _get_summarizer():
+    try:
+        from summarize import summarize_root_cause
+        return summarize_root_cause
+    except ImportError:
+        return None
+
 # Heuristic thresholds for implicit segmentation.
 GAP_THRESHOLD_SECONDS = 30 * 60  # 30 min gap => likely a new task
 MAX_SUBJECT_LEN = 120
@@ -936,7 +947,10 @@ def _make_task(tid: str, flavor: str, events: list[dict], subject: str | None,
         wall_clock = active
     source_kind = first.get("source_kind", "ai_session")
     success, success_evidence = _determine_success(flavor, events, task_status, source_kind)
-    return {
+    context = _extract_context(events, source_kind)
+
+    # Build the task dict first (the summarizer reads task["context"], time fields).
+    task = {
         "id": tid,
         "flavor": flavor,
         "source": first.get("source", "claude_code"),
@@ -962,8 +976,18 @@ def _make_task(tid: str, flavor: str, events: list[dict], subject: str | None,
         "success": success,
         "success_evidence": success_evidence,
         "task_status": task_status,
-        "context": _extract_context(events, source_kind),
+        "context": context,
     }
+
+    # Content-driven root-cause narrative — grounded in the actual event text.
+    # Stored in context["narrative"] so the render layer can display it inline.
+    _summarize_fn = _get_summarizer()
+    if _summarize_fn is not None:
+        narrative = _summarize_fn(task, events)
+        if narrative:
+            context["narrative"] = narrative
+
+    return task
 
 
 def segment_explicit(events: list[dict]) -> tuple[list[dict], list[dict]]:
