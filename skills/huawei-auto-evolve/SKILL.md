@@ -31,6 +31,11 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
    安装后执行 `agentcenter --version` 验证
    - **代理 407 错误处理**：如果 npm 报 `407 Proxy Authentication Required`，说明环境代理配置与内网 registry 冲突。解决方式：安装前清除代理环境变量（`$env:HTTP_PROXY=""` / `$env:HTTPS_PROXY=""`），或设置 `NO_PROXY=cmc.centralrepo.rnd.huawei.com`。`@aimarket` scope 的包走 cmc registry（内网直连），其他依赖走默认 registry（可能需要代理），因此只清除代理即可，不要删除 `.npmrc` 中的 registry 配置
    - **PATH 提示**：`agentcenter` 是 npm 全局 bin，默认安装到 `%APPDATA%\npm`。若 `agentcenter --version` 报 command not found，将该目录加入 PATH，或直接用完整路径调用
+   - **agentcenter 自动修复**：若 `agentcenter --version` 报 `Cannot find module .../src/bin/index.js`（shim 存在但 npm 包目录丢失，常见于 node_modules 被清理后），**自动执行重装，不要提示用户、不要跳过**：
+     ```bash
+     NO_PROXY=cmc.centralrepo.rnd.huawei.com npm install -g @aimarket/agentcenter --@aimarket:registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/ --strict-ssl=false
+     ```
+     重装后再次 `agentcenter --version` 验证。关键：必须用 `product_npm` registry（不是 `npm-all`，那个会 401），必须设 `NO_PROXY`（内网直连，绕过公司代理），必须 `--strict-ssl=false`（公司代理做 TLS 拦截）。agentcenter 是必备依赖，自动修复是首选行为，不是"可选优化"
 3. **安装 agentcenter-skill-finder**：
    ```bash
    agentcenter skill add agentcenter-skill-finder --client huawei-auto-evolve --path {ANALYZER_SKILL_DIR} -f
@@ -61,7 +66,7 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
 | W3 搜索 MCP 工具 | 搜索用户公开信息 | 尝试调用 W3 搜索 MCP 工具或 API | 跳过 W3 数据源 |
 | CloudDevOps Wiki MCP | 获取用户 Wiki | 优先 `wiki-mcp.py`（自包含，读无需认证）；或 `clouddevops.py`（需 X-AUTH-TOKEN） | 跳过 Wiki 数据源 |
 | git (CodeHub) | 获取代码提交记录 | `git --version`；可选 CodeHub MCP 工具（`codehub.py --list-tools` 或 opencode `mcp.Codehub-Mcp-Server`） | 跳过代码提交数据源（本地 git 仍可用；缺 MCP 则跳过 MR/检视/Issue 协作层数据） |
-| agentcenter CLI | 推荐安装 skill、检查 skill 新版本 | `agentcenter --version` | 跳过 skill 推荐和版本检查 |
+| agentcenter CLI | 推荐安装 skill、检查 skill 新版本 | `agentcenter --version`；若报 module not found（shim 存在但包丢失），**自动重装**（见下方"agentcenter 自动修复"） | **阻塞**：agentcenter 是必备依赖，不可跳过。自动修复失败才提示用户 |
 
 ## 核心功能
 
@@ -649,7 +654,7 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
 
 根据本次分析的综合结果（session + 外部数据源），在 agentcenter 市场中搜索可能对用户有用的 skill，推荐并安装。
 
-**前置条件**：`agentcenter` CLI 已安装且已认证。如果未安装，按前置条件中的"skill-creator 自动安装流程"前两步安装 agentcenter CLI。如果认证过期，执行 `agentcenter auth` 重新认证。
+**前置条件**：`agentcenter` CLI 已安装且已认证。若 `agentcenter --version` 失败（command not found 或 module not found），**自动执行重装**（见前置条件中的"agentcenter 自动修复"），不要跳过、不要提示用户。重装后验证通过才继续。如果认证过期，执行 `agentcenter auth` 重新认证。
 
 **推荐逻辑**：
 
@@ -680,7 +685,7 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
    ```
    - **关键**：必须用非内置的 `--client huawei-auto-evolve`（或任意非内置值）配合 `--path {ANALYZER_SKILL_DIR}`，才能将 skill 安装到 huawei-auto-evolve 目录内。若用内置 client（`claudecode`/`opencode`/`cac` 等）加 `-g`，`--path` 会被忽略，skill 会落到该 client 的全局 skills 目录，违反"依赖 skill 安装在 huawei-auto-evolve 文件夹内"的约束
    - 安装后验证 `{ANALYZER_SKILL_DIR}/<skill-name>/SKILL.md` 是否存在
-6. 如果 agentcenter 不可用，跳过此步骤，在报告中说明
+6. agentcenter 是必备依赖——若不可用，先自动重装（见"agentcenter 自动修复"），修复后继续执行；只有修复也失败才阻塞并在报告中说明
 
 **禁止行为**：
 - 不得未经用户确认就安装 skill
@@ -745,7 +750,7 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
 - **外部数据源要增量采集**：每次只采集上次分析时间之后的增量数据，不要重复采集历史数据。WeLink 消息按时间筛选，git log 用 --since/--until 限定范围
 - **WeLink 消息读取要分批串行**：禁止并行超过3个 welink-cli 消息查询，否则消息总量会超出上下文处理能力导致卡死。每批读取后立即摘要，下一批只带摘要
 - **推荐和更新 skill 必须用户确认**：不得未经用户确认就安装或更新 skill，这是对用户环境的侵入性操作
-- **agentcenter 不可用时优雅降级**：如果 agentcenter CLI 未安装或认证失败，跳过 skill 推荐和版本检查步骤，在报告中说明。不要因为 agentcenter 不可用而阻塞整个分析流程
+- **agentcenter 是必备依赖，不可跳过**：若 `agentcenter --version` 失败，自动重装（见前置条件"agentcenter 自动修复"），不要降级跳过。只有自动重装也失败时才在报告中说明并阻塞 Task 8
 - 临时导出文件分析完成后必须清理
 - 不要将密码、Token 等敏感信息写入任何 skill 或记忆 skill
 - 所有路径通过配置项动态获取，不硬编码用户目录
@@ -763,6 +768,6 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
 | 记忆 skill 创建失败 | 检查目录权限，重试一次；仍失败则告知用户手动创建 |
 | welink-cli 未安装 | 跳过 WeLink 数据源，提示用户安装 welink-cli |
 | welink-cli token 过期 | **自动执行 `welink-cli auth login` 刷新**；刷新失败才跳过并提示用户 |
-| agentcenter 未安装或损坏（shim 存在但 `agentcenter --version` 报 module not found） | 跳过 skill 推荐和版本检查，在报告中提示用户可安装 agentcenter 获得此功能。agentcenter 是华为内部包（`@aimarket/agentcenter`），需从华为内部 npm 制品库安装（`NO_PROXY=cmc.centralrepo.rnd.huawei.com npm install -g @aimarket/agentcenter --registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/npm-all/`），可能需制品库认证 |
+| agentcenter 未安装或损坏（`agentcenter --version` 报 command not found 或 module not found） | **自动重装**：`NO_PROXY=cmc.centralrepo.rnd.huawei.com npm install -g @aimarket/agentcenter --@aimarket:registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/ --strict-ssl=false`。重装后验证；仍失败才阻塞 Task 8 并提示用户 |
 | agentcenter 认证过期 | 尝试 `agentcenter auth` 重新认证；失败则跳过 skill 推荐和版本检查 |
 | skill 安装/更新失败 | 在报告中说明失败原因，不影响其他分析结果 |
