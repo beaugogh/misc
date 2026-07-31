@@ -12,12 +12,12 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
 
 | 依赖 | 检查方式 | 失败处理 |
 |------|----------|----------|
-| opencode 已安装且运行中 | 检查 `DB_PATH` 对应的数据库文件是否存在 | 提示用户安装 opencode 并至少使用一次 |
+| opencode session DB 或 Claude Code session 文件 | 检查 `DB_PATH`（opencode）或 `CLAUDE_SESSIONS_DIR`（Claude Code）是否存在 | 至少一个存在即可；两个都不存在则提示用户先使用 opencode 或 Claude Code |
 | Python 3 | `python --version` | 提示用户安装 Python |
 | SQLite3（Python 内置） | `python -c "import sqlite3"` | Python 自带，一般不会缺失 |
 | Skills 目录可写 | 检查 `SKILLS_DIR` 是否存在且可写 | 提示用户确认权限 |
-| 数据库非空 | 查询 `session` 表是否有记录 | 提示用户先使用 opencode 产生一些 session |
-| skill-creator skill | 检查 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md`（huawei-auto-evolve 自身目录内的嵌套副本，优先）或 `{SKILLS_DIR}/skill-creator/SKILL.md`（同级副本，备选）是否存在 | 自动安装（见下方"skill-creator 自动安装"流程），安装失败则退化为直接写文件模式 |
+| session 数据非空 | opencode: 查询 `session` 表；Claude Code: 检查 `.jsonl` 文件是否存在 | 提示用户先产生一些 session |
+| skill-creator skill | 检查 `{ANALYZER_SKILL_DIR}/skill-creator/SKILL.md` 是否存在 | 自动安装（见下方"skill-creator 加载机制"），安装失败则退化为直接写文件模式 |
 
 **skill-creator 加载机制**：
 
@@ -74,7 +74,8 @@ NO_PROXY=cmc.centralrepo.rnd.huawei.com npm install -g @aimarket/agentcenter --@
 | 配置项 | 说明 | 检测方式 |
 |--------|------|----------|
 | `SKILLS_DIR` | Skills 安装目录 | 见下方"SKILLS_DIR 路径映射" |
-| `DB_PATH` | Session 数据库路径 | `~/.local/share/opencode/db/ngagent.db`（Linux/Mac）或 `%USERPROFILE%\.local\share\opencode\db\ngagent.db`（Windows） |
+| `DB_PATH` | opencode Session 数据库路径 | `~/.local/share/opencode/db/ngagent.db`（Linux/Mac）或 `%USERPROFILE%\.local\share\opencode\db\ngagent.db`（Windows） |
+| `CLAUDE_SESSIONS_DIR` | Claude Code session 文件目录 | `~/.claude/projects/`（所有平台）。每个子目录是一个项目（目录名编码自工作目录），内含 `.jsonl` session 文件 |
 | `MEMORY_SKILL_NAME` | 存储长期记忆的 skill 名称 | 默认 `huawei-auto-evolve-created-global-memory`，如不存在则首次运行时自动创建 |
 | `ANALYZER_SKILL_DIR` | 本 skill 所在目录 | 在 `SKILLS_DIR` 下查找 `huawei-auto-evolve` 子目录；如 AI 无法自动定位，可通过 `glob` 搜索 `**/huawei-auto-evolve/SKILL.md` 找到 |
 
@@ -114,8 +115,73 @@ if not os.path.isdir(SKILLS_DIR):
             break
 
 DB_PATH = os.path.join(home, ".local", "share", "opencode", "db", "ngagent.db")
+CLAUDE_SESSIONS_DIR = os.path.join(home, ".claude", "projects")
 MEMORY_SKILL_NAME = "huawei-auto-evolve-created-global-memory"
 ```
+
+## Session 数据源
+
+auto-evolve 从两个 session 存储中读取数据，**两者都检测，有数据的即采集**：
+
+### 来源 A：opencode session DB（`DB_PATH`）
+
+SQLite 数据库（`ngagent.db`），表结构：`session`、`message`、`part`。详见下方"数据源"章节。
+
+导出方式：Python sqlite3 查询，按 `time_created` 增量筛选。
+
+### 来源 B：Claude Code session 文件（`CLAUDE_SESSIONS_DIR`）
+
+JSONL 文件存储于 `~/.claude/projects/<encoded-project-dir>/<uuid>.jsonl`。每个 `.jsonl` 文件是一个 session，每行一条 JSON 记录。
+
+**文件结构**：
+- 每行一个 JSON 对象，`type` 字段区分记录类型（`user`/`assistant`/`attachment`/`mode` 等）
+- `type=user` / `type=assistant` 的记录含 `message` 字段（`{role, content}`），`content` 是数组，元素含 `type=text`（文本）或 `type=tool_use`（工具调用，含 `name` 和 `input`）
+- `timestamp` 字段是 Unix 秒级时间戳（注意：opencode 用毫秒，Claude Code 用秒——增量筛选时需区分）
+- 子目录名是工作目录的编码（`/` → `--`，如 `D--workspace-misc` = `D:\workspace\misc`）
+
+**导出方式**：
+```python
+import json, os, glob
+
+sessions_dir = os.path.expanduser("~/.claude/projects")
+# 可按项目目录筛选（如只分析 misc 仓库的 session）
+project_dir = "D--workspace-misc"  # 编码后的工作目录
+jsonl_files = glob.glob(os.path.join(sessions_dir, project_dir, "*.jsonl"))
+
+for f in jsonl_files:
+    with open(f, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line: continue
+            d = json.loads(line)
+            if d.get("type") not in ("user", "assistant"): continue
+            msg = d.get("message", {})
+            role = msg.get("role", "?")
+            content = msg.get("content", [])
+            ts = d.get("timestamp", 0)  # 秒级时间戳
+            # 增量筛选：if ts > last_analysis / 1000（Claude Code 用秒，需转换）
+            # 提取 text 和 tool_use blocks
+            for block in (content if isinstance(content, list) else []):
+                if isinstance(block, dict):
+                    if block.get("type") == "text":
+                        text = block.get("text", "")
+                        # 处理用户消息或助手文本
+                    elif block.get("type") == "tool_use":
+                        tool_name = block.get("name", "")
+                        tool_input = block.get("input", {})
+                        # 处理工具调用
+```
+
+**关键差异**：
+| | opencode (DB_PATH) | Claude Code (CLAUDE_SESSIONS_DIR) |
+|---|---|---|
+| 格式 | SQLite 表 | JSONL 文件 |
+| 时间戳单位 | 毫秒 | 秒 |
+| 消息结构 | `message.data` JSON（含 role）+ `part.data` JSON（含 type/text） | `message.content[]` 数组（含 type/text/tool_use） |
+| 项目隔离 | 所有 session 在同一 DB | 按项目目录分子目录 |
+| 增量筛选 | `time_created > last_ts` (毫秒) | `timestamp > last_ts / 1000` (秒) |
+
+**注意**：排除当前正在进行的 session（当前 session 还未结束，内容不完整）。识别方式：最新的 `.jsonl` 文件且仍在写入中。
 
 ## 外部数据源（每次分析时采集）
 
@@ -295,7 +361,7 @@ nga.cmd metrics <session_id> --disable-update
 
 ## 数据源
 
-数据库结构（ngagent.db）：
+### opencode 数据库结构（ngagent.db）
 - `session` 表：id(TEXT PK), title(TEXT), time_created(INTEGER), time_updated(INTEGER), directory(TEXT), ...
 - `message` 表：id(TEXT PK), session_id(TEXT FK), time_created(INTEGER), time_updated(INTEGER), data(TEXT, 含 role 字段)
 - `part` 表：id(TEXT PK), message_id(TEXT FK), session_id(TEXT FK), time_created(INTEGER), time_updated(INTEGER), data(TEXT, 含 type 和具体内容)
@@ -320,16 +386,18 @@ part.data 的 type 类型：
 
 读取上次分析时间戳，确定本次分析的时间范围。
 
-时间戳存储位置：`{ANALYZER_SKILL_DIR}/last_analysis.txt`
+时间戳存储位置：`{ANALYZER_SKILL_DIR}/last_analysis.txt`（毫秒级）
 
-- 如果文件不存在，说明是**首次运行**，分析所有 session
+- 如果文件不存在或为 0，说明是**首次运行**，分析所有 session（两个来源都扫）
 - 如果文件存在，确定分析范围时**必须同时检查两个维度**：
-  1. **新 session**：`session.time_created > 上次时间戳` 的 session
-  2. **旧 session 的增量消息**：`session.time_created <= 上次时间戳` 但 `message.time_created > 上次时间戳` 的 session（即 session 创建早于上次分析，但后续有新消息）
+  1. **新 session**：创建时间 > 上次时间戳
+  2. **旧 session 的增量消息**：创建时间 ≤ 上次时间戳 但有新消息 > 上次时间戳
 
-**关键**：不能只看 `session.time_created`，否则会遗漏旧 session 在上次分析后新增的消息。必须同时查询 `message` 表和 `part` 表中 `time_created > 上次时间戳` 的记录，通过 `session_id` 关联找到有增量更新的旧 session。
+**两个 session 来源都要检查**：
+- opencode DB：`session.time_created` / `message.time_created`（毫秒）
+- Claude Code JSONL：文件中每条记录的 `timestamp` 字段（秒——筛选时用 `timestamp * 1000 > last_ts` 或 `timestamp > last_ts / 1000`）
 
-排除当前 session 的增量统计（不计入"分析了N个新session"），但**必须从当前 session 中提取用户反馈**（见步骤4的"当前session反馈提取"规则）。当前 session 包含最鲜活的用户反馈，完全排除会丢失最重要的skill改进信号。
+排除当前正在进行的 session（不计入"分析了N个新session"），但**必须从当前 session 中提取用户反馈**。当前 session 包含最鲜活的用户反馈，完全排除会丢失最重要的skill改进信号。
 
 **首次运行特殊处理**：
 - 首次运行时数据量可能很大，需分批处理：每次最多分析 20 个 session，处理完后如果还有剩余，记录时间戳并告知用户"还有 N 个 session 未分析，请再次运行"
@@ -337,8 +405,9 @@ part.data 的 type 类型：
 
 ### 2. 导出 session 内容
 
-用 Python 脚本从数据库导出 session 内容到临时目录：
+**从两个来源导出**，合并后统一分析。
 
+**来源 A：opencode DB**（如果 `DB_PATH` 存在且非空）：
 ```python
 import sqlite3, json, os
 
@@ -349,7 +418,7 @@ c = conn.cursor()
 c.execute("SELECT id, title, time_created FROM session WHERE time_created > ? ORDER BY time_created", (last_timestamp,))
 new_sessions = c.fetchall()
 
-# 2. 找到有增量消息的旧 session（session 创建早于上次分析，但有新消息）
+# 2. 找到有增量消息的旧 session
 c.execute("""
     SELECT DISTINCT s.id, s.title, s.time_created
     FROM session s
@@ -369,7 +438,6 @@ for s in all_sessions:
         unique_sessions.append(s)
 
 for sid, title, tc in unique_sessions:
-    # 对于旧 session 的增量消息，只导出 time_created > last_timestamp 的消息
     c.execute("SELECT id, data, time_created FROM message WHERE session_id = ? ORDER BY time_created", (sid,))
     messages = c.fetchall()
     for mid, data_str, msg_tc in messages:
@@ -385,7 +453,40 @@ for sid, title, tc in unique_sessions:
         # 提取 tool 类型的 part（工具名+参数）
 ```
 
-导出时重点关注：
+**来源 B：Claude Code JSONL**（如果 `CLAUDE_SESSIONS_DIR` 存在）：
+```python
+import json, os, glob
+
+sessions_dir = os.path.expanduser("~/.claude/projects")
+last_ts_sec = last_timestamp / 1000  # Claude Code 用秒级时间戳
+
+# 扫描所有项目子目录的 .jsonl 文件
+jsonl_files = glob.glob(os.path.join(sessions_dir, "*", "*.jsonl"))
+
+for f in jsonl_files:
+    with open(f, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line: continue
+            d = json.loads(line)
+            if d.get("type") not in ("user", "assistant"): continue
+            ts = d.get("timestamp", 0)
+            if ts <= last_ts_sec: continue  # 增量筛选
+            msg = d.get("message", {})
+            role = msg.get("role", "?")
+            content = msg.get("content", [])
+            for block in (content if isinstance(content, list) else []):
+                if isinstance(block, dict):
+                    if block.get("type") == "text":
+                        text = block.get("text", "")
+                        # 用户消息或助手文本
+                    elif block.get("type") == "tool_use":
+                        tool_name = block.get("name", "")
+                        tool_input = block.get("input", {})
+                        # 工具调用
+```
+
+导出时重点关注（两个来源统一）：
 - **用户消息**：完整保留（这是用户原话，用于判断偏好和习惯）
 - **助手文本**：保留关键操作总结（用于判断工作流）
 - **工具调用**：保留工具名和关键参数（用于判断重复操作模式）
@@ -776,8 +877,10 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
 
 | 场景 | 处理方式 |
 |------|----------|
-| 数据库文件不存在 | 提示用户安装 opencode 并至少使用一次，然后重试 |
-| 数据库为空（无 session） | 告知用户暂无 session 可分析，建议使用 opencode 一段时间后再运行 |
+| opencode DB 不存在且 Claude Code sessions 目录不存在 | 提示用户先使用 opencode 或 Claude Code 产生一些 session |
+| 两个来源都存在但都无增量数据 | 告知用户暂无新 session 可分析（可能有数据但上次已分析过） |
+| 仅 opencode 可用 | 正常——只分析 opencode session |
+| 仅 Claude Code 可用 | 正常——只分析 Claude Code session |
 | Skills 目录不存在 | 自动创建 `SKILLS_DIR` 目录 |
 | Skills 目录无写权限 | 提示用户检查权限，或手动指定其他目录 |
 | 外部数据源不可用 | 先尝试自动修复（welink-cli 自动安装/刷新、CodeHub uvx 自动发现、agentcenter 自动重装）；修复失败才跳过该数据源，在报告中说明原因，不影响核心分析功能 |
