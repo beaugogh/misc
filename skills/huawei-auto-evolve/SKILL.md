@@ -538,13 +538,13 @@ for sid, title, tc in unique_sessions:
 
 **创建新 skill 规则**：
 - 名称以 `huawei-auto-evolve-created-` 为前缀
-- 安装到 `{ANALYZER_SKILL_DIR}/huawei-auto-evolve-created-<name>/SKILL.md`（嵌套于 huawei-auto-evolve 目录内，与其他 huawei-auto-evolve 依赖 skill 同级）
+- 安装到 `{ANALYZER_SKILL_DIR}/output/huawei-auto-evolve-created-<name>/SKILL.md`（嵌套于 huawei-auto-evolve 目录内，与其他 huawei-auto-evolve 依赖 skill 同级）
 - **必须通过调用 skill-creator skill 来创建新 skill**，而非直接写文件。具体流程：
   1. 加载 `skill-creator` skill（使用 skill 工具加载）
   2. 按照skill-creator的流程执行：
      - **Step 1（理解skill）**：基于从session中分析出的模式，明确skill的功能、触发场景、使用示例
      - **Step 2（规划资源）**：确定是否需要scripts/、references/、assets/目录，以及具体内容
-     - **Step 3（初始化）**：运行 `{ANALYZER_SKILL_DIR}/skill-creator/scripts/init_skill.py huawei-auto-evolve-created-<name> --path {ANALYZER_SKILL_DIR}` 创建模板目录（若 skill-creator 位于同级 `{SKILLS_DIR}/skill-creator/`，则路径相应改为 `{SKILLS_DIR}/skill-creator/scripts/init_skill.py`，init 的 `--path` 也相应指向 `{SKILLS_DIR}`）
+     - **Step 3（初始化）**：运行 `{ANALYZER_SKILL_DIR}/skill-creator/scripts/init_skill.py huawei-auto-evolve-created-<name> --path {ANALYZER_SKILL_DIR}/output` 创建模板目录（若 skill-creator 位于同级 `{SKILLS_DIR}/skill-creator/`，则路径相应改为 `{SKILLS_DIR}/skill-creator/scripts/init_skill.py`，init 的 `--path` 也相应指向 `{SKILLS_DIR}`）
      - **Step 4（编辑skill）**：填充SKILL.md和资源文件，遵循skill-creator的设计原则：
        - frontmatter中description必须写清功能+触发词+使用场景（这是AI决定何时调用的唯一依据）
        - body使用祈使句/不定式
@@ -559,9 +559,9 @@ for sid, title, tc in unique_sessions:
 
 **更新已有 skill 规则**：
 - **修改范围限制**：自演进引擎只能修改以下两类 skill，**禁止修改其他任何 skill**（如 skill-creator、mr-reviewer、ppt-master-huawei 等非 huawei-auto-evolve-created 的 skill 属于第三方或手动安装的，不得擅自修改）：
-  1. `{ANALYZER_SKILL_DIR}/huawei-auto-evolve-created-*` 目录下的所有 skill（嵌套于 huawei-auto-evolve 目录内）
+  1. `{ANALYZER_SKILL_DIR}/output/huawei-auto-evolve-created-*` 目录下的所有 skill（嵌套于 huawei-auto-evolve 目录内）
   2. `huawei-auto-evolve` 自身（`{ANALYZER_SKILL_DIR}/`）
-- 遍历 `{ANALYZER_SKILL_DIR}/huawei-auto-evolve-created-*` 目录 + `huawei-auto-evolve` 自身目录（`{ANALYZER_SKILL_DIR}/`）。注意：huawei-auto-evolve-created skill 现在嵌套在 huawei-auto-evolve 目录内，而非 `{SKILLS_DIR}` 下
+- 遍历 `{ANALYZER_SKILL_DIR}/output/huawei-auto-evolve-created-*` 目录 + `huawei-auto-evolve` 自身目录（`{ANALYZER_SKILL_DIR}/`）。注意：huawei-auto-evolve-created skill 现在嵌套在 huawei-auto-evolve 目录内，而非 `{SKILLS_DIR}` 下
 - **如果不存在任何 `huawei-auto-evolve-created-*` 目录**（首次运行场景），跳过"更新已有 skill"步骤，仅执行"创建新 skill"步骤。不要报错或警告，这是正常的首次运行行为
 - **不跳过任何 skill**，包括 `huawei-auto-evolve` 自身。自演进引擎必须能根据 session 中的经验更新自身的流程、规则和注意事项，而不是等用户提醒才更新。`huawei-auto-evolve-created-global-memory` 在步骤3中单独更新，此处也纳入检查但以步骤3的更新为准
 - **更新 huawei-auto-evolve 自身时的特殊规则**：自演进引擎是通用工具，设计目标是可分享给其他用户。因此更新自身时必须区分两类经验：
@@ -609,9 +609,9 @@ for sid, title, tc in unique_sessions:
 ### 5. 执行更新
 
 **更新记忆 skill**：
-- 读取 `{ANALYZER_SKILL_DIR}/{MEMORY_SKILL_NAME}/SKILL.md`（记忆 skill 作为 huawei-auto-evolve-created skill，嵌套于 huawei-auto-evolve 目录内）
+- 读取 `{ANALYZER_SKILL_DIR}/output/{MEMORY_SKILL_NAME}/SKILL.md`（记忆 skill 作为 huawei-auto-evolve-created skill，位于 output/ 目录内）
 - 如果不存在，**首次创建**：
-  1. 创建目录 `{ANALYZER_SKILL_DIR}/{MEMORY_SKILL_NAME}/` 和基础 SKILL.md（含 frontmatter 和标题）
+  1. 创建目录 `{ANALYZER_SKILL_DIR}/output/{MEMORY_SKILL_NAME}/` 和基础 SKILL.md（含 frontmatter 和标题）
   2. 依次检测外部数据源（W3、CloudDevOps Wiki、WeLink），可用的全部采集
   3. 综合分析所有采集数据，生成初始记忆内容，写入以下分类：
      - 用户身份
@@ -628,7 +628,7 @@ for sid, title, tc in unique_sessions:
 **创建新 skill**：
 - **必须调用 skill-creator skill 来创建**，具体流程见步骤4"创建新 skill 规则"
 - 简要流程：加载skill-creator → init_skill.py初始化 → 编辑SKILL.md和资源文件 → 验证
-- 如果skill-creator不可用（未安装且自动安装失败），降级为：创建目录 `{ANALYZER_SKILL_DIR}/huawei-auto-evolve-created-<name>` → 直接写入SKILL.md
+- 如果skill-creator不可用（未安装且自动安装失败），降级为：创建目录 `{ANALYZER_SKILL_DIR}/output/huawei-auto-evolve-created-<name>` → 直接写入SKILL.md
 
 **更新已有 skill**：
 - 直接编辑对应的 SKILL.md
