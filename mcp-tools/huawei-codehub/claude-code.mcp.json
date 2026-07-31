@@ -22,8 +22,9 @@
       ],
       "enabled": true,
       "environment": {
-        "WEB_HOST": "https://codehub-y.huawei.com/",
-        "PRIVATE_TOKEN": "YOUR_CODEHub_PRIVATE_TOKEN_HERE"
+        "WEB_HOST": "https://codehub-g.huawei.com/",
+        "CODEHUB_TOKEN": "YOUR_CODEHUB_TOKEN_HERE",
+        "PRIVATE_TOKEN": "YOUR_CODEHUB_TOKEN_HERE"
       }
     }
   }
