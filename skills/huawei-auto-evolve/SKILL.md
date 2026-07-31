@@ -132,7 +132,7 @@ MEMORY_SKILL_NAME = "huawei-auto-evolve-created-global-memory"
 
 **用途**：获取分析时间段内的工作沟通记录，发现会议决策、项目进展、待办跟进等 session 中可能未体现的信息
 
-**检测方式**：检查 `welink-cli` 是否在 PATH 中可执行，`welink-cli auth status` 是否已登录
+**检测方式**：检查 `welink-cli` 是否在 PATH 中可执行，`welink-cli auth status` 是否已登录。若 token 已过期（状态显示 EXPIRED），**自动执行 `welink-cli auth login` 刷新 token**（该命令连接 WeLink PC 客户端非交互刷新，无需用户操作），刷新后重新检测；若刷新失败则跳过 WeLink 数据源并在报告中说明
 
 **采集方式**：
 ```bash
@@ -253,14 +253,16 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 
 **用途**：了解分析时间段内的 AI 辅助研发使用情况
 
-**检测方式**：`nga.cmd` 是否可用
+**检测方式**：`nga.cmd` 是否可用。注意：Git Bash 的 `which`/`command -v` 不识别 `.cmd` 扩展名，需用 `command -v nga.cmd || ls /d/CodingAgentCLI/nga.cmd` 检测；常见位置 `D:/CodingAgentCLI/nga.cmd`（已加入 bash PATH）
 
 **采集方式**：
 ```bash
-nga.cmd session list
-nga.cmd metrics <session_id>
+nga.cmd session list --disable-update
+nga.cmd metrics <session_id> --disable-update
 ```
+- `--disable-update` 抑制版本检查噪声
 - 汇总 input/output token、运行时长
+- 若 `session list` 返回空（nga TUI 与 opencode session DB 是独立存储），回退到直接查询 `DB_PATH` 数据库（数据源 1）中的 metrics 表
 
 ### 采集策略
 
@@ -374,7 +376,7 @@ for sid, title, tc in unique_sessions:
 
 1. **WeLink 聊天记录**：
    - 检测 `welink-cli` 可用性
-   - 如果 token 过期，提示用户扫码登录（`welink-cli auth login`）
+   - 如果 token 过期，**自动执行 `welink-cli auth login`** 刷新（非交互，连接 WeLink PC 客户端）；刷新失败才提示用户
    - 获取会话列表，按优先级分批读取消息（每次最多3个会话，串行读取）
    - 读取后立即摘要关键信息（决策、进展、待办、风险），不保留原始消息全文
    - 将摘要与 session 数据合并分析
@@ -759,7 +761,8 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
 | 外部数据源不可用 | 跳过该数据源，在报告中说明跳过原因，不影响核心分析功能 |
 | 首次运行数据量过大 | 分批处理（每次最多 20 个 session），记录时间戳，提示用户再次运行继续分析 |
 | 记忆 skill 创建失败 | 检查目录权限，重试一次；仍失败则告知用户手动创建 |
-| welink-cli 未安装或 token 过期 | 跳过 WeLink 数据源，提示用户安装或扫码登录 |
-| agentcenter 未安装 | 跳过 skill 推荐和版本检查，在报告中提示用户可安装 agentcenter 获得此功能 |
+| welink-cli 未安装 | 跳过 WeLink 数据源，提示用户安装 welink-cli |
+| welink-cli token 过期 | **自动执行 `welink-cli auth login` 刷新**；刷新失败才跳过并提示用户 |
+| agentcenter 未安装或损坏（shim 存在但 `agentcenter --version` 报 module not found） | 跳过 skill 推荐和版本检查，在报告中提示用户可安装 agentcenter 获得此功能。agentcenter 是华为内部包（`@aimarket/agentcenter`），需从华为内部 npm 制品库安装（`NO_PROXY=cmc.centralrepo.rnd.huawei.com npm install -g @aimarket/agentcenter --registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/npm-all/`），可能需制品库认证 |
 | agentcenter 认证过期 | 尝试 `agentcenter auth` 重新认证；失败则跳过 skill 推荐和版本检查 |
 | skill 安装/更新失败 | 在报告中说明失败原因，不影响其他分析结果 |
