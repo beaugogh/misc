@@ -59,7 +59,7 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
 |----------|------|----------|----------|
 | welink-cli | 分析时间段内的聊天记录 | 检查 PATH 中是否有 `welink-cli`，`welink-cli auth status` 是否已登录 | 跳过 WeLink 数据源 |
 | W3 搜索 MCP 工具 | 搜索用户公开信息 | 尝试调用 W3 搜索 MCP 工具或 API | 跳过 W3 数据源 |
-| CloudDevOps REST API | 获取用户 Wiki | 尝试调用 `clouddevops-wiki` skill 或 API | 跳过 Wiki 数据源 |
+| CloudDevOps Wiki MCP | 获取用户 Wiki | 优先 `wiki-mcp.py`（自包含，读无需认证）；或 `clouddevops.py`（需 X-AUTH-TOKEN）；或 `clouddevops-wiki` skill（需 W3 账号密码） | 跳过 Wiki 数据源 |
 | git (CodeHub) | 获取代码提交记录 | `git --version`；可选 CodeHub MCP 工具（`codehub.py --list-tools` 或 opencode `mcp.Codehub-Mcp-Server`） | 跳过代码提交数据源（本地 git 仍可用；缺 MCP 则跳过 MR/检视/Issue 协作层数据） |
 | agentcenter CLI | 推荐安装 skill、检查 skill 新版本 | `agentcenter --version` | 跳过 skill 推荐和版本检查 |
 
@@ -226,9 +226,25 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 
 **用途**：获取用户撰写的 Wiki 文档，了解其专业领域和工作重点
 
-**检测方式**：尝试调用 `clouddevops-wiki` skill 或 CloudDevOps REST API，成功则可用
+**检测方式**：优先使用本仓库自包含的 Wiki MCP 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/wiki-mcp/wiki_mcp.py`，纯标准库、无需安装、读操作无需认证）；或尝试 `clouddevops-wiki` skill（需 W3 账号密码）；或尝试 `clouddevops` MCP 工具（`mcp-tools/clouddevops/clouddevops.py`，需 `CLOUDDEVOPS_X_AUTH_TOKEN`）
 
 **采集方式**：
+- **首选：调用 wiki-mcp 自包含脚本**（任何有 Bash + Python 3 的环境都能用）：
+  ```bash
+  # 搜索某知识库内的 Wiki（读操作无需 token）
+  python3 mcp-tools/wiki-mcp/wiki_mcp.py search-wiki-documents --url <wiki-url> --search-range knowledge --search-key "<用户姓名>" --json
+  # 获取文档内容
+  python3 mcp-tools/wiki-mcp/wiki_mcp.py fetch-wiki-content --url <wiki-url> --json
+  # 列出某类目下的文档
+  python3 mcp-tools/wiki-mcp/wiki_mcp.py list-wiki-documents --url <wiki-url> --query-range category --query-type all
+  ```
+  用户级查询（如 list-my-initiated-wiki-countersigns）和写操作需 `WIKI_X_AUTH_TOKEN` 环境变量
+- **备选 A：clouddevops MCP 工具**（`mcp-tools/clouddevops/clouddevops.py`，65 个工具覆盖整个云捷平台，但所有调用需 `CLOUDDEVOPS_X_AUTH_TOKEN`）：
+  ```bash
+  export CLOUDDEVOPS_X_AUTH_TOKEN=<token>
+  python3 mcp-tools/clouddevops/clouddevops.py search-knowledge --search-key "<用户姓名>" --json
+  ```
+- **备选 B：clouddevops-wiki skill**（嵌套于 huawei-auto-evolve 目录，需 W3_USERNAME/W3_PASSWORD）
 - 按作者搜索用户撰写的所有 Wiki
 - 统计各域的文档数量，识别核心关注领域
 - 抽样阅读高星/高引用文档，提取专业观点和方法论

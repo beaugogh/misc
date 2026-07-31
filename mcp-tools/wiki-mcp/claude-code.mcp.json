@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "wiki_mcp": {
+      "type": "http",
+      "url": "http://mcpgateway.his.huawei.com/mcp/69e5c49fc1218e60a80b1740/2038867975988133890",
+      "timeout": 15000,
+      "headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream"
+      }
+    }
+  }
+}

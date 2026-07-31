@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "clouddevops_mcpserver": {
+      "type": "http",
+      "url": "https://tool.clouddevops.huawei.com/clouddevops-mcpserver/mcp/streamable",
+      "timeout": 30000,
+      "headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+        "X-AUTH-TOKEN": "YOUR_CLOUDDEVOPS_X_AUTH_TOKEN_HERE"
+      }
+    }
+  }
+}

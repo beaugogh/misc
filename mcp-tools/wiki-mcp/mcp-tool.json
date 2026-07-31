@@ -1,0 +1,38 @@
+{
+  "name": "wiki-mcp",
+  "version": "0.1.0",
+  "description": "Read and write Huawei CloudDevOps Wiki documents via the remote `wiki-mcp` MCP server (mcpgateway.his.huawei.com). Exposes fetch/create/overwrite wiki content, comments, document search/listing, and the full countersign (会签) workflow. No authentication required — the server is an unauthenticated remote MCP endpoint on the intranet. Usable by any MCP-capable agent (load the bundled config) or any agent with Bash + Python 3 (run the bundled wrapper script).",
+  "transport": "remote",
+  "url": "http://mcpgateway.his.huawei.com/mcp/69e5c49fc1218e60a80b1740/2038867975988133890",
+  "protocol": "streamable-http",
+  "timeout": 15000,
+  "headers": {
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream"
+  },
+  "network": {
+    "no_proxy": ["mcpgateway.his.huawei.com"],
+    "note": "The endpoint is on the Huawei intranet. It must bypass the corporate HTTP proxy (proxyuk.huawei.com:8080) or the connection fails. The wrapper script sets NO_PROXY automatically via a no-proxy opener; when loading the MCP config into an agent, ensure NO_PROXY includes mcpgateway.his.huawei.com."
+  },
+  "auth": "optional-token",
+  "auth_detail": "Most tools (fetch/search/list content) need no auth. User-scoped tools (list_my_*) and write tools require X-Auth-Token. Set WIKI_X_AUTH_TOKEN in the environment (wrapper) or add X-Auth-Token to headers (config).",
+  "server_info": {
+    "name": "wiki-mcp",
+    "version": "3.1.0"
+  },
+  "tools": [
+    { "name": "fetch_wiki_content", "description": "通过wiki文档链接查询该文档基础信息与正文内容。", "args": [{ "name": "url", "required": true, "help": "wiki文档链接（路径或查询参数中含WIKI+连续数字）" }] },
+    { "name": "create_wiki_document", "description": "通过wiki文档链接在该文档同级或子级新建wiki文档。写操作。", "args": [{ "name": "url", "required": true, "help": "wiki文档链接" }, { "name": "create_type", "required": true, "help": "创建类型（同级/子级）" }, { "name": "title", "required": true, "help": "新文档标题" }, { "name": "content", "required": true, "help": "文档内容" }] },
+    { "name": "overwrite_wiki_content", "description": "通过wiki文档链接全量覆盖更新该文档标题、内容。写操作。", "args": [{ "name": "url", "required": true, "help": "wiki文档链接" }, { "name": "title", "required": false, "help": "新标题" }, { "name": "content", "required": false, "help": "新内容" }] },
+    { "name": "add_wiki_comment", "description": "通过wiki文档链接为该文档添加评论，支持回复评论和消息通知。写操作。", "args": [{ "name": "url", "required": true, "help": "wiki文档链接" }, { "name": "comment_content", "required": true, "help": "评论内容" }, { "name": "parent_comment_id", "required": false, "help": "父评论ID（回复评论时用）" }, { "name": "notify_accounts", "required": false, "help": "通知账号列表" }] },
+    { "name": "fetch_wiki_comment", "description": "通过wiki文档链接查询该文档的全部评论。", "args": [{ "name": "url", "required": true, "help": "wiki文档链接" }] },
+    { "name": "list_wiki_documents", "description": "通过wiki文档链接在该文档所属类目或子文档范围内查询文档列表（不含内容）。", "args": [{ "name": "url", "required": true, "help": "wiki文档链接" }, { "name": "query_range", "required": true, "help": "查询范围（类目/子文档）" }, { "name": "query_type", "required": true, "help": "查询类型" }, { "name": "title", "required": false, "help": "标题过滤" }, { "name": "owner_account", "required": false, "help": "作者账号过滤" }, { "name": "create_time_range", "required": false, "help": "创建时间范围" }, { "name": "last_update_time_range", "required": false, "help": "更新时间范围" }] },
+    { "name": "search_wiki_documents", "description": "通过wiki文档链接在该文档所属知识库/类目/子文档范围内搜索关键词，返回标题或正文匹配的文档列表。", "args": [{ "name": "url", "required": true, "help": "wiki文档链接（确定搜索范围）" }, { "name": "search_range", "required": true, "help": "搜索范围（知识库/类目/文档及子文档）" }, { "name": "search_key", "required": true, "help": "搜索关键词" }] },
+    { "name": "initiate_wiki_countersign", "description": "通过wiki文档链接对该文档发起会签。写操作。", "args": [{ "name": "url", "required": true, "help": "wiki文档链接" }, { "name": "countersigners", "required": true, "help": "会签人列表" }, { "name": "notify_type", "required": true, "help": "通知类型" }] },
+    { "name": "fetch_wiki_countersign_info", "description": "通过wiki文档链接查询该文档最新会签信息。", "args": [{ "name": "url", "required": true, "help": "wiki文档链接" }] },
+    { "name": "submit_wiki_countersign_conclusion", "description": "对该文档发起中的会签提交会签结论及评论。写操作。", "args": [{ "name": "url", "required": true, "help": "wiki文档链接" }, { "name": "countersign_result", "required": true, "help": "会签结论" }, { "name": "countersign_comment", "required": true, "help": "会签评论" }] },
+    { "name": "terminate_wiki_countersign", "description": "通过wiki文档链接主动结束该文档已发起的会签。写操作。", "args": [{ "name": "url", "required": true, "help": "wiki文档链接" }] },
+    { "name": "list_my_initiated_wiki_countersigns", "description": "指定开始时间，查询当前用户发起的wiki会签列表。", "args": [{ "name": "countersign_start_time", "required": true, "help": "会签发起开始时间 (YYYY-MM-DD)" }, { "name": "countersign_status", "required": false, "help": "会签状态过滤" }] },
+    { "name": "list_my_pending_wiki_countersigns", "description": "查询当前用户待处理的wiki会签列表。", "args": [] }
+  ]
+}
