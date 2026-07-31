@@ -4,7 +4,9 @@
 Runs: collect (via registry) → segment → aggregate → report.
 
 Usage:
-    python run.py --granularity week
+    python run.py                         # multi-horizon: 90d, 30d, 7d, 1d (default)
+    python run.py --horizons 90d,30d,7d   # custom horizons
+    python run.py --granularity week      # single-range (legacy mode)
     python run.py --granularity day --json
     python run.py --granularity month --since 2026-07-01 --until 2026-07-31
     python run.py --granularity week --format table
@@ -16,12 +18,20 @@ Usage:
     python run.py --task <id> --drill  # root-cause drill-down on one task (Phase 10.2)
 
 Flags:
-    --granularity {day,week,month,year}   aggregation period (default: week)
-    --format {text,table,markdown,html,json}  output format (default: text)
+    --horizons 90d,30d,7d,1d              multi-horizon mode (DEFAULT): generate one
+                                          HTML report per horizon ending at --until (or now).
+                                          Each report includes a data-availability section
+                                          showing per-source coverage. Sources with no data
+                                          in a horizon are listed as "No data in range".
+    --output-dir <dir>                    directory for multi-horizon reports (default: output/)
+    --granularity {day,week,month,year}   aggregation period (single-range mode; default: week)
+    --format {text,table,markdown,html,json}  output format (single-range; default: text)
     --json                                emit raw JSON (equivalent to --format json; takes precedence)
-    --output <path>                       write report to file instead of stdout (format inferred from extension if --format not given)
-    --since YYYY-MM-DD                    only include tasks starting on/after this date
-    --until YYYY-MM-DD                    only include tasks starting on/before this date
+    --output <path>                       write report to file instead of stdout (single-range)
+    --since YYYY-MM-DD                    single-range mode: only tasks starting on/after this date
+    --until YYYY-MM-DD                    end date for both modes (default: today).
+                                          In multi-horizon: horizons end at this date.
+                                          In single-range: only tasks starting on/before this date.
     --sources                             report which sources were found/used/skipped, then exit
     --check                               environment + adapter check, then exit
     --rebuild                             ignore any watermark, do full reparse (Phase 2 placeholder)
@@ -156,6 +166,7 @@ def _events_for_task(task: dict, all_events: list[dict]) -> list[dict]:
 def _render_drill_down(result: dict, task: dict) -> str:
     """Render a stage-by-stage root-cause drill-down (Phase 10.2)."""
     from datetime import datetime as _dt
+    from aggregate import render_context_text
     lines = []
     subj = task.get("subject") or "(no subject)"
     lines.append(f"# Drill-down: {subj}")
@@ -165,6 +176,14 @@ def _render_drill_down(result: dict, task: dict) -> str:
     lines.append(f"Active: {act_h:.1f}h | Wall: {wall_h:.1f}h | "
                  f"Stages: {len(result.get('stages', []))}")
     lines.append("")
+
+    # Lead-off: the key signals from task["context"], so the drill-down answers
+    # "why did this take so long?" before the user reads the stage timeline.
+    context_text = render_context_text(task)
+    if context_text:
+        lines.append("## Key signals")
+        lines.append(context_text)
+        lines.append("")
 
     # C6 fix: warn when the task has zero events or zero stages so that "no data"
     # is distinguishable from "no problems."
@@ -245,20 +264,208 @@ def _render_top_tasks(tasks: list[dict], n: int) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Multi-horizon mode
+# ---------------------------------------------------------------------------
+
+DEFAULT_HORIZONS = "90d,30d,7d,1d"
+
+
+def _parse_horizon_spec(spec: str) -> list[tuple[int, str]]:
+    """Parse a horizon spec like '90d,30d,7d,1d' into [(90, '90d'), (30, '30d'), ...].
+
+    Each entry is (days, label). Validates the format; raises ValueError on bad input.
+    """
+    entries: list[tuple[int, str]] = []
+    for part in spec.split(","):
+        part = part.strip().lower()
+        if not part:
+            continue
+        if not part.endswith("d") or not part[:-1].isdigit():
+            raise ValueError(
+                f"invalid horizon '{part}' — expected format like '90d' (number + 'd')"
+            )
+        days = int(part[:-1])
+        if days < 1:
+            raise ValueError(f"invalid horizon '{part}' — must be >= 1 day")
+        entries.append((days, part))
+    if not entries:
+        raise ValueError("no horizons parsed from spec")
+    return entries
+
+
+def _granularity_for_horizon(days: int) -> str:
+    """Pick an aggregation granularity appropriate for the horizon length.
+
+    1-2 days → day, 3-30 days → week, 31+ days → month.
+    """
+    if days <= 2:
+        return "day"
+    if days <= 30:
+        return "week"
+    return "month"
+
+
+def _run_multi_horizon(tasks: list[dict], events: list[dict],
+                       horizons: list[tuple[int, str]],
+                       end_ts: float, output_dir: str,
+                       exclusive: dict | None, skipped: list[str]) -> str:
+    """Generate one HTML report per horizon + a dashboard index page.
+
+    Returns the path to the index page.
+    """
+    import html as html_mod
+    from datetime import datetime as _dt, timezone as _tz
+    from aggregate import aggregate, render_html, generate_insights
+
+    os.makedirs(output_dir, exist_ok=True)
+    end_date = _dt.fromtimestamp(end_ts, tz=_tz.utc)
+    report_infos: list[dict] = []
+
+    for days, label in horizons:
+        since_ts = end_ts - days * 86400
+        horizon_tasks = [t for t in tasks
+                         if since_ts <= (t.get("start") or 0) <= end_ts]
+        granularity = _granularity_for_horizon(days)
+        agg = aggregate(horizon_tasks, granularity)
+
+        since_date = _dt.fromtimestamp(since_ts, tz=_tz.utc).strftime("%Y-%m-%d")
+        end_date_str = end_date.strftime("%Y-%m-%d")
+        filename = f"report_{label}.html"
+        filepath = os.path.join(output_dir, filename)
+
+        html_content = render_html(agg, granularity, tasks=horizon_tasks,
+                                   since_ts=since_ts, until_ts=end_ts)
+
+        # Recompute exclusive time for this horizon's task subset, so the
+        # footer reflects the horizon, not the global total.
+        if exclusive:
+            try:
+                from parallel_tasks import compute_exclusive_time
+                horizon_exclusive = compute_exclusive_time(horizon_tasks)
+                excl_h = horizon_exclusive["exclusive_seconds"] / 3600
+                wall_h = horizon_exclusive["wall_span_seconds"] / 3600
+                overlap_h = horizon_exclusive["overlap_seconds"] / 3600
+                footer = (f"<p>exclusive time: {excl_h:.1f}h "
+                          f"(wall span {wall_h:.1f}h, overlap {overlap_h:.1f}h, "
+                          f"{horizon_exclusive['n_parallel_groups']} parallel group(s))</p>")
+                if "</body>" in html_content:
+                    html_content = html_content.replace("</body>", f"{footer}\n</body>")
+                else:
+                    html_content += footer
+            except Exception:
+                pass  # exclusive time is optional — don't fail the report
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(html_content)
+            if not html_content.endswith("\n"):
+                f.write("\n")
+
+        # Collect summary stats for the index page.
+        total_active = sum(r.get("active_seconds", 0.0) for r in agg.values()) / 3600
+        total_tasks = sum(r["task_count"] for r in agg.values())
+        n_sources = len({t.get("source_kind") for t in horizon_tasks
+                         if t.get("source_kind")})
+        insights = generate_insights(horizon_tasks, agg)
+        report_infos.append({
+            "label": label, "days": days, "filename": filename,
+            "since": since_date, "until": end_date_str,
+            "active_h": total_active, "task_count": total_tasks,
+            "n_sources": n_sources,
+            "top_insight": insights[0] if insights else "",
+        })
+        print(f"  {label}: {total_active:.1f}h active, {total_tasks} tasks, "
+              f"{n_sources} sources → {filepath}", file=sys.stderr)
+
+    # Build the dashboard index page.
+    index_path = os.path.join(output_dir, "index.html")
+    cards = []
+    for info in report_infos:
+        label_esc = html_mod.escape(info["label"])
+        since_esc = html_mod.escape(info["since"])
+        until_esc = html_mod.escape(info["until"])
+        insight_esc = html_mod.escape(info["top_insight"][:120])
+        insight_html = (f'<p class="card-insight">{insight_esc}</p>'
+                        if insight_esc else "")
+        cards.append(
+            f'  <a class="horizon-card" href="{html_mod.escape(info["filename"])}">'
+            f'<div class="card-label">{label_esc}</div>'
+            f'<div class="card-range">{since_esc} → {until_esc}</div>'
+            f'<div class="card-stats"><strong>{info["active_h"]:.1f}h</strong> active, '
+            f'{info["task_count"]} tasks, {info["n_sources"]} sources</div>'
+            f'{insight_html}'
+            f'</a>'
+        )
+    cards_html = "\n".join(cards)
+
+    skipped_html = ""
+    if skipped:
+        # skipped is a list of dicts: {"name": ..., "reason": ...}
+        skip_names = [s["name"] if isinstance(s, dict) else str(s) for s in skipped]
+        skipped_html = (f'<p class="hint">Skipped sources: '
+                        f'{html_mod.escape(", ".join(skip_names))}</p>')
+
+    index_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>huawei-retro-scope — multi-horizon dashboard</title>
+<style>
+  body {{ font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 2em; color: #2c2c2c; max-width: 1000px; }}
+  h1 {{ font-size: 1.6em; border-bottom: 3px solid #4e79a7; padding-bottom: 0.3em; }}
+  .hint {{ font-size: 0.85em; color: #777; margin: 0.3em 0; }}
+  .horizon-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin: 1.5em 0; }}
+  .horizon-card {{ display: block; text-decoration: none; color: inherit; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 20px; transition: box-shadow 0.2s; }}
+  .horizon-card:hover {{ box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-color: #4e79a7; }}
+  .card-label {{ font-size: 1.4em; font-weight: 700; color: #4e79a7; }}
+  .card-range {{ font-size: 0.85em; color: #888; margin: 0.2em 0; }}
+  .card-stats {{ font-size: 0.95em; margin: 0.3em 0; }}
+  .card-insight {{ font-size: 0.82em; color: #555; margin-top: 0.5em; padding-top: 0.5em; border-top: 1px solid #eee; }}
+</style>
+</head>
+<body>
+<h1>Time analysis — multi-horizon</h1>
+<p>Generated {_dt.fromtimestamp(end_ts, tz=_tz.utc).strftime("%Y-%m-%d %H:%M UTC")}.
+Click any horizon for the full report.</p>
+{skipped_html}
+<div class="horizon-grid">
+{cards_html}
+</div>
+</body>
+</html>"""
+    with open(index_path, "w", encoding="utf-8") as f:
+        f.write(index_html)
+
+    print(f"\nDashboard: {index_path}", file=sys.stderr)
+    return index_path
+
+
 def main():
     ap = argparse.ArgumentParser(
         prog="run.py",
         description="huawei-retro-scope: retrospective task & time reconstruction.",
     )
+    ap.add_argument("--horizons", default=DEFAULT_HORIZONS,
+                    help=f"multi-horizon mode (DEFAULT): comma-separated horizon specs "
+                         f"like '90d,30d,7d,1d'. Generates one HTML report per horizon "
+                         f"ending at --until (or now), plus a dashboard index. "
+                         f"Set to '' (empty) to disable and use single-range mode.")
+    ap.add_argument("--output-dir", default=None,
+                    help="directory for multi-horizon reports (default: output/)")
     ap.add_argument("--granularity", choices=["day", "week", "month", "year"],
-                    default="week")
+                    default="week",
+                    help="aggregation period (single-range mode only; ignored in "
+                         "multi-horizon mode where granularity is auto-selected per horizon)")
     ap.add_argument("--json", action="store_true", help="emit raw JSON instead of text report (equivalent to --format json)")
     ap.add_argument("--format", choices=["text", "table", "markdown", "html", "json"],
                     default=None, help="output format (default: text; --json overrides to json)")
     ap.add_argument("--output", default=None,
                     help="write report to this file instead of stdout (format inferred from extension if --format not given)")
-    ap.add_argument("--since", help="only include tasks starting on/after this date (YYYY-MM-DD)")
-    ap.add_argument("--until", help="only include tasks starting on/before this date (YYYY-MM-DD)")
+    ap.add_argument("--since", help="single-range mode: only include tasks starting on/after this date (YYYY-MM-DD). "
+                    "Setting --since disables multi-horizon mode.")
+    ap.add_argument("--until", help="end date for both modes (YYYY-MM-DD, default: today). "
+                    "In multi-horizon: horizons end at this date. In single-range: only tasks on/before this date.")
     ap.add_argument("--sources", action="store_true",
                     help="report which sources were found/used/skipped, then exit")
     ap.add_argument("--check", action="store_true",
@@ -411,7 +618,48 @@ def main():
         print(f"[refine_success] stage failed: {e}", file=sys.stderr)
         print("[refine_success] continuing with pre-refined success values.", file=sys.stderr)
 
-    # Filter by --since / --until.
+    # --- Multi-horizon mode (default) vs single-range mode ---
+    # Multi-horizon is the default (--horizons=90d,30d,7d,1d). It's disabled when:
+    #   - --since is set (explicit single-range request)
+    #   - --horizons is explicitly empty
+    #   - --format/--json/--output is set (single-report request)
+    #   - --task/--top/--sources/--check/--eval (already exited above)
+    use_multi_horizon = (
+        bool(args.horizons)
+        and not args.since
+        and not args.json
+        and not args.format
+        and not args.output
+        and args.top is None
+        and not args.task
+    )
+
+    if use_multi_horizon:
+        from datetime import datetime as _dt, timezone as _tz
+        # Compute the end timestamp: --until (end of day) or now.
+        if args.until:
+            end_ts = _parse_date(args.until) + 86400  # end of day
+        else:
+            end_ts = _dt.now(tz=_tz.utc).timestamp()
+        try:
+            horizons = _parse_horizon_spec(args.horizons)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(2)
+        output_dir = args.output_dir or os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "output")
+        output_dir = os.path.normpath(output_dir)
+        print("# Multi-horizon analysis", file=sys.stderr)
+        print(f"  horizons: {args.horizons}", file=sys.stderr)
+        print(f"  end date: {_dt.fromtimestamp(end_ts, tz=_tz.utc).strftime('%Y-%m-%d')}",
+              file=sys.stderr)
+        index_path = _run_multi_horizon(
+            tasks, events, horizons, end_ts, output_dir,
+            exclusive, skipped)
+        print(f"\nOpen the dashboard: {index_path}")
+        sys.exit(0)
+
+    # Single-range mode: filter by --since / --until.
     if args.since:
         since_ts = _parse_date(args.since)
         tasks = [t for t in tasks if (t.get("start") or 0) >= since_ts]
@@ -502,6 +750,10 @@ def main():
                 f"(wall span {wall_h:.1f}h, overlap {overlap_h:.1f}h, "
                 f"{exclusive['n_parallel_groups']} parallel group(s)))")
 
+    # Compute the single-range since_ts/until_ts for the data-availability section.
+    _single_since = _parse_date(args.since) if args.since else None
+    _single_until = (_parse_date(args.until) + 86400) if args.until else None
+
     def _render() -> str:
         """Produce the report string for the chosen format."""
         if fmt == "json":
@@ -517,7 +769,8 @@ def main():
             text = render_markdown(agg, args.granularity, tasks=tasks)
             return text + _exclusive_footer()
         elif fmt == "html":
-            text = render_html(agg, args.granularity, tasks=tasks)
+            text = render_html(agg, args.granularity, tasks=tasks,
+                               since_ts=_single_since, until_ts=_single_until)
             footer = _exclusive_footer().strip()
             if footer:
                 # Insert before </body> if present, else append.

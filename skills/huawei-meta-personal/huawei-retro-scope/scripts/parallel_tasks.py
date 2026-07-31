@@ -482,6 +482,42 @@ def _detect_browser_during_coding(events: list[dict], refined: list[dict]) -> li
             if url:
                 subject = f"research: {url[:100]}"
 
+        # Extract context (queries, top URLs/titles, downloads) from the browser
+        # events so the report can show WHAT was being researched, not just hours.
+        from segment_tasks import _extract_context, _extract_inputs
+        browser_ctx = _extract_context(overlapping_browser, "browser")
+        browser_inputs = _extract_inputs(overlapping_browser)
+
+        # Compute active time using inter-event-span — the same method used for
+        # ai_session tasks. Sum only the intervals between consecutive browser
+        # events that are below the gap threshold (30 min). Overnight gaps
+        # (tabs left open) are excised, not counted.
+        #
+        # The old formula was min(span, n_events * 300) — a 5-min collar per
+        # visit. That inflated tabs-left-open-overnight by 30×: 344 events × 5min
+        # = 28.7h, even though 27.6h of that was overnight idle gaps. The
+        # inter-event-span method drops the inflated task to ~0.8h (real browsing).
+        b_ts = sorted(e["timestamp"] for e in overlapping_browser
+                      if e.get("timestamp") is not None)
+        BROWSER_GAP_THRESHOLD = 30 * 60  # 30 min — same as GAP_THRESHOLD_SECONDS
+        if len(b_ts) < 2:
+            # Single visit — give it a 5-min minimum (we know browsing happened,
+            # just not how long).
+            b_active = min(300.0, b_end - b_start) if b_end > b_start else 0.0
+            b_excised = 0.0
+        else:
+            b_active = 0.0
+            b_excised = 0.0
+            for i in range(1, len(b_ts)):
+                delta = b_ts[i] - b_ts[i - 1]
+                if delta <= BROWSER_GAP_THRESHOLD:
+                    b_active += delta
+                else:
+                    b_excised += min(delta, 24 * 3600)  # cap excised at 24h
+            # Ensure single-visit-with-collar case is covered
+            if b_active < 1.0 and b_end > b_start:
+                b_active = min(300.0, b_end - b_start)
+
         b_task = {
             "id": f"browser-{int(b_start)}",
             "flavor": "browser_research",
@@ -495,20 +531,22 @@ def _detect_browser_during_coding(events: list[dict], refined: list[dict]) -> li
             "end": b_end,
             "duration_seconds": round(b_end - b_start, 1),
             "wall_clock_seconds": round(b_end - b_start, 1),
-            "active_seconds": round(min(b_end - b_start, len(overlapping_browser) * 300), 1),
+            "active_seconds": round(b_active, 1),
+            "excised_gap_seconds": round(b_excised, 1),
             "event_count": len(overlapping_browser),
             "tool_calls": 0,
             "tool_names": [],
             "output_tokens": 0,
             "input_tokens": 0,
             "errors": 0,
-            "inputs": [],
+            "inputs": browser_inputs,
             "outputs": [],
             "success": None,
             "success_evidence": "browser research — success not measured",
             "task_status": None,
             "thread_id": "browser",
             "parent_task_id": ct.get("id"),
+            "context": browser_ctx,
         }
         browser_tasks.append(b_task)
 

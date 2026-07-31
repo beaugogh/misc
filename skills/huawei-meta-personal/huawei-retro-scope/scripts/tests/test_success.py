@@ -492,21 +492,53 @@ class TestC2CorruptTimestampClamp(unittest.TestCase):
         self.assertAlmostEqual(active, 3600.0, places=1)
         self.assertEqual(excised, 0.0)
 
+    def test_all_day_meeting_zero_active(self):
+        """An all-day calendar entry (is_all_day=True) returns 0 active — it's a
+        day-marker, not a real 24h meeting. The 24h span is reported as excised."""
+        events = [
+            _ev(kind="meeting", ts=1000.0, extra={"end_ts": 1000.0 + 86400},
+                tool_input={"is_all_day": True}),
+        ]
+        active, excised = _compute_active_seconds(events)
+        self.assertAlmostEqual(active, 0.0, places=1)
+        self.assertAlmostEqual(excised, 86400.0, places=1)
+
+    def test_all_day_meeting_string_true_zero_active(self):
+        """An all-day entry with is_all_day='true' (string from API) also returns
+        0 active — the truthiness check handles strings, not just booleans."""
+        events = [
+            _ev(kind="meeting", ts=1000.0, extra={"end_ts": 1000.0 + 86400},
+                tool_input={"is_all_day": "true"}),
+        ]
+        active, excised = _compute_active_seconds(events)
+        self.assertAlmostEqual(active, 0.0, places=1)
+        self.assertAlmostEqual(excised, 86400.0, places=1)
+
     def test_long_meeting_under_limit_preserved(self):
-        """A 20h meeting (under 24h limit) should be preserved."""
+        """A 5h meeting (under 8h multi-day cap) should be preserved."""
+        events = [
+            _ev(kind="meeting", ts=1000.0, extra={"end_ts": 1000.0 + 5 * 3600}),
+        ]
+        active, _ = _compute_active_seconds(events)
+        self.assertAlmostEqual(active, 5 * 3600, places=1)
+
+    def test_multi_day_meeting_capped_to_8h(self):
+        """A 20h multi-day meeting should be capped to 8h (one working day)."""
         events = [
             _ev(kind="meeting", ts=1000.0, extra={"end_ts": 1000.0 + 20 * 3600}),
         ]
-        active, _ = _compute_active_seconds(events)
-        self.assertAlmostEqual(active, 20 * 3600, places=1)
+        active, excised = _compute_active_seconds(events)
+        self.assertAlmostEqual(active, 8 * 3600, places=1)
+        # The remaining 12h should be reported as excised
+        self.assertAlmostEqual(excised, 12 * 3600, places=1)
 
-    def test_corrupt_end_ts_clamped_to_24h(self):
-        """A corrupt end_ts (years later) should be clamped to 24h."""
+    def test_corrupt_end_ts_clamped_to_8h(self):
+        """A corrupt end_ts (years later) should be clamped to 8h (multi-day cap)."""
         events = [
             _ev(kind="meeting", ts=1000.0, extra={"end_ts": 1000.0 + 99999999}),
         ]
         active, _ = _compute_active_seconds(events)
-        self.assertAlmostEqual(active, MAX_MEETING_DURATION, places=1)
+        self.assertAlmostEqual(active, 8 * 3600, places=1)
         self.assertLess(active, 99999999)
 
     def test_corrupt_end_ts_does_not_poison_total(self):
@@ -516,8 +548,8 @@ class TestC2CorruptTimestampClamp(unittest.TestCase):
             _ev(kind="meeting", ts=1100.0, extra={"end_ts": 1000.0 + 99999999}),
         ]
         active, _ = _compute_active_seconds(events)
-        # Should be clamped to 24h, not ~99999999
-        self.assertAlmostEqual(active, MAX_MEETING_DURATION, places=1)
+        # Should be capped to 8h, not ~99999999
+        self.assertAlmostEqual(active, 8 * 3600, places=1)
 
     def test_excised_gap_seconds_from_mid_task_gap(self):
         """Inter-event gaps > threshold are counted as excised_gap_seconds."""

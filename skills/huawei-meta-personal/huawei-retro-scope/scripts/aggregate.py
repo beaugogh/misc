@@ -12,6 +12,7 @@ questions.
 from __future__ import annotations
 
 import json
+import os
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -183,6 +184,11 @@ def generate_insights(tasks: list[dict], agg: dict) -> list[str]:
         text = (t.get("subject") or "").lower()
         if any(k in text for k in ("retry", "again", "still", "sync", "fetch", "debug")):
             hint += ", possible retry/debug loop"
+        # Surface the context (blocker/attendees/queries) so the insight line
+        # explains WHY the task was a time sink, not just that it was one.
+        context_inline = render_context_inline(t)
+        if context_inline:
+            hint += f". {context_inline}"
         insights.append(
             f"Time sink: {act_h:.1f}h on '{subj[:60]}' ({kind}{hint}). "
             f"Drill: --task {t.get('id', '?')} --drill"
@@ -441,13 +447,95 @@ def render_table(agg: dict, granularity: str) -> str:
     return "\n".join(lines)
 
 
-def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) -> str:
+def render_data_availability_html(tasks: list[dict], since_ts: float | None,
+                                  until_ts: float | None) -> str:
+    """Render a per-source data-availability table for the requested time range.
+
+    Shows, for each source_kind present in the tasks: the number of tasks, the
+    earliest and latest task timestamps, and the active hours. For source_kinds
+    with zero tasks in range, shows "No data in range" so the reader knows the
+    horizon is sparse, not empty-by-design.
+
+    This directly addresses the "if you cannot find data for a time range, state
+    that it is not available" requirement: each source is listed with its actual
+    coverage, and missing sources are called out plainly.
+    """
+    import html as html_mod
+    from datetime import datetime as _dt, timezone as _tz
+
+    # Group tasks by source_kind.
+    from collections import defaultdict
+    by_kind: dict[str, list[dict]] = defaultdict(list)
+    for t in tasks:
+        sk = t.get("source_kind") or "unknown"
+        by_kind[sk].append(t)
+
+    # All source_kinds we know about (so we can show "No data" for missing ones).
+    all_source_kinds = ["ai_session", "browser", "meeting", "comm", "vcs", "filesystem"]
+
+    # Format the requested range label.
+    if since_ts and until_ts:
+        s_dt = _dt.fromtimestamp(since_ts, tz=_tz.utc).strftime("%Y-%m-%d")
+        e_dt = _dt.fromtimestamp(until_ts, tz=_tz.utc).strftime("%Y-%m-%d")
+        range_label = f"{s_dt} → {e_dt}"
+    elif since_ts:
+        s_dt = _dt.fromtimestamp(since_ts, tz=_tz.utc).strftime("%Y-%m-%d")
+        range_label = f"{s_dt} → now"
+    else:
+        range_label = "all available data"
+
+    rows = []
+    for sk in all_source_kinds:
+        sk_tasks = by_kind.get(sk, [])
+        if not sk_tasks:
+            rows.append(
+                f'      <tr class="no-data">'
+                f'<td>{html_mod.escape(sk)}</td>'
+                f'<td class="num">0</td>'
+                f'<td colspan="3" class="no-data-msg">No data in range — source not active or lookback exceeded</td>'
+                f'</tr>'
+            )
+            continue
+        starts = [t.get("start") or 0 for t in sk_tasks]
+        earliest = min(starts)
+        latest = max(starts)
+        active_h = sum(t.get("active_seconds") or 0 for t in sk_tasks) / 3600
+        e_str = _dt.fromtimestamp(earliest, tz=_tz.utc).strftime("%Y-%m-%d")
+        l_str = _dt.fromtimestamp(latest, tz=_tz.utc).strftime("%Y-%m-%d")
+        rows.append(
+            f'      <tr>'
+            f'<td>{html_mod.escape(sk)}</td>'
+            f'<td class="num">{len(sk_tasks)}</td>'
+            f'<td class="num">{active_h:.1f}h</td>'
+            f'<td>{e_str}</td>'
+            f'<td>{l_str}</td>'
+            f'</tr>'
+        )
+
+    rows_html = "\n".join(rows)
+    return f"""<h2>Data availability</h2>
+<p class="hint">Requested range: {html_mod.escape(range_label)}. Each row shows what data this source actually provided in that range.</p>
+<table class="data-avail">
+  <thead><tr><th>Source</th><th>Tasks</th><th>Active</th><th>Earliest</th><th>Latest</th></tr></thead>
+  <tbody>
+{rows_html}
+  </tbody>
+</table>"""
+
+
+def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
+                since_ts: float | None = None, until_ts: float | None = None) -> str:
     """Render an aggregation as a self-contained, readable HTML dashboard.
 
     Single file with inline CSS, no external resources, no JS dependencies.
-    Layout: header + summary stats, insights callout cards, active-time bar
-    chart, per-period breakdown table with color-coded success, top tasks list,
-    and per-kind subject breakdown so the reader sees WHAT the work was.
+    Layout: header + summary stats, data-availability table, insights callout
+    cards, active-time bar chart, per-period breakdown table with color-coded
+    success, top tasks list, and per-kind subject breakdown so the reader sees
+    WHAT the work was.
+
+    When ``since_ts``/``until_ts`` are provided, a data-availability section is
+    included showing per-source coverage (and "No data" for sources with zero
+    tasks in the requested range).
     """
     import html as html_mod
     from datetime import datetime as _dt
@@ -561,6 +649,11 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
     svg_content = "\n".join(gridlines + chart_bars + chart_labels)
     legend_html = "\n".join(chart_legend)
 
+    # --- Data availability table (per-source coverage in the requested range) ---
+    data_avail_html = ""
+    if tasks is not None and (since_ts is not None or until_ts is not None):
+        data_avail_html = render_data_availability_html(tasks, since_ts, until_ts)
+
     # --- Insights cards ---
     insights_html = ""
     if tasks is not None:
@@ -590,6 +683,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
                 start_str = _dt.fromtimestamp(t.get("start") or 0).strftime("%m-%d %H:%M")
                 tid = html_mod.escape(t.get("id", "?"))
                 color = kind_colors.get(classify_task(t), "#888")
+                why = html_mod.escape(render_context_inline(t))
                 rows.append(
                     f'      <tr>'
                     f'<td class="num">{i}</td>'
@@ -598,13 +692,14 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
                     f'<td><span class="kind-dot" style="background:{color}"></span>{kind}</td>'
                     f'<td>{start_str}</td>'
                     f'<td>{subj}</td>'
+                    f'<td class="why">{why}</td>'
                     f'<td class="task-id">{tid}</td>'
                     f'</tr>'
                 )
             top_tasks_html = f"""<h2>Top 5 time sinks</h2>
 <p class="hint">Drill into any: <code>python run.py --task &lt;id&gt; --drill</code></p>
 <table class="top-tasks">
-  <thead><tr><th>#</th><th>Active</th><th>Wall</th><th>Kind</th><th>Start</th><th>Subject</th><th>Task ID</th></tr></thead>
+  <thead><tr><th>#</th><th>Active</th><th>Wall</th><th>Kind</th><th>Start</th><th>Subject</th><th>Root cause</th><th>Task ID</th></tr></thead>
   <tbody>
 {chr(10).join(rows)}
   </tbody>
@@ -628,7 +723,9 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
             for t in kind_tasks:
                 act_h = (t.get("active_seconds") or 0) / 3600
                 subj = html_mod.escape((t.get("subject") or "(no subject)")[:50])
-                items.append(f"<li><span class='num'>{act_h:.1f}h</span> {subj}</li>")
+                why = html_mod.escape(render_context_inline(t))
+                why_html = f'<div class="why-inline">{why}</div>' if why else ''
+                items.append(f"<li><span class='num'>{act_h:.1f}h</span> {subj}{why_html}</li>")
             kind_sections.append(
                 f'  <div class="kind-section">'
                 f'<h3><span class="kind-dot" style="background:{color}"></span>'
@@ -680,6 +777,11 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
   .kind-section li {{ padding: 3px 0; font-size: 0.88em; }}
   .kind-section .num {{ font-weight: 600; color: #4e79a7; display: inline-block; width: 50px; }}
   .kind-total {{ font-size: 0.85em; color: #888; font-weight: normal; }}
+  .top-tasks td.why {{ font-size: 0.82em; color: #666; max-width: 320px; }}
+  .why-inline {{ font-size: 0.85em; color: #888; margin-left: 56px; margin-top: 2px; }}
+  .data-avail {{ font-size: 0.88em; }}
+  .data-avail .no-data {{ background: #fff8f8; }}
+  .data-avail .no-data-msg {{ color: #c62828; font-style: italic; }}
 </style>
 </head>
 <body>
@@ -690,6 +792,8 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
   <strong>Wall:</strong> {total_wall:.1f}h &nbsp;|&nbsp;
   <strong>Tasks:</strong> {total_tasks}
 </div>
+
+{data_avail_html}
 
 {insights_html}
 
@@ -722,6 +826,214 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None) ->
     return html
 
 
+def render_context_text(task: dict) -> str:
+    """Render task['context'] as a human-readable 'why this took as long as it did' block.
+
+    Returns a multi-line string (without a header), or '' if no context is available.
+    Used by render_task_detail(), the drill-down lead-off, and the insight lines.
+    """
+    ctx = task.get("context") or {}
+    if not ctx:
+        return ""
+    lines: list[str] = []
+    source_kind = task.get("source_kind", "")
+
+    if source_kind == "meeting":
+        org = ctx.get("organizer")
+        n_att = ctx.get("attendees")
+        names = ctx.get("attendee_names") or []
+        loc = ctx.get("location")
+        is_all_day = ctx.get("is_all_day")
+        if org:
+            lines.append(f"Organizer: {org}")
+        if n_att is not None:
+            label = f"{n_att} attendee(s)"
+            if names:
+                label += f" ({', '.join(names)})"
+            lines.append(label)
+        if loc:
+            lines.append(f"Location: {loc}")
+        if is_all_day:
+            lines.append("All-day event (calendar marker, likely not a real meeting)")
+
+    elif source_kind == "browser":
+        queries = ctx.get("queries") or []
+        titles = ctx.get("top_titles") or []
+        downloads = ctx.get("downloads") or 0
+        n_visits = ctx.get("n_visits") or 0
+        if queries:
+            lines.append(f"Searched for: {', '.join(repr(q) for q in queries)}")
+        if titles:
+            lines.append(f"Visited: {', '.join(titles[:3])}")
+        if downloads:
+            lines.append(f"Downloaded {downloads} file(s) — artifact(s) produced")
+        elif n_visits > 5:
+            lines.append(f"{n_visits} visits, no downloads — research may be incomplete")
+        if n_visits and not queries and not titles:
+            lines.append(f"{n_visits} visits")
+
+    elif source_kind == "comm":
+        senders = ctx.get("senders") or []
+        subjects = ctx.get("subjects") or []
+        has_reply = ctx.get("has_reply")
+        if subjects:
+            lines.append(f"Threads: {', '.join(subjects[:3])}")
+        if senders:
+            lines.append(f"From: {', '.join(senders[:3])}")
+        if has_reply:
+            lines.append("Reply sent in thread")
+        else:
+            lines.append("No reply detected")
+
+    elif source_kind == "ai_session":
+        blocker = ctx.get("blocker")
+        error_samples = ctx.get("error_samples") or []
+        retry_targets = ctx.get("retry_targets") or []
+        files = ctx.get("files_touched") or []
+        tools = ctx.get("dominant_tools") or []
+        if blocker:
+            lines.append(f"Blocker: {blocker}")
+        if retry_targets:
+            lines.append(f"Retried: {', '.join(retry_targets[:3])}")
+        if error_samples and not blocker:
+            lines.append(f"Errors: {error_samples[0][:80]}")
+        if files:
+            lines.append(f"Files touched: {', '.join(os.path.basename(f) for f in files[:5])}")
+        if tools:
+            lines.append(f"Dominant tools: {', '.join(tools)}")
+
+    elif source_kind == "vcs":
+        subjects = ctx.get("commit_subjects") or []
+        if subjects:
+            lines.append(f"Commits: {', '.join(subjects)}")
+
+    elif source_kind == "filesystem":
+        files = ctx.get("files") or []
+        if files:
+            lines.append(f"Files: {', '.join(os.path.basename(f) for f in files)}")
+
+    return "\n".join(lines)
+
+
+def render_context_inline(task: dict) -> str:
+    """One-line root-cause explanation for the 'why' column and insight lines.
+
+    Diagnoses WHY the task took as long as it did by comparing active vs wall
+    time and identifying the inflation pattern. Returns a single string, or ''.
+
+    The principle: if active ≈ wall, it's genuine work — show what the work was.
+    If active << wall, explain where the time went (idle gaps, overnight tabs,
+    all-day marker, multi-day cap).
+    """
+    ctx = task.get("context") or {}
+    source_kind = task.get("source_kind", "")
+    active = task.get("active_seconds") or 0
+    wall = task.get("wall_clock_seconds") or 0
+    excised = task.get("excised_gap_seconds") or 0
+    active_h = active / 3600
+    wall_h = wall / 3600
+    excised_h = excised / 3600
+
+    # No active time and no context → nothing to explain.
+    if active <= 0 and not ctx:
+        return ""
+
+    # --- Meeting: diagnose calendar inflation ---
+    if source_kind == "meeting":
+        if ctx.get("is_all_day"):
+            return "Calendar day-marker — 0h real meeting time"
+        # Multi-day: either wall_h > 8 (correct wall) or excised > 0 (capped)
+        if wall_h > 8 or (excised_h > 0 and active_h >= 8):
+            return f"Multi-day event, capped to {active_h:.0f}h (actual attendance unknown)"
+        # Normal meeting — show organizer if available
+        org = ctx.get("organizer")
+        n_att = ctx.get("attendees")
+        parts = [f"{active_h:.1f}h meeting"]
+        if org:
+            parts.append(f"organizer: {org}")
+        if n_att is not None and n_att > 0:
+            parts.append(f"{n_att} attendee(s)")
+        return ", ".join(parts)
+
+    # --- Browser: diagnose overnight-tab inflation ---
+    if source_kind == "browser":
+        n_visits = ctx.get("n_visits") or 0
+        queries = ctx.get("queries") or []
+        downloads = ctx.get("downloads") or 0
+        if active < 60:  # <1 min active
+            return f"Tabs open {wall_h:.1f}h but no measurable activity (idle/overnight)"
+        if excised_h > 0.5 and excised_h > active_h:
+            # Significant idle time — tabs were left open
+            return (f"Tabs open {wall_h:.1f}h, only {active_h:.1f}h active browsing "
+                    f"— {excised_h:.1f}h idle/overnight gaps excised")
+        # Genuine browsing session
+        parts = [f"{active_h:.1f}h continuous browsing"]
+        if queries:
+            parts.append(f"searched '{queries[0][:30]}'")
+        elif n_visits > 10:
+            parts.append(f"{n_visits} visits")
+        if downloads:
+            parts.append(f"{downloads} download(s)")
+        return ", ".join(parts)
+
+    # --- Coding (ai_session): show blocker or work summary ---
+    if source_kind == "ai_session":
+        blocker = ctx.get("blocker")
+        retries = ctx.get("retry_targets") or []
+        files = ctx.get("files_touched") or []
+        errors = task.get("errors", 0)
+        if blocker:
+            parts = [f"blocker: {blocker}"]
+            if retries:
+                parts.append(retries[0])
+            return ", ".join(parts)
+        if errors > 0:
+            parts = [f"{errors} error(s)"]
+            if retries:
+                parts.append(retries[0])
+            return ", ".join(parts)
+        # No errors — was it genuine work or idle session?
+        if excised_h > 1 and excised_h > active_h:
+            return (f"{active_h:.1f}h active in {wall_h:.1f}h wall "
+                    f"— {excised_h:.1f}h idle gaps, {len(files)} file(s) edited")
+        parts = [f"{active_h:.1f}h active"]
+        if files:
+            parts.append(f"{len(files)} file(s) edited")
+        tool_calls = task.get("tool_calls", 0)
+        if tool_calls > 20:
+            parts.append(f"{tool_calls} tool calls")
+        return ", ".join(parts)
+
+    # --- VCS ---
+    if source_kind == "vcs":
+        subjects = ctx.get("commit_subjects") or []
+        if subjects:
+            return f"{len(subjects)} commit(s): {subjects[0][:40]}"
+        return f"{active_h:.1f}h VCS activity"
+
+    # --- Communication ---
+    if source_kind == "comm":
+        has_reply = ctx.get("has_reply")
+        subjects = ctx.get("subjects") or []
+        if subjects:
+            return f"'{subjects[0][:30]}' — {'replied' if has_reply else 'no reply'}"
+        return "replied" if has_reply else "no reply"
+
+    # --- Filesystem ---
+    if source_kind == "filesystem":
+        files = ctx.get("files") or []
+        if files:
+            return f"{len(files)} file(s): {os.path.basename(files[0])}"
+        return ""
+
+    # --- Fallback: active vs wall comparison ---
+    if active > 0:
+        if excised_h > active_h:
+            return f"{active_h:.1f}h active in {wall_h:.1f}h wall — {excised_h:.1f}h idle"
+        return f"{active_h:.1f}h active"
+    return ""
+
+
 def render_task_detail(task: dict) -> str:
     """Render a single task's full detail for the --task drill-down."""
     from datetime import datetime, timezone
@@ -747,6 +1059,12 @@ def render_task_detail(task: dict) -> str:
     lines.append(f"**Session:** {task.get('session_id', '?')}")
     lines.append(f"**Tools:** {', '.join(task.get('tool_names', []))} ({task.get('tool_calls', 0)} calls)")
     lines.append(f"**Events:** {task.get('event_count', 0)}")
+
+    # Why this took as long as it did — the key context section.
+    context_text = render_context_text(task)
+    if context_text:
+        lines.append(f"\n## Why this took as long as it did")
+        lines.append(context_text)
 
     inputs = task.get("inputs", [])
     if inputs:
