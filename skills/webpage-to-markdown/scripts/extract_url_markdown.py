@@ -9,7 +9,9 @@ import datetime as dt
 import hashlib
 import html
 import mimetypes
+import os
 import re
+import subprocess
 import sys
 import textwrap
 import urllib.error
@@ -38,6 +40,7 @@ class Config:
     extract_visual_assets: bool = True
     visual_asset_dir_suffix: str = "_assets"
     max_image_bytes: int = 50_000_000
+    proxy: str = ""
 
 
 @dataclass
@@ -84,9 +87,55 @@ def parse_simple_yaml(path: Path) -> Config:
     return config
 
 
+def detect_proxy(explicit: str = "") -> str:
+    """Resolve an HTTP(S) proxy URL, or return "" for direct egress.
+
+    Order of precedence: ``explicit`` (the ``--proxy`` flag / config) wins, then
+    ``HTTPS_PROXY``/``HTTP_PROXY`` env vars, then the system ``git`` / ``npm``
+    proxy config (useful on corporate hosts where the proxy is configured but not
+    exported into the shell). ``NO_PROXY`` is respected by urllib's ProxyHandler
+    when the opener is built in ``build_opener``, not here.
+    """
+    if explicit:
+        return explicit
+    for var in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+        value = os.environ.get(var, "").strip()
+        if value:
+            return value
+    # Fall back to git/npm config, which often holds the corporate proxy on
+    # managed hosts even when it isn't in the shell environment.
+    for cmd in (["git", "config", "--get", "http.proxy"],
+                ["npm", "config", "get", "proxy"],
+                ["npm", "config", "get", "https-proxy"]):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        value = (result.stdout or "").strip()
+        if value and value.lower() not in {"null", "undefined", ""}:
+            return value
+    return ""
+
+
+def build_opener(config: Config) -> urllib.request.OpenerDirector:
+    """Build a urllib opener honoring the resolved proxy (if any).
+
+    When no proxy is set this is equivalent to the default opener. When one is
+    set, a ProxyHandler routes both http and https through it; urllib then
+    applies ``NO_PROXY`` host exclusions automatically.
+    """
+    handlers: list[urllib.request.BaseHandler] = []
+    proxy = detect_proxy(config.proxy)
+    if proxy:
+        # ProxyHandler keys are schemes; map both http and https to the same URL.
+        handlers.append(urllib.request.ProxyHandler({"http": proxy, "https": proxy}))
+    return urllib.request.build_opener(*handlers) if handlers else urllib.request.build_opener()
+
+
 def fetch_url(url: str, config: Config) -> tuple[str, str]:
     request = urllib.request.Request(url, headers={"User-Agent": config.user_agent})
-    with urllib.request.urlopen(request, timeout=config.timeout_seconds) as response:
+    opener = build_opener(config)
+    with opener.open(request, timeout=config.timeout_seconds) as response:
         content_type = response.headers.get_content_type()
         charset = response.headers.get_content_charset() or "utf-8"
         data = response.read()
@@ -677,7 +726,8 @@ def fetch_binary(url: str, config: Config) -> tuple[bytes, str]:
             return base64.b64decode(payload), content_type
         return urllib.parse.unquote_to_bytes(payload), content_type
     request = urllib.request.Request(url, headers={"User-Agent": config.user_agent})
-    with urllib.request.urlopen(request, timeout=config.timeout_seconds) as response:
+    opener = build_opener(config)
+    with opener.open(request, timeout=config.timeout_seconds) as response:
         content_type = response.headers.get_content_type()
         return response.read(config.max_image_bytes + 1), content_type
 
@@ -786,8 +836,18 @@ def extract_chunks(source_html: str, source_url: str, config: Config) -> tuple[l
     return chunks, parser.meta
 
 
-def validate_markdown(path: Path, min_words: int) -> list[str]:
+def validate_markdown(path: Path, min_words: int) -> tuple[list[str], list[str]]:
+    """Return ``(errors, warnings)`` for an existing Markdown capture file.
+
+    Errors fail validation. Warnings surface likely-incomplete captures that a
+    reader should investigate but that do not fail the run — notably image
+    references that still point at a remote URL instead of a local asset, which
+    means the asset was never downloaded (often a proxy/egress issue). Per
+    SKILL.md, a remote image ref is a signal to investigate, not a finding to
+    report as "done".
+    """
     errors: list[str] = []
+    warnings: list[str] = []
     text = path.read_text(encoding="utf-8")
     if not text.startswith("---\n"):
         errors.append("missing YAML frontmatter")
@@ -800,11 +860,25 @@ def validate_markdown(path: Path, min_words: int) -> list[str]:
         errors.append(f"word count {count} is below minimum {min_words}")
     if "## Page Content" not in text:
         errors.append("missing Page Content section")
+    remote_refs: list[str] = []
     for ref in re.findall(r"!\[[^\]]*\]\(([^)]+)\)", text):
         parsed = urllib.parse.urlparse(ref)
-        if not parsed.scheme and not (path.parent / ref).exists():
+        if parsed.scheme:
+            # Remote URL: the asset was not downloaded locally. Record it; this
+            # usually means fetch_binary failed (proxy/egress/404) and the
+            # extractor fell back to preserving the remote link.
+            remote_refs.append(ref)
+        elif not (path.parent / ref).exists():
             errors.append(f"missing local image asset: {ref}")
-    return errors
+    if remote_refs:
+        warnings.append(
+            f"{len(remote_refs)} image(s) reference remote URLs instead of local "
+            f"assets — capture may be incomplete; rerun with proxy egress or "
+            f"inspect the source page directly"
+        )
+        for ref in remote_refs:
+            warnings.append(f"  remote image: {ref}")
+    return errors, warnings
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -818,6 +892,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-words", type=int)
     parser.add_argument("--check-only", type=Path, help="Validate an existing Markdown file and exit")
     parser.add_argument("--no-assets", action="store_true", help="Preserve remote image links without creating local SVG assets")
+    parser.add_argument("--proxy", help="HTTP(S) proxy URL for fetching pages and images (e.g. http://host:8080). Auto-detected from HTTPS_PROXY/HTTP_PROXY env vars and git/npm config when omitted.")
     args = parser.parse_args(argv)
 
     config = parse_simple_yaml(args.config)
@@ -827,13 +902,26 @@ def main(argv: list[str] | None = None) -> int:
         config.min_words = args.min_words
     if args.no_assets:
         config.extract_visual_assets = False
+    if args.proxy:
+        config.proxy = args.proxy
+
+    # Surface the resolved proxy once so a silent corporate-proxy fallback is
+    # visible. Only relevant when the script actually fetches (not --check-only).
+    if not args.check_only and not args.html:
+        resolved = detect_proxy(config.proxy)
+        if resolved:
+            print(f"proxy: {resolved}", file=sys.stderr)
+        else:
+            print("proxy: none (direct egress)", file=sys.stderr)
 
     if args.check_only:
-        errors = validate_markdown(args.check_only, config.min_words)
+        errors, warnings = validate_markdown(args.check_only, config.min_words)
         if errors:
             for error in errors:
                 print(f"FAIL: {error}", file=sys.stderr)
             return 1
+        for warning in warnings:
+            print(f"WARN: {warning}", file=sys.stderr)
         print(f"OK: {args.check_only}")
         return 0
 
@@ -847,7 +935,10 @@ def main(argv: list[str] | None = None) -> int:
         try:
             source_html, final_url = fetch_url(url, config)
         except urllib.error.URLError as exc:
-            raise SystemExit(f"failed to fetch {url}: {exc}") from exc
+            hint = ""
+            if not detect_proxy(config.proxy):
+                hint = " (no proxy detected; if you are behind a corporate proxy, pass --proxy URL or set HTTPS_PROXY)"
+            raise SystemExit(f"failed to fetch {url}: {exc}{hint}") from exc
 
     chunks, meta = extract_chunks(source_html, final_url, config)
     output_dir = args.output_dir or (SKILL_DIR / config.output)
@@ -857,12 +948,14 @@ def main(argv: list[str] | None = None) -> int:
     markdown = render_markdown(meta, chunks, config, output_path)
     output_path.write_text(markdown, encoding="utf-8")
 
-    errors = validate_markdown(output_path, config.min_words)
+    errors, warnings = validate_markdown(output_path, config.min_words)
     status = "OK" if not errors else "WARN"
     print(f"{status}: wrote {output_path}")
     print(f"words={word_count(markdown)}")
     for error in errors:
         print(f"WARN: {error}", file=sys.stderr)
+    for warning in warnings:
+        print(f"WARN: {warning}", file=sys.stderr)
     return 0
 
 

@@ -28,7 +28,22 @@ python3 skills/webpage-to-markdown/scripts/extract_url_markdown.py "<url>" --out
 python3 skills/webpage-to-markdown/scripts/extract_url_markdown.py "<url>" --output <path/to/file.md>
 python3 skills/webpage-to-markdown/scripts/extract_url_markdown.py "<url>" --html <already-downloaded.html>
 python3 skills/webpage-to-markdown/scripts/extract_url_markdown.py "<url>" --no-assets
+python3 skills/webpage-to-markdown/scripts/extract_url_markdown.py "<url>" --proxy http://host:8080
 ```
+
+## Proxied environments
+
+The script fetches the page and its images via `urllib`, which only routes through a proxy when one is configured. On corporate/restricted networks with no direct egress this surfaces as a confusing connection timeout (`WinError 10060` / `URLError: timed out`) and a silent fallback to remote image URLs.
+
+Proxy resolution (in precedence order, highest first):
+
+1. `--proxy <url>` CLI flag (or `proxy:` in `config.yaml`).
+2. `HTTPS_PROXY` / `HTTP_PROXY` environment variables (and lowercase variants).
+3. `git config --get http.proxy`, then `npm config get proxy` / `https-proxy` — covers managed hosts where the proxy is configured in tooling but not exported into the shell.
+
+When a proxy is resolved it is printed on stderr (`proxy: http://host:8080`) so the silent fallback is visible. `NO_PROXY` host exclusions are honored automatically by urllib's `ProxyHandler`.
+
+On Windows behind a corporate proxy, if you fall back to pre-fetching HTML with `curl` for the `--html` path, also pass `--ssl-no-revoke` to curl — the schannel backend otherwise fails revocation checks through the proxy (`CRYPT_E_NO_REVOCATION_CHECK`). Python's `ssl` module is unaffected and needs no equivalent flag.
 
 ## Extraction Standards
 
@@ -81,7 +96,12 @@ opencli browser <session> eval 'JSON.stringify([...document.querySelectorAll("di
 python3 skills/webpage-to-markdown/scripts/extract_url_markdown.py "<url>" --check-only <path/to/file.md>
 ```
 
-A 0-image result is a signal to investigate (step 6), not a finding to report. Never imply a visual capture is complete unless the image sources were actually inspected.
+`--check-only` reports two severity levels:
+
+- **FAIL** (exit 1): structural problems — missing frontmatter, no H1, no source URL, word count below `min_words`, a `![alt](relative/path)` whose local asset file is missing.
+- **WARN** (exit 0, printed to stderr): likely-incomplete captures that warrant investigation but do not fail validation. Notably, image references that still point at a remote URL instead of a local asset — this means the asset was never downloaded (usually a proxy/egress/404 failure) and the extractor fell back to preserving the remote link. Each offending URL is listed.
+
+A 0-image result, or a `WARN: ... remote image ...` line, is a signal to investigate (step 6), not a finding to report. Never imply a visual capture is complete unless the image sources were actually inspected.
 
 
 ## Output Naming
