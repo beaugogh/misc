@@ -62,7 +62,7 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
 
 | 可选依赖 | 用途 | 检测方式 | 缺失影响 |
 |----------|------|----------|----------|
-| welink-cli | 分析时间段内的聊天记录 | 检查 PATH 中是否有 `welink-cli`，`welink-cli auth status` 是否已登录 | 跳过 WeLink 数据源 |
+| welink-cli | 分析时间段内的聊天记录 | 检查 PATH 中是否有 `welink-cli`，`welink-cli auth status` 是否已登录 | 若未安装，**自动安装** `npm install -g @welink/welink-cli`；若 token 过期，**自动刷新** `welink-cli auth login`；均失败才跳过 |
 | W3 搜索 MCP 工具 | 搜索用户公开信息 | 尝试调用 W3 搜索 MCP 工具或 API | 跳过 W3 数据源 |
 | CloudDevOps Wiki MCP | 获取用户 Wiki | 优先 `wiki-mcp.py`（自包含，读无需认证）；或 `clouddevops.py`（需 X-AUTH-TOKEN） | 跳过 Wiki 数据源 |
 | git (CodeHub) | 获取代码提交记录 | `git --version`；可选 CodeHub MCP 工具（`codehub.py --list-tools` 或 opencode `mcp.Codehub-Mcp-Server`） | 跳过代码提交数据源（本地 git 仍可用；缺 MCP 则跳过 MR/检视/Issue 协作层数据） |
@@ -137,7 +137,7 @@ MEMORY_SKILL_NAME = "huawei-auto-evolve-created-global-memory"
 
 **用途**：获取分析时间段内的工作沟通记录，发现会议决策、项目进展、待办跟进等 session 中可能未体现的信息
 
-**检测方式**：检查 `welink-cli` 是否在 PATH 中可执行，`welink-cli auth status` 是否已登录。若 token 已过期（状态显示 EXPIRED），**自动执行 `welink-cli auth login` 刷新 token**（该命令连接 WeLink PC 客户端非交互刷新，无需用户操作），刷新后重新检测；若刷新失败则跳过 WeLink 数据源并在报告中说明
+**检测方式**：检查 `welink-cli` 是否在 PATH 中可执行，`welink-cli auth status` 是否已登录。若 welink-cli 不在 PATH 中，**自动安装**：`npm install -g @welink/welink-cli`。若 token 已过期（状态显示 EXPIRED），**自动执行 `welink-cli auth login` 刷新 token**（该命令连接 WeLink PC 客户端非交互刷新，无需用户操作），刷新后重新检测。自动安装或自动刷新均失败才跳过 WeLink 数据源并在报告中说明
 
 **采集方式**：
 ```bash
@@ -184,6 +184,8 @@ git show <hash> --stat
 **检测方式**：优先使用本仓库自包含的 CodeHub 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/huawei-codehub/codehub.py`）；或检查 opencode 的 MCP 配置（`~/.config/opencode/opencode.json` 的 `mcp.Codehub-Mcp-Server`）是否 `enabled: true`；或直接尝试调用 CodeHub MCP 工具
 
 **前置条件**（本地 stdio 服务器，非免安装）：需 `uvx`（uv）在 PATH 上、能访问华为内网制品库、且设置 `PRIVATE_TOKEN` 环境变量（从 CodeHub → Settings → Access Tokens 获取）。无 token 时脚本会友好报错退出。
+
+**uvx 自动发现**：Git Bash 的 `which`/`command -v` 可能找不到 uvx（常见于 uv 安装在非标准路径如 `D:/CodingAgentCLI/uv/uvx.exe`）。检测逻辑：`command -v uvx || ls /d/CodingAgentCLI/uv/uvx.exe || ls "$LOCALAPPDATA/uv/uvx.exe"`。若找到 uvx 但不在 PATH 上，通过 `CODEHUB_UVX_ARGS` 环境变量传入完整 uvx 路径（JSON 数组，替换默认的 `"uvx"` 命令），参见 `mcp-tools/huawei-codehub/README.md` 的 Troubleshooting
 
 **凭据管理**：token 存于 `{ANALYZER_SKILL_DIR}/.env`（已 gitignore，参见 `.env.example` 模板）。调用 codehub 工具前先加载：
 ```bash
@@ -380,7 +382,7 @@ for sid, title, tc in unique_sessions:
 **采集顺序**（按信息密度和可靠性排序）：
 
 1. **WeLink 聊天记录**：
-   - 检测 `welink-cli` 可用性
+   - 检测 `welink-cli` 可用性；未安装则**自动安装** `npm install -g @welink/welink-cli`
    - 如果 token 过期，**自动执行 `welink-cli auth login`** 刷新（非交互，连接 WeLink PC 客户端）；刷新失败才提示用户
    - 获取会话列表，按优先级分批读取消息（每次最多3个会话，串行读取）
    - 读取后立即摘要关键信息（决策、进展、待办、风险），不保留原始消息全文
@@ -718,7 +720,7 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
    ```
    - 同步骤8，必须用非内置 `--client huawei-auto-evolve` + `--path {ANALYZER_SKILL_DIR}` 安装到 huawei-auto-evolve 目录内
    注意：更新会覆盖已有文件，如果用户对 skill 有本地修改，需先备份
-7. 如果 agentcenter 不可用，跳过此步骤，在报告中说明
+7. agentcenter 是必备依赖——若不可用，先自动重装（见"agentcenter 自动修复"），修复后继续；只有修复也失败才阻塞并在报告中说明
 
 **安全规则**：
 - 更新前检查 skill 的 SKILL.md 是否有本地修改（与市场版本 diff），如果有本地修改，在更新列表中标注"有本地修改，更新可能覆盖"
@@ -763,10 +765,10 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
 | 数据库为空（无 session） | 告知用户暂无 session 可分析，建议使用 opencode 一段时间后再运行 |
 | Skills 目录不存在 | 自动创建 `SKILLS_DIR` 目录 |
 | Skills 目录无写权限 | 提示用户检查权限，或手动指定其他目录 |
-| 外部数据源不可用 | 跳过该数据源，在报告中说明跳过原因，不影响核心分析功能 |
+| 外部数据源不可用 | 先尝试自动修复（welink-cli 自动安装/刷新、CodeHub uvx 自动发现、agentcenter 自动重装）；修复失败才跳过该数据源，在报告中说明原因，不影响核心分析功能 |
 | 首次运行数据量过大 | 分批处理（每次最多 20 个 session），记录时间戳，提示用户再次运行继续分析 |
 | 记忆 skill 创建失败 | 检查目录权限，重试一次；仍失败则告知用户手动创建 |
-| welink-cli 未安装 | 跳过 WeLink 数据源，提示用户安装 welink-cli |
+| welink-cli 未安装 | **自动安装**：`npm install -g @welink/welink-cli`；安装后重新检测；失败才跳过并提示用户 |
 | welink-cli token 过期 | **自动执行 `welink-cli auth login` 刷新**；刷新失败才跳过并提示用户 |
 | agentcenter 未安装或损坏（`agentcenter --version` 报 command not found 或 module not found） | **自动重装**：`NO_PROXY=cmc.centralrepo.rnd.huawei.com npm install -g @aimarket/agentcenter --@aimarket:registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/ --strict-ssl=false`。重装后验证；仍失败才阻塞 Task 8 并提示用户 |
 | agentcenter 认证过期 | 尝试 `agentcenter auth` 重新认证；失败则跳过 skill 推荐和版本检查 |
