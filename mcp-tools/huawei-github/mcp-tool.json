@@ -1,0 +1,48 @@
+{
+  "name": "huawei-github",
+  "version": "0.1.0",
+  "description": "Interact with GitHub repositories, issues, PRs, actions, and more via the official GitHub MCP server (api.githubcopilot.com/mcp/). Remote Streamable HTTP endpoint — install-free (pure-stdlib wrapper), but requires a GitHub Personal Access Token. This is the first EXTERNAL-host MCP tool in this repo: unlike the Huawei intranet tools (which bypass the corporate proxy), GitHub must go THROUGH the corporate proxy. Usable by any MCP-capable agent (load the bundled config) or any agent with Bash + Python 3 (run the bundled wrapper script).",
+  "transport": "remote",
+  "url": "https://api.githubcopilot.com/mcp/",
+  "protocol": "streamable-http",
+  "timeout": 30000,
+  "headers": {
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream",
+    "Authorization": "Bearer <your GitHub PAT>"
+  },
+  "network": {
+    "proxy": "http://proxyuk.huawei.com:8080",
+    "note": "This is an EXTERNAL host (not Huawei intranet). It MUST go through the corporate proxy, unlike the other mcp-tools which bypass it. The wrapper sets ProxyHandler to route through proxyuk.huawei.com:8080. The proxy does TLS interception; the wrapper disables cert verification (ssl.CERT_NONE) as the equivalent of curl's --ssl-no-revoke. When loading the MCP config into an agent, the agent's MCP client must also route through the proxy (set HTTPS_PROXY=http://proxyuk.huawei.com:8080 in the shell that launches the agent)."
+  },
+  "auth": "token",
+  "auth_detail": "GitHub Personal Access Token (PAT). Set GITHUB_MCP_PAT in the environment (wrapper reads it) or Authorization: Bearer <token> in headers (config). Generate at github.com/settings/tokens (repo scope minimum).",
+  "server_info": {
+    "name": "github-mcp-server",
+    "version": "1.8.0",
+    "publisher": "GitHub",
+    "source": "https://github.com/github/github-mcp-server"
+  },
+  "tools": [
+    { "name": "search_repositories", "description": "Search GitHub repositories by query.", "args": [{ "name": "query", "required": true, "help": "GitHub search query" }, { "name": "page", "required": false, "default": "1", "help": "Page number" }, { "name": "perPage", "required": false, "default": "30", "help": "Results per page" }] },
+    { "name": "get_repository", "description": "Get details of a specific repository.", "args": [{ "name": "owner", "required": true, "help": "Repo owner" }, { "name": "repo", "required": true, "help": "Repo name" }] },
+    { "name": "list_commits", "description": "List commits in a repository.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "sha", "required": false, "help": "Branch or commit SHA" }, { "name": "page", "required": false, "default": "1" }, { "name": "perPage", "required": false, "default": "30" }] },
+    { "name": "get_file_contents", "description": "Get file or directory contents from a repository.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "path", "required": false, "help": "File path (default: repo root)" }, { "name": "branch", "required": false, "help": "Branch name" }] },
+    { "name": "create_or_update_file", "description": "Create or update a file in a repository. Write operation.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "path", "required": true }, { "name": "content", "required": true, "help": "File content (base64)" }, { "name": "message", "required": true, "help": "Commit message" }, { "name": "branch", "required": false }] },
+    { "name": "create_issue", "description": "Create an issue in a repository. Write operation.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "title", "required": true }, { "name": "body", "required": false }, { "name": "assignees", "required": false }, { "name": "labels", "required": false }] },
+    { "name": "get_issue", "description": "Get details of a specific issue.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "issue_number", "required": true }] },
+    { "name": "list_issues", "description": "List issues in a repository.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "state", "required": false, "default": "open", "help": "open/closed/all" }, { "name": "page", "required": false, "default": "1" }, { "name": "perPage", "required": false, "default": "30" }] },
+    { "name": "add_issue_comment", "description": "Add a comment to an issue. Write operation.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "issue_number", "required": true }, { "name": "body", "required": true }] },
+    { "name": "create_pull_request", "description": "Create a pull request. Write operation.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "title", "required": true }, { "name": "head", "required": true, "help": "Source branch" }, { "name": "base", "required": true, "help": "Target branch" }, { "name": "body", "required": false }] },
+    { "name": "get_pull_request", "description": "Get details of a specific pull request.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "pull_request_number", "required": true }] },
+    { "name": "list_pull_requests", "description": "List pull requests in a repository.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "state", "required": false, "default": "open" }, { "name": "page", "required": false, "default": "1" }, { "name": "perPage", "required": false, "default": "30" }] },
+    { "name": "get_pull_request_files", "description": "Get the files changed in a pull request.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "pull_request_number", "required": true }] },
+    { "name": "merge_pull_request", "description": "Merge a pull request. Write operation.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "pull_request_number", "required": true }, { "name": "commit_message", "required": false }] },
+    { "name": "create_pull_request_review", "description": "Create a review on a pull request. Write operation.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "pull_request_number", "required": true }, { "name": "body", "required": true }, { "name": "event", "required": true, "help": "APPROVE/REQUEST_CHANGES/COMMENT" }] },
+    { "name": "get_pull_request_reviews", "description": "Get reviews on a pull request.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "pull_request_number", "required": true }] },
+    { "name": "list_workflow_runs", "description": "List GitHub Actions workflow runs.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "page", "required": false, "default": "1" }, { "name": "perPage", "required": false, "default": "30" }] },
+    { "name": "get_workflow_run", "description": "Get details of a specific workflow run.", "args": [{ "name": "owner", "required": true }, { "name": "repo", "required": true }, { "name": "run_id", "required": true }] },
+    { "name": "list_notifications", "description": "List the authenticated user's notifications.", "args": [{ "name": "page", "required": false, "default": "1" }, { "name": "perPage", "required": false, "default": "30" }] },
+    { "name": "search_code", "description": "Search code across GitHub repositories.", "args": [{ "name": "q", "required": true, "help": "Code search query" }, { "name": "page", "required": false, "default": "1" }, { "name": "perPage", "required": false, "default": "30" }] }
+  ]
+}

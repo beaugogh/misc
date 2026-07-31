@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "github_mcp": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "timeout": 30000,
+      "headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+        "Authorization": "Bearer YOUR_GITHUB_PAT_HERE"
+      }
+    }
+  }
+}
