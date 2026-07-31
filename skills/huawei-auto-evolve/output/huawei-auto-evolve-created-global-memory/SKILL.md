@@ -72,12 +72,16 @@ description: 长期记忆 skill。存储用户身份、工作习惯、开发环�
 - **MCP stdio 多 content item**：CodeHub 服务器返回 list 时，每个元素是独立的 content item（不是单个 JSON 数组），wrapper 需解析所有 items 并组装 list
 - **Claude Code 安装**：公司防火墙阻止 npm postinstall 下载二进制；用 `--registry=https://registry.npmmirror.com` 绕过
 - **argparse.REMAINDER 陷阱**：`--json` 放在 tool name 之后会被 REMAINDER 吞掉，需 pre-extract 全局 flags
+- **外部主机 vs 内网主机代理方向相反**：华为内网工具（w3-search/codehub/wiki/clouddevops）需 **绕过** 代理（`ProxyHandler({})`）；GitHub 等外部主机需 **通过** 代理（`ProxyHandler({"https": "proxyuk...})` + `ssl.CERT_NONE`）。这是首次在 repo 中出现"通过代理"的工具
+- **env var 命名规范**：用户面用 `<PLATFORM>_TOKEN` / `<PLATFORM>_HOST`（如 `CODEHUB_TOKEN`、`GITHUB_TOKEN`、`CODEHUB_HOST`）；若服务器期望不同名称（如 CodeHub 服务器读 `PRIVATE_TOKEN`/`WEB_HOST`），wrapper 内部翻译，不暴露给用户
+- **Claude Code vs opencode session DB**：auto-evolve 读 opencode 的 `ngagent.db`，不读 Claude Code 的 session 存储。在 Claude Code 中的工作不会出现在 auto-evolve 的分析范围内——这是已知 gap
 
 ## 工具与路径
 
 - **misc 仓库根**：`D:\workspace\misc`
 - **huawei-auto-evolve 目录**：`skills/huawei-auto-evolve/`
-- **MCP 工具目录**：`mcp-tools/huawei-{w3-search,codehub,wiki-mcp,clouddevops}/`
-- **CodeHub .env**：`skills/huawei-auto-evolve/.env`（CODEHUB_TOKEN + CODEHUB_HOST，gitignored）
+- **MCP 工具目录**：`mcp-tools/{github,huawei-w3-search,huawei-codehub,huawei-wiki,huawei-clouddevops}/`
+- **.env（凭据）**：`skills/huawei-auto-evolve/.env`（CODEHUB_TOKEN + CODEHUB_HOST + GITHUB_TOKEN，gitignored，参见 README.md 获取指南）
 - **catalog 生成**：`./scripts/generate-catalog.sh`（从 manifests 自动生成 CATALOG.md）
 - **adversarial-review skill**：`skills/adversarial-review/`（用于代码审查）
+- **evolved skills 输出目录**：`skills/huawei-auto-evolve/output/`（huawei-auto-evolve-created-* skills 存放处）
