@@ -31,7 +31,7 @@ Regenerate after adding/removing skills, plugins, or MCP tools: `./scripts/gener
 
 ## Skills
 
-### Own skills (skills/) (17)
+### Own skills (skills/) (16)
 
 | Skill | Category | Description |
 |---|---|---|
@@ -42,7 +42,6 @@ Regenerate after adding/removing skills, plugins, or MCP tools: `./scripts/gener
 | [`git-corporate-proxy-lfs`](./skills/git-corporate-proxy-lfs) | git-corporate-proxy-lfs | Diagnoses and fixes `git clone`/`git pull` failures behind a strict corporate proxy on Windows — the "Failed to connect to github.com:443" timeout, the schannel revocation-check hang (CRYPT_E_NO_REVOCATION_CHECK / 0x80092012), and Git LFS pulling at single-digit KB/s. Use when git over HTTPS stalls or times out on a corporate/VPN network, when regular git works but LFS crawls, when a clone dies mid-checkout leaving files as LFS pointers, or when the proxy injects a 407 Proxy Authentication Required partway through a transfer. Also covers partial (`blob:none`/promisor) clones that can't finish a checkout (`could not fetch ... from promisor remote`) and phantom `git status` deletions caused by the LFS smudge filter. |
 | [`harvest-ai-papers`](./skills/harvest-ai-papers) | harvest-ai-papers | Use when asked to list, inventory, harvest, preserve, or convert top AI venue paper pages, conference paper pages, proceedings pages, or AI research URLs into Markdown for downstream AI-agent reading, including NeurIPS, ICML, ICLR, AAAI, images, metadata, citations, and AI-readable visual equivalents. |
 | [`huawei-auto-evolve`](./skills/huawei-auto-evolve) | huawei-auto-evolve | 自演进引擎。综合分析session、WeLink聊天、CodeHub代码提交等多源数据，提取长期记忆、创建/更新skill、推荐安装市场skill、检查skill新版本，驱动整个skill生态持续进化。**必须主动调用**，当用户说"分析session"、"更新记忆"、"看看有没有新的skill可以创建"、"回顾一下"、"总结一下最近的工作"、"自演进"、"evolve"等触发词时，AI必须先加载本skill再执行，不要自行实现分析逻辑。 |
-| [`clouddevops-wiki`](./skills/huawei-auto-evolve/clouddevops-wiki) | huawei-auto-evolve | 通过 CloudDevOps REST API 读取和更新 Wiki 文档，支持 Markdown 编写（含 Mermaid 图表）并自动转换为 HTML 发布。当用户提到 CloudDevOps Wiki、查看/编辑/更新 Wiki 文档、发布方案设计文档、把 Markdown 文档上传到 Wiki、查看设计桌面文档时使用此技能。即使用户只说"看看这个文档"并提供了 CloudDevOps URL，也应触发此技能。 |
 | [`skill-creator`](./skills/huawei-auto-evolve/skill-creator) | huawei-auto-evolve | Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations. |
 | [`huawei-retro-scope`](./skills/huawei-meta-personal/huawei-retro-scope) | huawei-meta-personal | Record the time/effort the user spends on different tasks, aggregatable by day/week/month/year, so the user can see how time/effort is distributed across task kinds and identify the most time-consuming work. Invoke when the user says "time log", "how did I spend my time", "time tracker", "what did I work on", "时间日志", "工时统计", "这周都在忙什么", etc. |
 | [`huawei-skill-forge`](./skills/huawei-meta-personal/huawei-skill-forge) | huawei-meta-personal | Auto-evolve the user's skill ecosystem by analyzing personal data traces (opencode/codeagent sessions, git commits, WeLink chat, token metrics, 3ms/Wiki authoring). Extracts long-term memory, creates and updates skills, recommends/installs market skills, and checks skill versions. Invoke when the user says "evolve", "分析session", "update skills", "review recent work", "自演进", "总结一下最近的工作", etc. |

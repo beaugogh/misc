@@ -59,7 +59,7 @@ description: 自演进引擎。综合分析session、WeLink聊天、CodeHub代�
 |----------|------|----------|----------|
 | welink-cli | 分析时间段内的聊天记录 | 检查 PATH 中是否有 `welink-cli`，`welink-cli auth status` 是否已登录 | 跳过 WeLink 数据源 |
 | W3 搜索 MCP 工具 | 搜索用户公开信息 | 尝试调用 W3 搜索 MCP 工具或 API | 跳过 W3 数据源 |
-| CloudDevOps Wiki MCP | 获取用户 Wiki | 优先 `wiki-mcp.py`（自包含，读无需认证）；或 `clouddevops.py`（需 X-AUTH-TOKEN）；或 `clouddevops-wiki` skill（需 W3 账号密码） | 跳过 Wiki 数据源 |
+| CloudDevOps Wiki MCP | 获取用户 Wiki | 优先 `wiki-mcp.py`（自包含，读无需认证）；或 `clouddevops.py`（需 X-AUTH-TOKEN） | 跳过 Wiki 数据源 |
 | git (CodeHub) | 获取代码提交记录 | `git --version`；可选 CodeHub MCP 工具（`codehub.py --list-tools` 或 opencode `mcp.Codehub-Mcp-Server`） | 跳过代码提交数据源（本地 git 仍可用；缺 MCP 则跳过 MR/检视/Issue 协作层数据） |
 | agentcenter CLI | 推荐安装 skill、检查 skill 新版本 | `agentcenter --version` | 跳过 skill 推荐和版本检查 |
 
@@ -226,7 +226,7 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
 
 **用途**：获取用户撰写的 Wiki 文档，了解其专业领域和工作重点
 
-**检测方式**：优先使用本仓库自包含的 Wiki MCP 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/wiki-mcp/wiki_mcp.py`，纯标准库、无需安装、读操作无需认证）；或尝试 `clouddevops-wiki` skill（需 W3 账号密码）；或尝试 `clouddevops` MCP 工具（`mcp-tools/clouddevops/clouddevops.py`，需 `CLOUDDEVOPS_X_AUTH_TOKEN`）
+**检测方式**：优先使用本仓库自包含的 Wiki MCP 工具（`{ANALYZER_SKILL_DIR}/../../mcp-tools/wiki-mcp/wiki_mcp.py`，纯标准库、无需安装、读操作无需认证）；或尝试 `clouddevops` MCP 工具（`mcp-tools/clouddevops/clouddevops.py`，需 `CLOUDDEVOPS_X_AUTH_TOKEN`）
 
 **采集方式**：
 - **首选：调用 wiki-mcp 自包含脚本**（任何有 Bash + Python 3 的环境都能用）：
@@ -244,7 +244,6 @@ set -a; source "{ANALYZER_SKILL_DIR}/.env"; set +a
   export CLOUDDEVOPS_X_AUTH_TOKEN=<token>
   python3 mcp-tools/clouddevops/clouddevops.py search-knowledge --search-key "<用户姓名>" --json
   ```
-- **备选 B：clouddevops-wiki skill**（嵌套于 huawei-auto-evolve 目录，需 W3_USERNAME/W3_PASSWORD）
 - 按作者搜索用户撰写的所有 Wiki
 - 统计各域的文档数量，识别核心关注领域
 - 抽样阅读高星/高引用文档，提取专业观点和方法论
@@ -396,7 +395,7 @@ for sid, title, tc in unique_sessions:
    - 搜索用户近期公开信息
 
 4. **CloudDevOps Wiki**（可选）：
-   - 检测 `clouddevops-wiki` skill 或 API 可用性
+   - 检测 wiki-mcp / clouddevops MCP 工具可用性
    - 搜索用户近期撰写的 Wiki 文档
 
 5. **AI 辅助研发 Token 消耗**（可选）：
@@ -694,7 +693,7 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
 
 **执行流程**：
 
-1. **遍历已安装 skill**：扫描 `{ANALYZER_SKILL_DIR}/` 下所有包含 `SKILL.md` 的子目录（即 huawei-auto-evolve 目录内的所有依赖 skill，含 skill-creator、clouddevops-wiki 等）
+1. **遍历已安装 skill**：扫描 `{ANALYZER_SKILL_DIR}/` 下所有包含 `SKILL.md` 的子目录（即 huawei-auto-evolve 目录内的所有依赖 skill，含 skill-creator 等）
 2. **对每个非 huawei-auto-evolve-created 的 skill**，在 agentcenter 市场中搜索其最新版本：
    ```bash
    agentcenter search skill --keyword <skill-name> --json
@@ -721,7 +720,7 @@ with open(os.path.join(ANALYZER_SKILL_DIR, "last_analysis.txt"), 'w') as f:
 
 ## 注意事项
 
-- **依赖 skill 必须安装在 huawei-auto-evolve 文件夹内**：所有 huawei-auto-evolve 依赖、创建或更新的 skill（skill-creator、clouddevops-wiki、huawei-auto-evolve-created-*、{MEMORY_SKILL_NAME} 等）必须安装在 `{ANALYZER_SKILL_DIR}/` 下，**禁止安装到全局/客户端 skills 目录**（如 `~/.claude/skills`、`~/.cac/skills`、`~/.config/opencode/skills`）。通过 agentcenter 安装时，必须使用 `--client huawei-auto-evolve --path {ANALYZER_SKILL_DIR}`（非内置 client 值才能让 `--path` 生效），**禁止**使用内置 client（`claudecode`/`opencode`/`cac` 等）加 `-g`，否则 `--path` 被忽略、skill 落到全局目录
+- **依赖 skill 必须安装在 huawei-auto-evolve 文件夹内**：所有 huawei-auto-evolve 依赖、创建或更新的 skill（skill-creator、huawei-auto-evolve-created-*、{MEMORY_SKILL_NAME} 等）必须安装在 `{ANALYZER_SKILL_DIR}/` 下，**禁止安装到全局/客户端 skills 目录**（如 `~/.claude/skills`、`~/.cac/skills`、`~/.config/opencode/skills`）。通过 agentcenter 安装时，必须使用 `--client huawei-auto-evolve --path {ANALYZER_SKILL_DIR}`（非内置 client 值才能让 `--path` 生效），**禁止**使用内置 client（`claudecode`/`opencode`/`cac` 等）加 `-g`，否则 `--path` 被忽略、skill 落到全局目录
 - **AI 必须先加载本 skill 再执行分析**，不要自行实现分析逻辑。当用户触发分析时，第一步就是调用本 skill
 - 分析时不要把当前 session 自身算作"新 session"（当前 session 还在进行中）
 - 创建 skill 时确保 description 写清触发词，否则 AI 不知道何时调用
