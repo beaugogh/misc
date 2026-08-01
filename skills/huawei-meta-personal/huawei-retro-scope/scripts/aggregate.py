@@ -16,6 +16,38 @@ import os
 from collections import defaultdict
 from datetime import datetime, timezone
 
+# A working day is 8 hours. Used to express active time as an intuitive
+# percentage ("680h active = 85 working days") rather than a raw hour count.
+WORKING_DAY_HOURS = 8.0
+
+
+def _as_working_days(active_hours: float) -> str:
+    """Format active hours as a human-readable working-day count.
+
+    Returns e.g. "85.0 working days" for 680h, "0.5 working days" for 4h.
+    Values under 1 day show one decimal; larger values show one decimal too
+    so the reader can compare across horizons. Returns "" for zero/negative.
+    """
+    if active_hours <= 0:
+        return ""
+    days = active_hours / WORKING_DAY_HOURS
+    return f"{days:.1f} working days"
+
+
+def _working_day_pct(active_hours: float) -> str:
+    """Format active hours as a percentage of one 8h working day.
+
+    Returns e.g. "133%" for 10.6h (more than a full day), "48%" for 3.8h.
+    Capped at 999% to avoid absurd numbers from corrupt data. Returns ""
+    for zero/negative.
+    """
+    if active_hours <= 0:
+        return ""
+    pct = active_hours / WORKING_DAY_HOURS * 100
+    if pct > 999:
+        return "999%+"
+    return f"{pct:.0f}%"
+
 
 def classify_task(task: dict) -> str:
     """Classify a task into a kind for aggregation.
@@ -277,6 +309,11 @@ def render_report(agg: dict, granularity: str, tasks: list[dict] | None = None) 
     When ``tasks`` is provided, an insights section is appended at the end.
     """
     lines = [f"# Time report (by {granularity})\n"]
+    # Overall working-day total for the whole report.
+    total_active_all = sum(r.get("active_seconds", 0.0) for r in agg.values()) / 3600
+    wd_all = _as_working_days(total_active_all)
+    if wd_all:
+        lines.append(f"Total active: {total_active_all:.1f}h ({wd_all}, 1 day = 8h)\n")
     for period in sorted(agg.keys()):
         row = agg[period]
         total_h = row["total_seconds"] / 3600
@@ -356,6 +393,10 @@ def render_markdown(agg: dict, granularity: str, tasks: list[dict] | None = None
     section is appended.
     """
     lines = [f"# Time report (by {granularity})\n"]
+    total_active_all = sum(r.get("active_seconds", 0.0) for r in agg.values()) / 3600
+    wd_all = _as_working_days(total_active_all)
+    if wd_all:
+        lines.append(f"_Total active: {total_active_all:.1f}h ({wd_all}, 1 day = 8h)_\n")
     for period in sorted(agg.keys()):
         row = agg[period]
         lines.append(f"## {period}")
@@ -500,13 +541,17 @@ def render_data_availability_html(tasks: list[dict], since_ts: float | None,
         earliest = min(starts)
         latest = max(starts)
         active_h = sum(t.get("active_seconds") or 0 for t in sk_tasks) / 3600
+        wd = _as_working_days(active_h)
         e_str = _dt.fromtimestamp(earliest, tz=_tz.utc).strftime("%Y-%m-%d")
         l_str = _dt.fromtimestamp(latest, tz=_tz.utc).strftime("%Y-%m-%d")
+        active_str = f"{active_h:.1f}h"
+        if wd:
+            active_str += f" ({wd})"
         rows.append(
             f'      <tr>'
             f'<td>{html_mod.escape(sk)}</td>'
             f'<td class="num">{len(sk_tasks)}</td>'
-            f'<td class="num">{active_h:.1f}h</td>'
+            f'<td class="num">{active_str}</td>'
             f'<td>{e_str}</td>'
             f'<td>{l_str}</td>'
             f'</tr>'
@@ -514,7 +559,7 @@ def render_data_availability_html(tasks: list[dict], since_ts: float | None,
 
     rows_html = "\n".join(rows)
     return f"""<h2>Data availability</h2>
-<p class="hint">Requested range: {html_mod.escape(range_label)}. Each row shows what data this source actually provided in that range.</p>
+<p class="hint">Requested range: {html_mod.escape(range_label)}. Active time is also shown as working days (1 day = 8h). Each row shows what data this source actually provided in that range.</p>
 <table class="data-avail">
   <thead><tr><th>Source</th><th>Tasks</th><th>Active</th><th>Earliest</th><th>Latest</th></tr></thead>
   <tbody>
@@ -678,6 +723,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
             for i, t in enumerate(top5, 1):
                 act_h = (t.get("active_seconds") or 0) / 3600
                 wall_h = (t.get("wall_clock_seconds") or 0) / 3600
+                wd_pct = _working_day_pct(act_h)
                 kind = html_mod.escape(classify_task(t))
                 subj = html_mod.escape((t.get("subject") or "(no subject)")[:55])
                 start_str = _dt.fromtimestamp(t.get("start") or 0).strftime("%m-%d %H:%M")
@@ -688,6 +734,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                     f'      <tr>'
                     f'<td class="num">{i}</td>'
                     f'<td class="num">{act_h:.1f}h</td>'
+                    f'<td class="num">{wd_pct}</td>'
                     f'<td class="num">{wall_h:.1f}h</td>'
                     f'<td><span class="kind-dot" style="background:{color}"></span>{kind}</td>'
                     f'<td>{start_str}</td>'
@@ -697,9 +744,9 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                     f'</tr>'
                 )
             top_tasks_html = f"""<h2>Top 5 time sinks</h2>
-<p class="hint">Drill into any: <code>python run.py --task &lt;id&gt; --drill</code></p>
+<p class="hint">% = share of one 8h working day. Drill into any: <code>python run.py --task &lt;id&gt; --drill</code></p>
 <table class="top-tasks">
-  <thead><tr><th>#</th><th>Active</th><th>Wall</th><th>Kind</th><th>Start</th><th>Subject</th><th>Root cause</th><th>Task ID</th></tr></thead>
+  <thead><tr><th>#</th><th>Active</th><th>% of 8h</th><th>Wall</th><th>Kind</th><th>Start</th><th>Subject</th><th>Root cause</th><th>Task ID</th></tr></thead>
   <tbody>
 {chr(10).join(rows)}
   </tbody>
@@ -718,18 +765,24 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
             kind_tasks = sorted(by_kind_tasks[kind],
                                 key=lambda t: t.get("active_seconds") or 0, reverse=True)[:3]
             kind_active = sum(t.get("active_seconds", 0) for t in by_kind_tasks[kind]) / 3600
+            kind_wd = _as_working_days(kind_active)
             color = kind_colors.get(kind, "#888")
             items = []
             for t in kind_tasks:
                 act_h = (t.get("active_seconds") or 0) / 3600
+                wd_pct = _working_day_pct(act_h)
                 subj = html_mod.escape((t.get("subject") or "(no subject)")[:50])
                 why = html_mod.escape(render_context_inline(t))
                 why_html = f'<div class="why-inline">{why}</div>' if why else ''
-                items.append(f"<li><span class='num'>{act_h:.1f}h</span> {subj}{why_html}</li>")
+                wd_span = f' <span class="wd-pct">{wd_pct}</span>' if wd_pct else ''
+                items.append(f"<li><span class='num'>{act_h:.1f}h</span>{wd_span} {subj}{why_html}</li>")
+            kind_total_str = f"{kind_active:.1f}h"
+            if kind_wd:
+                kind_total_str += f" · {kind_wd}"
             kind_sections.append(
                 f'  <div class="kind-section">'
                 f'<h3><span class="kind-dot" style="background:{color}"></span>'
-                f'{html_mod.escape(kind)} <span class="kind-total">({kind_active:.1f}h, {len(by_kind_tasks[kind])} tasks)</span></h3>'
+                f'{html_mod.escape(kind)} <span class="kind-total">({kind_total_str}, {len(by_kind_tasks[kind])} tasks)</span></h3>'
                 f'<ul>{"".join(items)}</ul>'
                 f'</div>'
             )
@@ -739,6 +792,9 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                                  "\n".join(kind_sections) + '\n</div>'
 
     range_str = f"{periods[0]} — {periods[-1]}" if len(periods) > 1 else (periods[0] if periods else "n/a")
+
+    # Working-day conversion for the summary header.
+    wd_total = _as_working_days(total_active)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -779,6 +835,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
   .kind-total {{ font-size: 0.85em; color: #888; font-weight: normal; }}
   .top-tasks td.why {{ font-size: 0.82em; color: #666; max-width: 320px; }}
   .why-inline {{ font-size: 0.85em; color: #888; margin-left: 56px; margin-top: 2px; }}
+  .wd-pct {{ font-size: 0.8em; color: #999; margin-left: 2px; }}
   .data-avail {{ font-size: 0.88em; }}
   .data-avail .no-data {{ background: #fff8f8; }}
   .data-avail .no-data-msg {{ color: #c62828; font-style: italic; }}
@@ -788,7 +845,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 <h1>Time report (by {html_mod.escape(granularity)})</h1>
 <div class="summary">
   <strong>Range:</strong> {html_mod.escape(range_str)} &nbsp;|&nbsp;
-  <strong>Active:</strong> {total_active:.1f}h &nbsp;|&nbsp;
+  <strong>Active:</strong> {total_active:.1f}h{f" ({wd_total})" if wd_total else ""} &nbsp;|&nbsp;
   <strong>Wall:</strong> {total_wall:.1f}h &nbsp;|&nbsp;
   <strong>Tasks:</strong> {total_tasks}
 </div>

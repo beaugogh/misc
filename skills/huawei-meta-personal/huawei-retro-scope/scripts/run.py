@@ -173,7 +173,10 @@ def _render_drill_down(result: dict, task: dict) -> str:
     lines.append("")
     act_h = (result.get("total_active_seconds") or 0) / 3600
     wall_h = (result.get("total_wall_seconds") or 0) / 3600
-    lines.append(f"Active: {act_h:.1f}h | Wall: {wall_h:.1f}h | "
+    from aggregate import _working_day_pct
+    wd_pct = _working_day_pct(act_h)
+    wd_str = f" ({wd_pct} of 8h)" if wd_pct else ""
+    lines.append(f"Active: {act_h:.1f}h{wd_str} | Wall: {wall_h:.1f}h | "
                  f"Stages: {len(result.get('stages', []))}")
     lines.append("")
 
@@ -244,19 +247,25 @@ def _render_top_tasks(tasks: list[dict], n: int) -> str:
     total_active = sum(t.get("active_seconds") or 0 for t in tasks) / 3600
 
     lines = [f"# Top {len(ranked)} tasks by active time"]
-    lines.append(f"(of {len(tasks)} tasks, {total_active:.1f}h active total)")
+    from aggregate import _as_working_days, _working_day_pct, WORKING_DAY_HOURS
+    wd_total = _as_working_days(total_active)
+    total_str = f"{total_active:.1f}h active total"
+    if wd_total:
+        total_str += f" ({wd_total})"
+    lines.append(f"(of {len(tasks)} tasks, {total_str})")
     lines.append("")
-    lines.append(f"{'#':>3}  {'Active':>7}  {'Wall':>7}  {'Kind':<11} {'Start':<12} "
+    lines.append(f"{'#':>3}  {'Active':>7}  {'%8h':>5}  {'Wall':>7}  {'Kind':<11} {'Start':<12} "
                  f"{'Success':<11} {'Subject'}")
-    lines.append("-" * 100)
+    lines.append("-" * 105)
     for i, t in enumerate(ranked, 1):
         act = (t.get("active_seconds") or 0) / 3600
         wall = (t.get("wall_clock_seconds") or 0) / 3600
+        wd_pct = _working_day_pct(act)
         kind = (t.get("source_kind") or "?")[:11]
         start_str = _dt.fromtimestamp(t.get("start") or 0).strftime("%m-%d %H:%M")
         succ = (t.get("success") or "?")[:11]
         subj = (t.get("subject") or (t.get("text") or "")[:50] or "(no subject)")[:48]
-        lines.append(f"{i:>3}  {act:>6.1f}h  {wall:>6.1f}h  {kind:<11} {start_str:<12} "
+        lines.append(f"{i:>3}  {act:>6.1f}h  {wd_pct:>5}  {wall:>6.1f}h  {kind:<11} {start_str:<12} "
                      f"{succ:<11} {subj}")
         lines.append(f"       id: {t.get('id', '?')}")
     lines.append("")
@@ -367,14 +376,18 @@ def _run_multi_horizon(tasks: list[dict], events: list[dict],
         n_sources = len({t.get("source_kind") for t in horizon_tasks
                          if t.get("source_kind")})
         insights = generate_insights(horizon_tasks, agg)
+        from aggregate import _as_working_days
+        wd_str = _as_working_days(total_active)
         report_infos.append({
             "label": label, "days": days, "filename": filename,
             "since": since_date, "until": end_date_str,
-            "active_h": total_active, "task_count": total_tasks,
+            "active_h": total_active, "wd": wd_str,
+            "task_count": total_tasks,
             "n_sources": n_sources,
             "top_insight": insights[0] if insights else "",
         })
-        print(f"  {label}: {total_active:.1f}h active, {total_tasks} tasks, "
+        wd_display = f" ({wd_str})" if wd_str else ""
+        print(f"  {label}: {total_active:.1f}h active{wd_display}, {total_tasks} tasks, "
               f"{n_sources} sources → {filepath}", file=sys.stderr)
 
     # Build the dashboard index page.
@@ -387,11 +400,14 @@ def _run_multi_horizon(tasks: list[dict], events: list[dict],
         insight_esc = html_mod.escape(info["top_insight"][:120])
         insight_html = (f'<p class="card-insight">{insight_esc}</p>'
                         if insight_esc else "")
+        wd_html = ""
+        if info.get("wd"):
+            wd_html = f' <span class="card-wd">{html_mod.escape(info["wd"])}</span>'
         cards.append(
             f'  <a class="horizon-card" href="{html_mod.escape(info["filename"])}">'
             f'<div class="card-label">{label_esc}</div>'
             f'<div class="card-range">{since_esc} → {until_esc}</div>'
-            f'<div class="card-stats"><strong>{info["active_h"]:.1f}h</strong> active, '
+            f'<div class="card-stats"><strong>{info["active_h"]:.1f}h</strong> active{wd_html}, '
             f'{info["task_count"]} tasks, {info["n_sources"]} sources</div>'
             f'{insight_html}'
             f'</a>'
@@ -421,6 +437,7 @@ def _run_multi_horizon(tasks: list[dict], events: list[dict],
   .card-label {{ font-size: 1.4em; font-weight: 700; color: #4e79a7; }}
   .card-range {{ font-size: 0.85em; color: #888; margin: 0.2em 0; }}
   .card-stats {{ font-size: 0.95em; margin: 0.3em 0; }}
+  .card-wd {{ font-size: 0.85em; color: #888; }}
   .card-insight {{ font-size: 0.82em; color: #555; margin-top: 0.5em; padding-top: 0.5em; border-top: 1px solid #eee; }}
 </style>
 </head>
