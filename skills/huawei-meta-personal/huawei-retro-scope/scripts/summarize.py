@@ -49,6 +49,29 @@ _COMMAND_WRAPPERS = (
 # we don't label it as the "Goal:".
 _CONTINUATION_RE = re.compile(r'^(yes|ok|okay|continue|no|sure|thanks?|done)\b', re.I)
 
+# Conversational prefixes to strip from goals (mirrors segment_tasks._CONVERSATION_PREFIXES).
+_CONVERSATION_PREFIXES = [
+    "what do you mean by ", "what is ", "what are ", "what does ",
+    "i cannot do this, help me debug: ", "help me debug: ",
+    "i see you are struggling, maybe there are some skills that help you: ",
+    "can you ", "could you ", "please ", "i want to ", "i need to ",
+    "i need you to ", "let's ", "lets ", "how about ", "how do i ",
+    "how to ", "why is ", "why does ", "why did ",
+    "wait, you should have already set up the ",
+    "make sure the skill ",
+]
+
+
+def _strip_conversational_prefix(text: str) -> str:
+    """Strip conversational prefixes like 'what do you mean by' from a goal."""
+    if not text:
+        return ""
+    t_lower = text.lower()
+    for prefix in _CONVERSATION_PREFIXES:
+        if t_lower.startswith(prefix):
+            return text[len(prefix):].strip()
+    return text
+
 
 def _clean_user_goal(text: str | None) -> str:
     """Extract a clean goal statement from the first user prompt.
@@ -59,6 +82,15 @@ def _clean_user_goal(text: str | None) -> str:
     if not text:
         return ""
     t = text.strip()
+    # Extract session name from system-reminder wrappers.
+    m = re.search(r'<system-reminder>.*?The user named this session "([^"]+)".*?</system-reminder>',
+                  t, re.DOTALL)
+    if m:
+        rest = re.sub(r'<system-reminder>.*?</system-reminder>', '', t, flags=re.DOTALL).strip()
+        if rest and len(rest) > 10:
+            t = rest
+        else:
+            return f'"{m.group(1)}" session'
     # Strip command-wrapper blocks entirely.
     for wrapper in _COMMAND_WRAPPERS:
         if wrapper in t:
@@ -67,11 +99,13 @@ def _clean_user_goal(text: str | None) -> str:
                 m = re.search(r'<command-args>(.*?)</command-args>', t, re.DOTALL)
                 if m:
                     t = m.group(1).strip()
+                    break
             else:
                 # Skip lines that are command metadata.
                 lines = [ln for ln in t.split("\n")
                          if not any(w in ln for w in _COMMAND_WRAPPERS)]
                 t = " ".join(lines).strip()
+                break
     # Take the first sentence.
     t = t.replace("\n", " ").strip()
     if not t:
@@ -216,15 +250,70 @@ def _describe_tool_call(name: str, ti: dict) -> str:
     return f"{name}"
 
 
+def _explain_difficulty(n_errors: int, error_pairs: list[tuple[str, str]],
+                        retry_targets: list[str]) -> str:
+    """Synthesize a one-line explanation of WHY the problem was hard to solve.
+
+    Looks at the error pattern (what types of errors, how many retries) and
+    explains the difficulty in human terms — e.g. "same proxy auth failure
+    kept recurring despite 11 retries" rather than just "46 errors".
+    """
+    if not error_pairs and not retry_targets:
+        return ""
+
+    # Classify the error pattern from the error texts.
+    error_texts = [err.lower() for _, err in error_pairs]
+    all_text = " ".join(error_texts)
+
+    patterns: list[str] = []
+    if "407" in all_text or ("proxy" in all_text and "tunnel" in all_text):
+        patterns.append("corporate proxy authentication")
+    if "timeout" in all_text or "timed out" in all_text:
+        patterns.append("command timeouts")
+    if "not found" in all_text or "no such file" in all_text:
+        patterns.append("missing files/paths")
+    if "permission denied" in all_text or "access is denied" in all_text:
+        patterns.append("permission/access issues")
+    if "doesn't want to proceed" in all_text or "rejected" in all_text:
+        patterns.append("user rejecting tool uses")
+    if "exit code 128" in all_text or "merge conflict" in all_text:
+        patterns.append("git failures")
+    if "modulenotfounderror" in all_text or "importerror" in all_text:
+        patterns.append("missing Python dependencies")
+    if "syntaxerror" in all_text or "indentationerror" in all_text:
+        patterns.append("Python syntax errors")
+
+    if not patterns:
+        return f"{n_errors} errors total — repeated failures suggest the approach kept hitting walls."
+
+    # Count retries for the difficulty assessment.
+    retry_count = 0
+    if retry_targets:
+        for rt in retry_targets:
+            m = re.search(r'\((\d+)×\)', rt)
+            if m:
+                retry_count += int(m.group(1))
+
+    pattern_str = " + ".join(patterns[:2])
+    if retry_count >= 5:
+        return f"Difficulty: {pattern_str} kept recurring despite {retry_count} retries — the root cause was not addressed by the attempted fixes."
+    elif n_errors >= 10:
+        return f"Difficulty: {pattern_str} caused {n_errors} errors — multiple approaches tried without resolving the underlying issue."
+    else:
+        return f"Difficulty: {pattern_str} was the main blocker ({n_errors} errors)."
+
+
 def _summarize_ai_session(events: list[dict], task: dict) -> str:
     """Produce a grounded narrative for an AI coding session.
 
     Structure: Goal → Key struggle (from assistant diagnostics + error-command
     pairs) → Retry pattern → Time explanation.
     """
-    # 1. Goal: first real user message.
+    # 1. Goal: first real user message, cleaned of conversational prefixes.
     user_msgs = [e for e in events if e.get("kind") == "user_message" and e.get("text")]
     goal = _clean_user_goal(user_msgs[0].get("text")) if user_msgs else ""
+    # Strip conversational prefixes from the goal too (e.g. "what do you mean by X" → "X").
+    goal = _strip_conversational_prefix(goal)
 
     # 2. Assistant diagnostic sentences (the struggle narrative).
     asst_texts = [(e.get("text") or "") for e in events if e.get("kind") == "assistant_message"]
@@ -250,22 +339,32 @@ def _summarize_ai_session(events: list[dict], task: dict) -> str:
     if goal and not _CONTINUATION_RE.match(goal):
         parts.append(f"Goal: {goal}.")
 
-    # Struggle narrative: prefer assistant diagnostics + error pairs.
+    # Struggle narrative: synthesize WHY the problem was hard, not just WHAT failed.
+    # The user's feedback: "after reading them, i still do not know why that
+    # problem was hard to solve." So we need to explain the difficulty pattern.
     if diagnostics and error_pairs:
-        # Lead with the most informative diagnostic, then the top error pair.
+        # Lead with the assistant's diagnostic (it explains the struggle).
         parts.append(diagnostics[0])
+        # Then the top error pair — what specifically failed.
         cmd, err = error_pairs[0]
         parts.append(f"Key failure: '{cmd}' → {err}.")
+        # If there are many errors of the same type, explain the pattern.
+        if n_errors >= 5:
+            parts.append(_explain_difficulty(n_errors, error_pairs, retry_targets))
     elif diagnostics:
         parts.append(diagnostics[0])
         if len(diagnostics) > 1:
             parts.append(diagnostics[1])
+        if n_errors >= 5:
+            parts.append(_explain_difficulty(n_errors, error_pairs, retry_targets))
     elif error_pairs:
         cmd, err = error_pairs[0]
         parts.append(f"Failed: '{cmd}' → {err}.")
         if len(error_pairs) > 1:
             cmd2, err2 = error_pairs[1]
             parts.append(f"Also: '{cmd2}' → {err2}.")
+        if n_errors >= 5:
+            parts.append(_explain_difficulty(n_errors, error_pairs, retry_targets))
     elif n_errors > 0:
         # Errors exist but no paired text — use the blocker from context.
         blocker = ctx.get("blocker")

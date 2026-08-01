@@ -56,6 +56,17 @@ def _get_summarizer():
     except ImportError:
         return None
 
+# Human-involvement detector — distinguishes HUMAN time (the user typing,
+# clicking, interrupting) from MACHINE time (the agent running autonomously).
+# This is the key to identifying real time sinks: a 10h autonomous agent run
+# with 2 prompts is NOT a human time sink, even though active_seconds=10h.
+def _get_human_involvement_fn():
+    try:
+        from human_involvement import compute_human_involvement
+        return compute_human_involvement
+    except ImportError:
+        return None
+
 # Heuristic thresholds for implicit segmentation.
 GAP_THRESHOLD_SECONDS = 30 * 60  # 30 min gap => likely a new task
 MAX_SUBJECT_LEN = 120
@@ -81,9 +92,82 @@ def _summarize_message(text: str | None) -> str:
     if not text:
         return "(no text)"
     text = text.strip().replace("\n", " ")
+    # Clean system-reminder wrappers and command metadata from the subject.
+    text = _clean_subject_text(text)
+    if not text:
+        return "(no text)"
     if len(text) > MAX_SUBJECT_LEN:
         return text[:MAX_SUBJECT_LEN] + "…"
     return text
+
+
+# Conversational prefixes that make a prompt read as a question/chat rather
+# than a task description. Stripping these yields a cleaner subject.
+# E.g. "what do you mean by install skill-creator" → "install skill-creator"
+#      "i cannot do this, help me debug: git clone..." → "git clone..."
+_CONVERSATION_PREFIXES = [
+    "what do you mean by ", "what is ", "what are ", "what does ",
+    "i cannot do this, help me debug: ", "help me debug: ",
+    "i see you are struggling, maybe there are some skills that help you: ",
+    "can you ", "could you ", "please ", "i want to ", "i need to ",
+    "i need you to ", "let's ", "lets ", "how about ", "how do i ",
+    "how to ", "why is ", "why does ", "why did ",
+    "wait, you should have already set up the ",
+    "yes, continue", "make sure the skill ",
+]
+# System-reminder patterns — extract the useful bit, discard the wrapper.
+_SYSTEM_REMINDER_RE = re.compile(
+    r'<system-reminder>.*?The user named this session "([^"]+)".*?</system-reminder>',
+    re.DOTALL
+)
+
+
+def _clean_subject_text(text: str) -> str:
+    """Clean a raw user prompt into a descriptive task subject.
+
+    Strips system-reminder wrappers, command metadata, and conversational
+    prefixes so the subject reads as a task description, not a chat message.
+    """
+    t = text.strip()
+    # Extract session name from system-reminder wrappers.
+    m = _SYSTEM_REMINDER_RE.search(t)
+    if m:
+        session_name = m.group(1).strip()
+        # Use the session name as the subject — it's the user's own title.
+        rest = _SYSTEM_REMINDER_RE.sub("", t).strip()
+        if rest and len(rest) > 10:
+            # There's content after the reminder — use it.
+            t = rest
+        else:
+            return f'"{session_name}" session'
+    # Strip command-wrapper lines entirely.
+    for wrapper in ("<command-name>", "<local-command-stdout>",
+                    "<command-message>", "<command-args>", "<system-reminder>"):
+        if wrapper in t:
+            # If there's a /goal command-args, extract it.
+            if "<command-args>" in t:
+                m = re.search(r'<command-args>(.*?)</command-args>', t, re.DOTALL)
+                if m:
+                    t = m.group(1).strip()
+                    break
+            # Otherwise, strip lines containing command metadata.
+            lines = [ln for ln in t.split("\n")
+                     if not any(w in ln for w in
+                                ("<command-name>", "<local-command-stdout>",
+                                 "<command-message>", "<command-args>",
+                                 "<system-reminder>", "</system-reminder>"))]
+            t = " ".join(ln.strip() for ln in lines if ln.strip()).strip()
+            break
+    # Strip conversational prefixes (case-insensitive).
+    t_lower = t.lower()
+    for prefix in _CONVERSATION_PREFIXES:
+        if t_lower.startswith(prefix):
+            t = t[len(prefix):].strip()
+            break
+    # Capitalize first letter for readability.
+    if t:
+        t = t[0].upper() + t[1:]
+    return t
 
 
 def _is_correction(text: str | None) -> bool:
@@ -986,6 +1070,13 @@ def _make_task(tid: str, flavor: str, events: list[dict], subject: str | None,
         narrative = _summarize_fn(task, events)
         if narrative:
             context["narrative"] = narrative
+
+    # Human-involvement metrics — distinguish HUMAN time (the user typing,
+    # clicking, interrupting) from MACHINE time (agent working autonomously).
+    # This drives the re-ranking of time sinks by human cost, not raw active time.
+    _human_fn = _get_human_involvement_fn()
+    if _human_fn is not None:
+        task["human_data"] = _human_fn(events, task)
 
     return task
 

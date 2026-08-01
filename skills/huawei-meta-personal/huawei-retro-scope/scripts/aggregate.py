@@ -21,29 +21,35 @@ from datetime import datetime, timezone
 WORKING_DAY_HOURS = 8.0
 
 
-def _as_working_days(active_hours: float) -> str:
+def _as_working_days(active_hours: float, working_day_hours: float = WORKING_DAY_HOURS) -> str:
     """Format active hours as a human-readable working-day count.
 
+    By default uses 8h/day. When actual working hours are available, pass the
+    per-day average for a more accurate conversion.
+
     Returns e.g. "85.0 working days" for 680h, "0.5 working days" for 4h.
-    Values under 1 day show one decimal; larger values show one decimal too
-    so the reader can compare across horizons. Returns "" for zero/negative.
+    Returns "" for zero/negative.
     """
-    if active_hours <= 0:
+    if active_hours <= 0 or working_day_hours <= 0:
         return ""
-    days = active_hours / WORKING_DAY_HOURS
+    days = active_hours / working_day_hours
     return f"{days:.1f} working days"
 
 
-def _working_day_pct(active_hours: float) -> str:
-    """Format active hours as a percentage of one 8h working day.
+def _working_day_pct(active_hours: float, working_day_hours: float = WORKING_DAY_HOURS) -> str:
+    """Format active hours as a percentage of a working day.
+
+    By default uses 8h. When actual working hours are computed from the data
+    (via human_involvement.compute_actual_working_hours), pass that as the
+    denominator for a more accurate percentage.
 
     Returns e.g. "133%" for 10.6h (more than a full day), "48%" for 3.8h.
     Capped at 999% to avoid absurd numbers from corrupt data. Returns ""
     for zero/negative.
     """
-    if active_hours <= 0:
+    if active_hours <= 0 or working_day_hours <= 0:
         return ""
-    pct = active_hours / WORKING_DAY_HOURS * 100
+    pct = active_hours / working_day_hours * 100
     if pct > 999:
         return "999%+"
     return f"{pct:.0f}%"
@@ -202,28 +208,47 @@ def generate_insights(tasks: list[dict], agg: dict) -> list[str]:
     if not tasks:
         return ["No tasks in range."]
 
-    # --- 1. Time sinks (top 3 by active time) ---
-    ranked = sorted(tasks, key=lambda t: t.get("active_seconds") or 0, reverse=True)
-    top_sinks = [t for t in ranked[:3] if (t.get("active_seconds") or 0) > 0]
+    # --- 1. Time sinks (top 3 by HUMAN engaged time, not raw active time) ---
+    # The principle: we're looking for tasks that cost HUMAN time, not machine
+    # time. A 10h autonomous agent run with 2 prompts is NOT a time sink. Rank
+    # by human_engaged_seconds — the time the human was actively interacting.
+    def _human_engaged(t: dict) -> float:
+        hd = t.get("human_data") or {}
+        return hd.get("human_engaged_seconds", 0) or 0
+
+    ranked_human = sorted(tasks, key=_human_engaged, reverse=True)
+    top_sinks = [t for t in ranked_human[:3] if _human_engaged(t) > 0]
     for t in top_sinks:
         act_h = (t.get("active_seconds") or 0) / 3600
+        eng_h = _human_engaged(t) / 3600
         subj = t.get("subject") or "(no subject)"
         kind = classify_task(t)
+        hd = t.get("human_data") or {}
+        inv = hd.get("human_involvement", "?")
         hint = ""
         if t.get("errors"):
             hint = f" — {t['errors']} error(s)"
-        # Check for retry signals in the subject/text
-        text = (t.get("subject") or "").lower()
-        if any(k in text for k in ("retry", "again", "still", "sync", "fetch", "debug")):
-            hint += ", possible retry/debug loop"
-        # Surface the context (blocker/attendees/queries) so the insight line
-        # explains WHY the task was a time sink, not just that it was one.
+        # Surface the context (narrative/queries) so the insight explains WHY.
         context_inline = render_context_inline(t)
         if context_inline:
             hint += f". {context_inline}"
         insights.append(
-            f"Time sink: {act_h:.1f}h on '{subj[:60]}' ({kind}{hint}). "
+            f"Human time sink: {eng_h:.1f}h human engagement "
+            f"({act_h:.1f}h total active, {inv}) on '{subj[:60]}' ({kind}{hint}). "
             f"Drill: --task {t.get('id', '?')} --drill"
+        )
+
+    # Also flag tasks with high active time but LOW human involvement — these
+    # look like time sinks but are actually autonomous machine work.
+    autonomous_lookalikes = [t for t in tasks
+                              if (t.get("active_seconds") or 0) > 2 * 3600
+                              and (t.get("human_data") or {}).get("human_involvement") == "low"]
+    if autonomous_lookalikes:
+        names = [(t.get("subject") or "(no subject)")[:40] for t in autonomous_lookalikes[:3]]
+        insights.append(
+            f"{len(autonomous_lookalikes)} task(s) had high active time but LOW human "
+            f"involvement — mostly autonomous agent work, not human time sinks: "
+            f"{', '.join(names)}."
         )
 
     # --- 2. Meeting load ---
@@ -590,6 +615,15 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
     total_active = sum(r.get("active_seconds", 0.0) for r in agg.values()) / 3600
     total_tasks = sum(r["task_count"] for r in agg.values())
 
+    # Compute actual working hours from human activity (not flat 8h/day).
+    actual_working_hours = 0.0
+    if tasks:
+        try:
+            from human_involvement import compute_actual_working_hours
+            actual_working_hours = compute_actual_working_hours(tasks)
+        except ImportError:
+            pass
+
     # --- Palette for kinds (consistent across chart + table) ---
     all_kinds = sorted({k for r in agg.values() for k in r["by_kind"]})
     palette = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f",
@@ -713,29 +747,36 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 {cards}
 </div>"""
 
-    # --- Top tasks list (what the biggest time sinks were) ---
+    # --- Top tasks list (ranked by HUMAN engaged time, not raw active time) ---
     top_tasks_html = ""
     if tasks:
-        ranked = sorted(tasks, key=lambda t: t.get("active_seconds") or 0, reverse=True)
-        top5 = [t for t in ranked[:5] if (t.get("active_seconds") or 0) > 0]
+        def _human_engaged_h(t: dict) -> float:
+            return (t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0
+        ranked = sorted(tasks, key=_human_engaged_h, reverse=True)
+        top5 = [t for t in ranked[:5] if _human_engaged_h(t) > 0]
         if top5:
             rows = []
             for i, t in enumerate(top5, 1):
                 act_h = (t.get("active_seconds") or 0) / 3600
+                eng_h = _human_engaged_h(t) / 3600
                 wall_h = (t.get("wall_clock_seconds") or 0) / 3600
-                wd_pct = _working_day_pct(act_h)
+                wd_pct = _working_day_pct(eng_h)
+                hd = t.get("human_data") or {}
+                inv = hd.get("human_involvement", "?")
                 kind = html_mod.escape(classify_task(t))
                 subj = html_mod.escape((t.get("subject") or "(no subject)")[:55])
                 start_str = _dt.fromtimestamp(t.get("start") or 0).strftime("%m-%d %H:%M")
                 tid = html_mod.escape(t.get("id", "?"))
                 color = kind_colors.get(classify_task(t), "#888")
                 why = html_mod.escape(render_context_inline(t))
+                inv_class = f"inv-{inv}"
                 rows.append(
                     f'      <tr>'
                     f'<td class="num">{i}</td>'
+                    f'<td class="num">{eng_h:.1f}h</td>'
+                    f'<td class="num {inv_class}">{inv}</td>'
                     f'<td class="num">{act_h:.1f}h</td>'
                     f'<td class="num">{wd_pct}</td>'
-                    f'<td class="num">{wall_h:.1f}h</td>'
                     f'<td><span class="kind-dot" style="background:{color}"></span>{kind}</td>'
                     f'<td>{start_str}</td>'
                     f'<td>{subj}</td>'
@@ -743,10 +784,10 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                     f'<td class="task-id">{tid}</td>'
                     f'</tr>'
                 )
-            top_tasks_html = f"""<h2>Top 5 time sinks</h2>
-<p class="hint">% = share of one 8h working day. Drill into any: <code>python run.py --task &lt;id&gt; --drill</code></p>
+            top_tasks_html = f"""<h2>Top 5 human time sinks</h2>
+<p class="hint">Ranked by human engagement, not raw active time. % = share of one 8h working day. Drill into any: <code>python run.py --task &lt;id&gt; --drill</code></p>
 <table class="top-tasks">
-  <thead><tr><th>#</th><th>Active</th><th>% of 8h</th><th>Wall</th><th>Kind</th><th>Start</th><th>Subject</th><th>Root cause</th><th>Task ID</th></tr></thead>
+  <thead><tr><th>#</th><th>Human</th><th>Involvement</th><th>Active</th><th>% of 8h</th><th>Kind</th><th>Start</th><th>Subject</th><th>Root cause</th><th>Task ID</th></tr></thead>
   <tbody>
 {chr(10).join(rows)}
   </tbody>
@@ -794,7 +835,13 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
     range_str = f"{periods[0]} — {periods[-1]}" if len(periods) > 1 else (periods[0] if periods else "n/a")
 
     # Working-day conversion for the summary header.
+    # Use actual working hours (from human activity) if available, else 8h/day.
     wd_total = _as_working_days(total_active)
+    human_engaged_total = sum(
+        (t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0
+        for t in (tasks or [])
+    ) / 3600
+    working_basis = f"8h/day" if actual_working_hours <= 0 else f"{actual_working_hours:.0f}h actual"
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -836,6 +883,10 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
   .top-tasks td.why {{ font-size: 0.82em; color: #666; max-width: 320px; }}
   .why-inline {{ font-size: 0.85em; color: #888; margin-left: 56px; margin-top: 2px; }}
   .wd-pct {{ font-size: 0.8em; color: #999; margin-left: 2px; }}
+  .inv-high {{ color: #c62828; font-weight: 600; }}
+  .inv-moderate {{ color: #e65100; font-weight: 600; }}
+  .inv-low {{ color: #888; }}
+  .inv-none {{ color: #bbb; font-style: italic; }}
   .data-avail {{ font-size: 0.88em; }}
   .data-avail .no-data {{ background: #fff8f8; }}
   .data-avail .no-data-msg {{ color: #c62828; font-style: italic; }}
@@ -846,9 +897,11 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 <div class="summary">
   <strong>Range:</strong> {html_mod.escape(range_str)} &nbsp;|&nbsp;
   <strong>Active:</strong> {total_active:.1f}h{f" ({wd_total})" if wd_total else ""} &nbsp;|&nbsp;
+  <strong>Human:</strong> {human_engaged_total:.1f}h &nbsp;|&nbsp;
   <strong>Wall:</strong> {total_wall:.1f}h &nbsp;|&nbsp;
   <strong>Tasks:</strong> {total_tasks}
 </div>
+<p class="hint">Working-day basis: {working_basis}. Time sinks ranked by human engagement, not raw active time.</p>
 
 {data_avail_html}
 
@@ -903,6 +956,15 @@ def render_context_text(task: dict) -> str:
     if narrative:
         lines.append(narrative)
         lines.append("")  # blank line before structured detail
+
+    # Human involvement — is this a real human time sink or autonomous machine work?
+    human_data = task.get("human_data")
+    if human_data:
+        from human_involvement import describe_human_involvement
+        human_desc = describe_human_involvement(human_data, task)
+        if human_desc:
+            lines.append(f"Human involvement: {human_desc}")
+            lines.append("")
 
     source_kind = task.get("source_kind", "")
 

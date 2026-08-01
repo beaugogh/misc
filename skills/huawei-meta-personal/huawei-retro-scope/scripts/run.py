@@ -243,30 +243,36 @@ def _render_top_tasks(tasks: list[dict], n: int) -> str:
     ``--task <id> --drill`` on anything that looks like a time sink.
     """
     from datetime import datetime as _dt
-    ranked = sorted(tasks, key=lambda t: t.get("active_seconds") or 0, reverse=True)[:n]
+    # Rank by HUMAN engaged time — the user's actual time cost, not machine time.
+    def _human_engaged_h(t):
+        return (t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0
+    ranked = sorted(tasks, key=_human_engaged_h, reverse=True)[:n]
     total_active = sum(t.get("active_seconds") or 0 for t in tasks) / 3600
+    total_human = sum(_human_engaged_h(t) for t in tasks) / 3600
 
-    lines = [f"# Top {len(ranked)} tasks by active time"]
+    lines = [f"# Top {len(ranked)} tasks by HUMAN engaged time"]
     from aggregate import _as_working_days, _working_day_pct, WORKING_DAY_HOURS
-    wd_total = _as_working_days(total_active)
-    total_str = f"{total_active:.1f}h active total"
+    wd_total = _as_working_days(total_human)
+    total_str = f"{total_human:.1f}h human engaged"
     if wd_total:
         total_str += f" ({wd_total})"
+    total_str += f" / {total_active:.1f}h total active"
     lines.append(f"(of {len(tasks)} tasks, {total_str})")
     lines.append("")
-    lines.append(f"{'#':>3}  {'Active':>7}  {'%8h':>5}  {'Wall':>7}  {'Kind':<11} {'Start':<12} "
-                 f"{'Success':<11} {'Subject'}")
-    lines.append("-" * 105)
+    lines.append(f"{'#':>3}  {'Human':>7}  {'%8h':>5}  {'Active':>7}  {'Involv':>7}  "
+                 f"{'Kind':<11} {'Start':<12} {'Subject'}")
+    lines.append("-" * 115)
     for i, t in enumerate(ranked, 1):
+        eng = _human_engaged_h(t) / 3600
         act = (t.get("active_seconds") or 0) / 3600
-        wall = (t.get("wall_clock_seconds") or 0) / 3600
-        wd_pct = _working_day_pct(act)
+        wd_pct = _working_day_pct(eng)
+        hd = t.get("human_data") or {}
+        inv = (hd.get("human_involvement") or "?")[:7]
         kind = (t.get("source_kind") or "?")[:11]
         start_str = _dt.fromtimestamp(t.get("start") or 0).strftime("%m-%d %H:%M")
-        succ = (t.get("success") or "?")[:11]
         subj = (t.get("subject") or (t.get("text") or "")[:50] or "(no subject)")[:48]
-        lines.append(f"{i:>3}  {act:>6.1f}h  {wd_pct:>5}  {wall:>6.1f}h  {kind:<11} {start_str:<12} "
-                     f"{succ:<11} {subj}")
+        lines.append(f"{i:>3}  {eng:>6.1f}h  {wd_pct:>5}  {act:>6.1f}h  {inv:>7}  "
+                     f"{kind:<11} {start_str:<12} {subj}")
         lines.append(f"       id: {t.get('id', '?')}")
     lines.append("")
     lines.append("Drill into any task:  python run.py --task <id> --drill")
