@@ -85,7 +85,7 @@ def classify_task(task: dict) -> str:
     if source_kind == "meeting":
         return "meeting"
     if source_kind == "comm":
-        return "welink"
+        return "WeLink"
 
     # Filesystem-sourced tasks (VSCode history, Windows Recent, Jump Lists).
     if source_kind == "filesystem":
@@ -851,7 +851,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
             )
         if kind_sections:
             kind_subjects_html = '<h2>各类工作内容</h2>\n' + \
-                                 '<p class="hint">类型说明：coding=AI编程，planning=AI讨论/任务管理（非动手编程），research=网页浏览/搜索，git=代码提交，meeting=会议，welink=邮件/WeLink聊天，file-edit=本地文件编辑</p>\n' + \
+                                 '<p class="hint">类型说明：coding=AI编程，planning=AI讨论/任务管理（非动手编程），research=网页浏览/搜索，git=代码提交，meeting=会议，WeLink=邮件/聊天，file-edit=本地文件编辑</p>\n' + \
                                  '<div class="kind-grid">\n' + \
                                  "\n".join(kind_sections) + '\n</div>'
 
