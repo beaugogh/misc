@@ -290,21 +290,21 @@ def _summarize_ai_session(events: list[dict], task: dict) -> str:
     # Time explanation.
     if excised_h > 1 and excised_h > active_h:
         parts.append(
-            f"{active_h:.1f}h active in {wall_h:.1f}h wall — {excised_h:.1f}h idle/overnight gaps."
+            f"{active_h:.1f}h active（Wall {wall_h:.1f}h）——{excised_h:.1f}h 空闲/隔夜间隔。"
         )
     elif n_errors >= 5 or (retry_targets and active_h > 1):
         parts.append(
-            f"{active_h:.1f}h, {n_errors} error(s), {n_tool_calls} tool calls."
+            f"{active_h:.1f}h，{n_errors} 个错误，{n_tool_calls} 次工具调用。"
         )
     elif active_h > 0.5:
         files = ctx.get("files_touched") or []
         if files:
             parts.append(
-                f"{active_h:.1f}h, edited {len(files)} file(s): "
-                f"{', '.join(os.path.basename(f) for f in files[:3])}."
+                f"{active_h:.1f}h，编辑了 {len(files)} 个文件："
+                f"{', '.join(os.path.basename(f) for f in files[:3])}。"
             )
         else:
-            parts.append(f"{active_h:.1f}h active.")
+            parts.append(f"{active_h:.1f}h active。")
 
     return " ".join(parts) if parts else ""
 
@@ -329,23 +329,23 @@ def _synthesize_struggle(n_errors: int, error_pairs: list[tuple[str, str]],
 
     patterns: list[str] = []
     if "407" in all_text or ("proxy" in all_text and "tunnel" in all_text):
-        patterns.append("corporate proxy authentication blocking git/network access")
+        patterns.append("企业代理认证阻止 git/网络访问")
     if "timeout" in all_text or "timed out" in all_text:
-        patterns.append("commands timing out (slow network or hanging processes)")
+        patterns.append("命令超时（网络慢或进程挂起）")
     if "not found" in all_text or "no such file" in all_text:
-        patterns.append("missing files or paths — the environment wasn't set up correctly")
+        patterns.append("文件或路径缺失——环境配置不正确")
     if "permission denied" in all_text or "access is denied" in all_text:
-        patterns.append("permission/access denied — insufficient privileges")
+        patterns.append("权限不足——拒绝访问")
     if "doesn't want to proceed" in all_text or "rejected" in all_text:
-        patterns.append("user rejecting tool uses — the agent kept proposing unwanted actions")
+        patterns.append("用户拒绝工具调用——agent 反复提出不需要的操作")
     if "exit code 128" in all_text or "merge conflict" in all_text:
-        patterns.append("git failures (merge conflicts, push rejections)")
+        patterns.append("git 失败（合并冲突、推送被拒）")
     if "modulenotfounderror" in all_text or "importerror" in all_text:
-        patterns.append("missing Python dependencies — environment setup incomplete")
+        patterns.append("Python 依赖缺失——环境搭建不完整")
     if "syntaxerror" in all_text or "indentationerror" in all_text:
-        patterns.append("Python syntax/indent errors — code kept breaking on edits")
+        patterns.append("Python 语法/缩进错误——编辑时反复破坏代码")
     if "file has not been read" in all_text:
-        patterns.append("file-read-before-edit errors — workflow kept skipping the Read step")
+        patterns.append("编辑前未读取文件——工作流反复跳过 Read 步骤")
 
     # Count retries.
     retry_count = 0
@@ -359,28 +359,26 @@ def _synthesize_struggle(n_errors: int, error_pairs: list[tuple[str, str]],
     bits: list[str] = []
 
     if patterns:
-        pattern_str = "; ".join(patterns[:2])
+        pattern_str = "；".join(patterns[:2])
         if retry_count >= 5:
-            bits.append(f"{pattern_str}, recurring despite {retry_count} retries — the root cause was not addressed by the attempted fixes")
+            bits.append(f"{pattern_str}，尽管重试 {retry_count} 次仍反复出现——根本原因未被解决")
         elif n_errors >= 10:
-            bits.append(f"{pattern_str}, causing {n_errors} errors — multiple approaches tried without resolving the underlying issue")
+            bits.append(f"{pattern_str}，导致 {n_errors} 个错误——尝试了多种方法均未解决根本问题")
         else:
-            bits.append(f"{pattern_str} ({n_errors} errors)")
+            bits.append(f"{pattern_str}（{n_errors} 个错误）")
     elif n_errors > 0:
         if error_pairs:
             cmd, err = error_pairs[0]
-            # Reframe the error as a struggle, not a mundane log.
-            bits.append(f"repeatedly hit '{cmd}' failures ({n_errors} total) — {err}")
+            bits.append(f"反复遇到 '{cmd}' 失败（共 {n_errors} 次）——{err}")
         else:
-            bits.append(f"{n_errors} errors during execution")
+            bits.append(f"执行过程中出现 {n_errors} 个错误")
     elif diagnostics:
-        # No errors but assistant diagnostics exist — use the most informative one.
         bits.append(diagnostics[0])
 
     if not bits and n_errors == 0:
         return ""
 
-    return ". ".join(bits) + "."
+    return "。".join(bits) + "。"
 
 
 def _summarize_browser(events: list[dict], task: dict) -> str:
@@ -399,29 +397,29 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
 
     # Goal: what was the user researching?
     if queries:
-        parts.append(f"Goal: research '{queries[0][:50]}'.")
+        parts.append(f"Goal: 搜索 '{queries[0][:50]}'。")
     elif titles:
-        parts.append(f"Goal: browsing {titles[0][:40]}.")
+        parts.append(f"Goal: 浏览 {titles[0][:40]}。")
 
     # Struggle: what made this session take as long as it did?
     if active_h < 0.05 and wall_h > 1:
         first_page = titles[0][:40] if titles else "browsing"
-        parts.append(f"Struggle: tabs left open {wall_h:.1f}h on {first_page} with no measurable activity — forgotten, not actively used.")
+        parts.append(f"Struggle: 标签页在 {first_page} 上停留 {wall_h:.1f}h 但无可测量活动——被遗忘，非活跃使用。")
     elif excised_h > 0.5 and excised_h > active_h:
-        parts.append(f"Struggle: only {active_h:.1f}h of active browsing in {wall_h:.1f}h wall — {excised_h:.1f}h of idle/overnight tabs left open.")
+        parts.append(f"Struggle: Wall {wall_h:.1f}h 中仅 {active_h:.1f}h 活跃浏览——{excised_h:.1f}h 空闲/隔夜标签页未关闭。")
     elif n_visits > 50 and active_h > 2:
-        parts.append(f"Struggle: extensive browsing ({n_visits} visits) — searching for hard-to-find information across many pages.")
+        parts.append(f"Struggle: 大量浏览（{n_visits} 次访问）——在多个页面中搜索难以找到的信息。")
 
     # What was visited.
     if titles:
         key_pages = _dedupe(titles)[:3]
-        parts.append(f"Visited: {', '.join(key_pages)}.")
+        parts.append(f"访问：{', '.join(key_pages)}。")
     if downloads:
-        parts.append(f"Downloaded {downloads} file(s).")
+        parts.append(f"下载了 {downloads} 个文件。")
 
     # Time.
     if active_h > 0.1 and excised_h <= 0.5:
-        parts.append(f"{active_h:.1f}h active browsing.")
+        parts.append(f"{active_h:.1f}h 活跃浏览。")
 
     return " ".join(parts) if parts else ""
 
@@ -440,38 +438,38 @@ def _summarize_meeting(events: list[dict], task: dict) -> str:
 
     # All-day calendar marker — not a real meeting.
     if is_all_day:
-        return f"Goal: calendar day-marker '{subject[:60]}'. Struggle: not a real meeting — 0h human time. The user did not attend anything."
+        return f"Goal: 日历全天标记 '{subject[:60]}'。Struggle: 非真实会议——0h 人工时间，用户未参加任何活动。"
 
     parts: list[str] = []
 
     # Goal: what was the meeting about?
     if subject:
-        parts.append(f"Goal: attend '{subject[:60]}'.")
+        parts.append(f"Goal: 参加 '{subject[:60]}'。")
     else:
-        parts.append("Goal: attend meeting.")
+        parts.append("Goal: 参加会议。")
 
     # Context: who, where.
     context_bits: list[str] = []
     if organizer:
-        context_bits.append(f"organized by {organizer}")
+        context_bits.append(f"组织者 {organizer}")
     if location:
-        context_bits.append(f"at {location}")
+        context_bits.append(f"地点 {location}")
     if context_bits:
-        parts.append(f"({', '.join(context_bits)}).")
+        parts.append(f"（{'，'.join(context_bits)}）。")
 
     # Struggle: what made this meeting take as long as it did?
     if wall_h > 24 or (excised_h > 0 and active_h >= 8):
         real_span_h = active_h + excised_h
         days = real_span_h / 24
-        parts.append(f"Struggle: multi-day event ({days:.1f} days), capped to {active_h:.0f}h — actual attendance unknown, calendar data doesn't show who participated.")
+        parts.append(f"Struggle: 跨天会议（{days:.1f} 天），封顶为 {active_h:.0f}h——实际出勤未知，日历数据无法显示参与情况。")
     elif active_h == 0 and wall_h > 0:
-        parts.append(f"Struggle: {wall_h:.1f}h wall-clock but 0h active — no human interaction detected, likely a meeting window left open.")
+        parts.append(f"Struggle: Wall {wall_h:.1f}h 但 0h active——未检测到人工交互，可能是会议窗口未关闭。")
     elif active_h > 4:
-        parts.append(f"Struggle: long meeting ({active_h:.1f}h) — calendar data doesn't show actual participation level.")
+        parts.append(f"Struggle: 会议时长 {active_h:.1f}h——日历数据无法显示实际参与程度。")
 
     # Time.
     if active_h > 0:
-        parts.append(f"{active_h:.1f}h meeting.")
+        parts.append(f"{active_h:.1f}h 会议。")
 
     return " ".join(parts) if parts else ""
 
@@ -490,28 +488,27 @@ def _summarize_comm(events: list[dict], task: dict) -> str:
 
     # Email.
     if subjects:
-        parts.append(f"Goal: handle email '{subjects[0][:60]}'.")
+        parts.append(f"Goal: 处理邮件 '{subjects[0][:60]}'。")
         if senders:
-            parts.append(f"From {senders[0]}.")
-        # Struggle: was this a thread that needed attention?
+            parts.append(f"来自 {senders[0]}。")
         if has_reply:
-            parts.append("Struggle: active back-and-forth thread — reply sent, indicating the matter required response.")
+            parts.append("Struggle: 活跃的往来邮件——已回复，表明该事项需要响应。")
         else:
-            parts.append("Struggle: no reply detected — either read-only or the matter didn't require a response.")
+            parts.append("Struggle: 未检测到回复——可能是仅查阅或该事项不需要回复。")
 
     # IM.
     if im_count:
         active_h = (task.get("active_seconds") or 0) / 3600
-        conv = im_conversations[0][:40] if im_conversations else "a conversation"
-        parts.append(f"Goal: participate in IM chat ({conv}).")
+        conv = im_conversations[0][:40] if im_conversations else "一段对话"
+        parts.append(f"Goal: 参与 IM 聊天（{conv}）。")
         if im_count > 50:
-            parts.append(f"Struggle: heavy messaging ({im_count} messages, {len(im_senders)} participants) — prolonged discussion requiring significant human engagement.")
+            parts.append(f"Struggle: 大量消息（{im_count} 条，{len(im_senders)} 位参与者）——长时间讨论，需要大量人工参与。")
         elif im_count > 10:
-            parts.append(f"Struggle: moderate messaging ({im_count} messages) — back-and-forth discussion.")
+            parts.append(f"Struggle: 中等量消息（{im_count} 条）——来回讨论。")
         else:
-            parts.append(f"{im_count} messages exchanged.")
+            parts.append(f"交换了 {im_count} 条消息。")
         if active_h > 0.1:
-            parts.append(f"{active_h:.1f}h of messaging.")
+            parts.append(f"{active_h:.1f}h 消息交流。")
 
     return " ".join(parts) if parts else ""
 
@@ -522,13 +519,13 @@ def _summarize_vcs(events: list[dict], task: dict) -> str:
     subjects = ctx.get("commit_subjects") or []
     if subjects:
         active_h = (task.get("active_seconds") or 0) / 3600
-        parts = [f"Goal: commit code — '{subjects[0][:60]}'."]
+        parts = [f"Goal: 提交代码——'{subjects[0][:60]}'。"]
         if len(subjects) > 3:
-            parts.append(f"Struggle: {len(subjects)} commits in this session — iterative development with multiple checkpoints.")
+            parts.append(f"Struggle: 本次会话 {len(subjects)} 次提交——迭代开发，多个检查点。")
         elif active_h > 1:
-            parts.append(f"Struggle: {active_h:.1f}h spent on version control — significant git work (rebasing, merging, or resolving conflicts).")
+            parts.append(f"Struggle: 版本控制耗时 {active_h:.1f}h——大量 git 操作（变基、合并或解决冲突）。")
         if active_h > 0.1:
-            parts.append(f"{active_h:.1f}h VCS activity.")
+            parts.append(f"{active_h:.1f}h VCS 活动。")
         return " ".join(parts)
     return ""
 
@@ -540,9 +537,9 @@ def _summarize_filesystem(events: list[dict], task: dict) -> str:
     if files:
         active_h = (task.get("active_seconds") or 0) / 3600
         names = [os.path.basename(f) for f in files[:3]]
-        parts = [f"Touched {len(files)} file(s): {', '.join(names)}."]
+        parts = [f"Goal: 编辑文件。触碰了 {len(files)} 个文件：{', '.join(names)}。"]
         if active_h > 0.1:
-            parts.append(f"{active_h:.1f}h.")
+            parts.append(f"{active_h:.1f}h。")
         return " ".join(parts)
     return ""
 

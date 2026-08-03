@@ -209,7 +209,7 @@ class TestSummarizeAISession(unittest.TestCase):
         narrative = _summarize_ai_session(events, task)
         self.assertIn("Goal:", narrative)
         self.assertIn("sync local", narrative)
-        self.assertIn("proxy", narrative)
+        self.assertIn("代理", narrative)
         self.assertIn("Struggle:", narrative)
 
     def test_continuation_goal_skipped(self):
@@ -256,7 +256,7 @@ class TestSummarizeAISession(unittest.TestCase):
         ]
         task = _task(active=2 * 3600, wall=10 * 3600, excised=8 * 3600)
         narrative = _summarize_ai_session(events, task)
-        self.assertIn("idle/overnight", narrative)
+        self.assertIn("空闲", narrative)
 
     def test_empty_events_returns_empty(self):
         task = _task()
@@ -271,9 +271,9 @@ class TestSummarizeBrowser(unittest.TestCase):
                      context={"top_titles": ["mem0 - Google Search", "mem0ai/mem0"],
                               "top_urls": [], "queries": [], "downloads": 2, "n_visits": 185})
         narrative = _summarize_browser([], task)
-        self.assertIn("Visited:", narrative)
+        self.assertIn("访问", narrative)
         self.assertIn("mem0", narrative)
-        self.assertIn("Downloaded 2", narrative)
+        self.assertIn("下载了 2", narrative)
 
     def test_idle_tabs_explained(self):
         task = _task(source_kind="browser", active=0.5 * 3600, wall=29 * 3600,
@@ -281,7 +281,7 @@ class TestSummarizeBrowser(unittest.TestCase):
                      context={"top_titles": ["AI进展.xlsx"], "top_urls": [],
                               "queries": [], "downloads": 0, "n_visits": 50})
         narrative = _summarize_browser([], task)
-        self.assertIn("idle/overnight", narrative)
+        self.assertIn("空闲", narrative)
 
     def test_search_query_shown(self):
         task = _task(source_kind="browser", active=3600, wall=3600,
@@ -297,8 +297,8 @@ class TestSummarizeMeeting(unittest.TestCase):
         task = _task(source_kind="meeting", active=0, wall=24 * 3600,
                      context={"is_all_day": True, "subject": "月末周六工作日"})
         narrative = _summarize_meeting([], task)
-        self.assertIn("day-marker", narrative)
-        self.assertIn("0h human", narrative)
+        self.assertIn("日历全天标记", narrative)
+        self.assertIn("0h 人工", narrative)
 
     def test_multi_day_capped(self):
         task = _task(source_kind="meeting", active=8 * 3600, wall=24 * 3600,
@@ -306,8 +306,8 @@ class TestSummarizeMeeting(unittest.TestCase):
                      context={"subject": "集中研讨", "organizer": "Cherry",
                               "location": "杭州：Z5-2-A30R"})
         narrative = _summarize_meeting([], task)
-        self.assertIn("multi-day", narrative.lower())
-        self.assertIn("capped", narrative)
+        self.assertIn("跨天", narrative)
+        self.assertIn("封顶", narrative)
         self.assertIn("Cherry", narrative)
         self.assertIn("杭州", narrative)
 
@@ -326,7 +326,7 @@ class TestSummarizeMeeting(unittest.TestCase):
         narrative = _summarize_meeting([], task)
         self.assertNotIn("Multi-day", narrative)
         self.assertNotIn("capped", narrative)
-        self.assertIn("9.0h meeting", narrative)
+        self.assertIn("9.0h 会议", narrative)
 
     def test_12h_single_day_meeting_not_multi_day(self):
         """A 12h single-day meeting (hackathon) must NOT be labeled 'Multi-day'."""
@@ -345,14 +345,14 @@ class TestSummarizeComm(unittest.TestCase):
         narrative = _summarize_comm([], task)
         self.assertIn("patent draft", narrative)
         self.assertIn("Bogao", narrative)
-        self.assertIn("reply", narrative.lower())
+        self.assertIn("回复", narrative)
 
     def test_email_no_reply(self):
         task = _task(source_kind="comm", active=0,
                      context={"subjects": ["FW: notice"], "senders": ["Alice"],
                               "has_reply": False})
         narrative = _summarize_comm([], task)
-        self.assertIn("no reply", narrative.lower())
+        self.assertIn("未检测到回复", narrative)
 
 
 class TestSummarizeVCS(unittest.TestCase):
