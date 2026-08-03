@@ -180,7 +180,7 @@ class TestRunMultiHorizon(unittest.TestCase):
         report_path = os.path.join(self.tmpdir, "report_30d.html")
         with open(report_path, encoding="utf-8") as f:
             html = f.read()
-        self.assertIn("Data availability", html)
+        self.assertIn("数据可用性", html)
         self.assertIn("ai_session", html)
         self.assertIn("browser", html)
 
@@ -194,7 +194,7 @@ class TestRunMultiHorizon(unittest.TestCase):
         with open(report_path, encoding="utf-8") as f:
             html = f.read()
         # meeting/comm/vcs/filesystem have no tasks → "No data in range"
-        self.assertIn("No data in range", html)
+        self.assertIn("范围内无数据", html)
 
     def test_index_shows_active_hours_per_horizon(self):
         """The index page shows active hours for each horizon."""

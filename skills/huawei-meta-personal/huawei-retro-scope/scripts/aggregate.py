@@ -564,7 +564,7 @@ def render_data_availability_html(tasks: list[dict], since_ts: float | None,
                 f'      <tr class="no-data">'
                 f'<td>{html_mod.escape(sk)}</td>'
                 f'<td class="num">0</td>'
-                f'<td colspan="3" class="no-data-msg">No data in range — source not active or lookback exceeded</td>'
+                f'<td colspan="3" class="no-data-msg">范围内无数据 — 数据源未激活或超出回溯范围</td>'
                 f'</tr>'
             )
             continue
@@ -589,10 +589,10 @@ def render_data_availability_html(tasks: list[dict], since_ts: float | None,
         )
 
     rows_html = "\n".join(rows)
-    return f"""<h2>Data availability</h2>
-<p class="hint">Requested range: {html_mod.escape(range_label)}. Active time is also shown as working days (1 day = 8h). Each row shows what data this source actually provided in that range.</p>
+    return f"""<h2>数据可用性</h2>
+<p class="hint">请求范围：{html_mod.escape(range_label)}。Active 时间同时显示为工作日（1 天 = 8h）。每行显示该数据源在范围内的实际覆盖情况。</p>
 <table class="data-avail">
-  <thead><tr><th>Source</th><th>Tasks</th><th>Active</th><th>Earliest</th><th>Latest</th></tr></thead>
+  <thead><tr><th>数据源</th><th>任务数</th><th>Active</th><th>最早</th><th>最晚</th></tr></thead>
   <tbody>
 {rows_html}
   </tbody>
@@ -750,7 +750,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                 f'  <div class="insight-card">{html_mod.escape(ins)}</div>'
                 for ins in insights
             )
-            insights_html = f"""<h2>Insights &amp; pain points</h2>
+            insights_html = f"""<h2>洞察与痛点</h2>
 <div class="insights-grid">
 {cards}
 </div>"""
@@ -763,6 +763,11 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
         ranked = sorted(tasks, key=_human_engaged_h, reverse=True)
         top5 = [t for t in ranked[:5] if _human_engaged_h(t) > 0]
         if top5:
+            # Compute per-type totals for percentage denominators (rubric 36):
+            # h/H, a/A, w/W — each type's percentage is relative to its own total.
+            total_human_h = sum(_human_engaged_h(t) for t in tasks) / 3600
+            total_active_h = sum(t.get("active_seconds") or 0 for t in tasks) / 3600
+            total_wall_h = sum(t.get("wall_clock_seconds") or 0 for t in tasks) / 3600
             rows = []
             for i, t in enumerate(top5, 1):
                 act_h = (t.get("active_seconds") or 0) / 3600
@@ -776,23 +781,20 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                 tid = html_mod.escape(t.get("id", "?"))
                 color = kind_colors.get(classify_task(t), "#888")
                 inv_class = f"inv-{inv}"
-                # Structured root cause — broken into labeled parts instead of a lump.
                 why_html = render_structured_root_cause(t, html_mod)
-                # Three-way time: wall / active / human with percentages.
-                # % are relative to wall (the total span): active% and human% of wall.
-                act_pct = (act_h / wall_h * 100) if wall_h > 0 else 0
-                eng_pct = (eng_h / wall_h * 100) if wall_h > 0 else 0
-                # Cap at 999 for display.
-                act_pct_str = f"{min(act_pct, 999):.0f}%" if wall_h > 0 else "—"
-                eng_pct_str = f"{min(eng_pct, 999):.0f}%" if wall_h > 0 else "—"
+                # Per-type percentages: h/H, a/A, w/W (rubric 36).
+                h_pct = (eng_h / total_human_h * 100) if total_human_h > 0 else 0
+                a_pct = (act_h / total_active_h * 100) if total_active_h > 0 else 0
+                w_pct = (wall_h / total_wall_h * 100) if total_wall_h > 0 else 0
                 rows.append(
                     f'      <tr>'
                     f'<td class="num">{i}</td>'
                     f'<td class="num">{eng_h:.1f}h</td>'
-                    f'<td class="num">{eng_pct_str}</td>'
+                    f'<td class="num">{h_pct:.1f}%</td>'
                     f'<td class="num">{act_h:.1f}h</td>'
-                    f'<td class="num">{act_pct_str}</td>'
+                    f'<td class="num">{a_pct:.1f}%</td>'
                     f'<td class="num">{wall_h:.1f}h</td>'
+                    f'<td class="num">{w_pct:.1f}%</td>'
                     f'<td class="num {inv_class}">{inv}</td>'
                     f'<td><span class="kind-dot" style="background:{color}"></span>{kind}</td>'
                     f'<td>{start_str}</td>'
@@ -801,10 +803,10 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                     f'<td class="task-id">{tid}</td>'
                     f'</tr>'
                 )
-            top_tasks_html = f"""<h2>Top 5 human time sinks</h2>
-<p class="hint">Three-way time: <strong>Wall</strong> (total clock span) → <strong>Active</strong> (work detected) → <strong>Human</strong> (user engaged). % are of Wall. Ranked by Human time. Drill: <code>python run.py --task &lt;id&gt; --drill</code></p>
+            top_tasks_html = f"""<h2>Top 5 人工时间消耗</h2>
+<p class="hint">三类时间：<strong>Wall</strong>（总时钟跨度）→ <strong>Active</strong>（检测到的工作）→ <strong>Human</strong>（用户参与）。百分比按类型计算：h/H, a/A, w/W。按 Human 时间排序。下钻：<code>python run.py --task &lt;id&gt; --drill</code></p>
 <table class="top-tasks">
-  <thead><tr><th>#</th><th>Human</th><th>%W</th><th>Active</th><th>%W</th><th>Wall</th><th>Involv.</th><th>Kind</th><th>Start</th><th>Subject</th><th>Root cause</th><th>Task ID</th></tr></thead>
+  <thead><tr><th>#</th><th>Human</th><th>%H</th><th>Active</th><th>%A</th><th>Wall</th><th>%W</th><th>参与度</th><th>类型</th><th>开始</th><th>主题</th><th>根因</th><th>Task ID</th></tr></thead>
   <tbody>
 {chr(10).join(rows)}
   </tbody>
@@ -839,10 +841,10 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                 why_html = render_structured_root_cause(t, html_mod)
                 why_div = f'<div class="why-inline">{why_html}</div>' if why_html else ''
                 items.append(
-                    f"<li><span class='num'>{eng_h:.1f}h human</span> / "
-                    f"<span class='num-act'>{act_h:.1f}h active</span> {subj}{label_html}{why_div}</li>"
+                    f"<li><span class='num'>{eng_h:.1f}h Human</span> / "
+                    f"<span class='num-act'>{act_h:.1f}h Active</span> {subj}{label_html}{why_div}</li>"
                 )
-            kind_total_str = f"{kind_human:.1f}h human / {kind_active:.1f}h active"
+            kind_total_str = f"Human {kind_human:.1f}h / Active {kind_active:.1f}h"
             if kind_wd:
                 kind_total_str += f" · {kind_wd}"
             kind_sections.append(
@@ -853,7 +855,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                 f'</div>'
             )
         if kind_sections:
-            kind_subjects_html = '<h2>What the work was — by kind</h2>\n' + \
+            kind_subjects_html = '<h2>各类工作内容</h2>\n' + \
                                  '<div class="kind-grid">\n' + \
                                  "\n".join(kind_sections) + '\n</div>'
 
@@ -869,16 +871,20 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
     working_basis = f"8h/day" if actual_working_hours <= 0 else f"{actual_working_hours:.0f}h actual"
 
     # Three-way time breakdown: wall → active → human, with percentages.
+    # Per-type: human is % of active (nested), active is % of wall (rubric 36).
     human_pct_of_active = (human_engaged_total / total_active * 100) if total_active > 0 else 0
     active_pct_of_wall = (total_active / total_wall * 100) if total_wall > 0 else 0
     human_pct_of_wall = (human_engaged_total / total_wall * 100) if total_wall > 0 else 0
 
+    # Chinese labels for the summary (rubric 38: output in Chinese, English where clear).
+    wd_str = f"（{wd_total}）" if wd_total else ""
+
     html = f"""<!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Time report (by {html_mod.escape(granularity)})</title>
+<title>时间报告（{html_mod.escape(granularity)}）</title>
 <style>
   body {{ font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 2em; color: #2c2c2c; max-width: 1200px; }}
   h1 {{ font-size: 1.6em; border-bottom: 3px solid #4e79a7; padding-bottom: 0.3em; }}
@@ -931,21 +937,21 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 </style>
 </head>
 <body>
-<h1>Time report (by {html_mod.escape(granularity)})</h1>
+<h1>时间报告（{html_mod.escape(granularity)}）</h1>
 <div class="summary">
-  <strong>Range:</strong> {html_mod.escape(range_str)} &nbsp;|&nbsp;
-  <strong>Wall:</strong> {total_wall:.1f}h &nbsp;|&nbsp;
-  <strong>Active:</strong> {total_active:.1f}h ({active_pct_of_wall:.0f}% of wall){f" · {wd_total}" if wd_total else ""} &nbsp;|&nbsp;
-  <strong>Human:</strong> {human_engaged_total:.1f}h ({human_pct_of_active:.0f}% of active, {human_pct_of_wall:.0f}% of wall) &nbsp;|&nbsp;
-  <strong>Tasks:</strong> {total_tasks}
+  <strong>范围：</strong>{html_mod.escape(range_str)} &nbsp;|&nbsp;
+  <strong>Wall：</strong>{total_wall:.1f}h &nbsp;|&nbsp;
+  <strong>Active：</strong>{total_active:.1f}h（占 Wall {active_pct_of_wall:.0f}%）{f" · {wd_total}" if wd_total else ""} &nbsp;|&nbsp;
+  <strong>Human：</strong>{human_engaged_total:.1f}h（占 Active {human_pct_of_active:.0f}%，占 Wall {human_pct_of_wall:.0f}%） &nbsp;|&nbsp;
+  <strong>任务数：</strong>{total_tasks}
 </div>
-<p class="hint">Three-way time: <strong>Wall</strong> = total clock span → <strong>Active</strong> = work detected ({active_pct_of_wall:.0f}% of wall) → <strong>Human</strong> = user engaged ({human_pct_of_active:.0f}% of active). Working-day basis: {working_basis}. Time sinks ranked by human engagement.</p>
+<p class="hint">三类时间：<strong>Wall</strong>（总时钟跨度）→ <strong>Active</strong>（检测到的工作，占 Wall {active_pct_of_wall:.0f}%）→ <strong>Human</strong>（用户参与，占 Active {human_pct_of_active:.0f}%）。工作日基准：{working_basis}。时间消耗按 Human 时间排序。</p>
 
 {data_avail_html}
 
 {insights_html}
 
-<h2>Active time by kind</h2>
+<h2>各类型 Active 时间</h2>
 <div class="chart-container">
 <svg width="{chart_width:.0f}" height="{chart_height}" xmlns="http://www.w3.org/2000/svg">
 {svg_content}
@@ -955,10 +961,10 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 </div>
 </div>
 
-<h2>Breakdown by period</h2>
+<h2>按周期明细</h2>
 <table>
   <thead>
-    <tr><th>Period</th><th>Kind</th><th>Wall(h)</th><th>Active(h)</th><th>Human(h)</th><th>%</th><th>Tasks</th><th>Success</th><th>Unknown%</th></tr>
+    <tr><th>周期</th><th>类型</th><th>Wall(h)</th><th>Active(h)</th><th>Human(h)</th><th>%</th><th>任务数</th><th>成功率</th><th>未知%</th></tr>
   </thead>
   <tbody>
 {table_rows_html}
@@ -1184,12 +1190,20 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
         "Time": "⏱️",
         "Summary": "📋",
     }
+    # Chinese labels (rubric 38: output in Chinese, English where clear).
+    label_cn = {
+        "Goal": "目标",
+        "Struggle": "困难",
+        "Time": "时间",
+        "Summary": "概要",
+    }
     divs = []
     for label, content in parts:
         icon = label_icons.get(label, "•")
+        cn = label_cn.get(label, label)
         divs.append(
             f'<div class="rc-part rc-{label.lower()}">'
-            f'<span class="rc-label">{icon} {html_mod.escape(label)}:</span> '
+            f'<span class="rc-label">{icon} {html_mod.escape(cn)}:</span> '
             f'<span class="rc-content">{html_mod.escape(content)}</span>'
             f'</div>'
         )

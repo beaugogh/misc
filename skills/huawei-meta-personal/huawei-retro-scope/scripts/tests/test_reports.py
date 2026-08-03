@@ -165,8 +165,8 @@ class TestRenderHTML(unittest.TestCase):
 
     def test_contains_th_headers(self):
         """Output contains table header cells with expected column names."""
-        self.assertIn("<th>Period</th>", self.output)
-        self.assertIn("<th>Kind</th>", self.output)
+        self.assertIn("<th>周期</th>", self.output)
+        self.assertIn("<th>类型</th>", self.output)
         self.assertIn("<th>Wall(h)</th>", self.output)
 
     def test_contains_bar_rects(self):
@@ -755,7 +755,7 @@ class TestContextRendering(unittest.TestCase):
         ]
         agg = aggregate(tasks, "day")
         html = render_html(agg, "day", tasks=tasks)
-        self.assertIn("Root cause", html)
+        self.assertIn("根因", html)
         self.assertIn("blocker:", html)
 
     def test_html_kind_section_shows_context_inline(self):
@@ -804,7 +804,7 @@ class TestDataAvailability(unittest.TestCase):
         ]
         html = render_data_availability_html(tasks, 1782967200.0, 1783053600.0)
         self.assertIn("ai_session", html)
-        self.assertIn("No data in range", html)
+        self.assertIn("范围内无数据", html)
         self.assertIn("browser", html)  # listed as no data
         self.assertIn("meeting", html)  # listed as no data
 
@@ -834,9 +834,9 @@ class TestDataAvailability(unittest.TestCase):
         agg = aggregate(tasks, "day")
         html = render_html(agg, "day", tasks=tasks,
                            since_ts=base, until_ts=base + 86400)
-        self.assertIn("Data availability", html)
+        self.assertIn("数据可用性", html)
         self.assertIn("ai_session", html)
-        self.assertIn("No data in range", html)  # browser/meeting/etc. are empty
+        self.assertIn("范围内无数据", html)  # browser/meeting/etc. are empty
 
     def test_no_data_availability_section_without_dates(self):
         """render_html omits data-availability when since_ts/until_ts not given."""
@@ -848,7 +848,7 @@ class TestDataAvailability(unittest.TestCase):
         ]
         agg = aggregate(tasks, "day")
         html = render_html(agg, "day", tasks=tasks)
-        self.assertNotIn("Data availability", html)
+        self.assertNotIn("数据可用性", html)
 
 
 class TestRootCauseRendering(unittest.TestCase):
