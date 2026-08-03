@@ -1,6 +1,6 @@
 # PLAN — huawei-retro-scope implementation roadmap
 
-**Status as of 2026-08-01: Phases 0a–11 are BUILT and verified.** 485 tests pass (1 skipped).
+**Status as of 2026-08-01: Phases 0a–11 are BUILT and verified. All planned items complete.** 522 tests pass (2 skipped).
 14 source adapters registered; 13 detect on the author's machine. The pipeline runs
 end-to-end via `python run.py` with multi-horizon analysis (90d/30d/7d/1d default),
 content-driven root-cause narratives, human-involvement detection, three-way time
@@ -129,7 +129,7 @@ remains available if that's a concern.
 
 ---
 
-## Phase 6 — More sources  [selective deps] ✅ MOSTLY DONE (6.10 remains)
+## Phase 6 — More sources  [selective deps] ✅ DONE
 
 - [x] **6.1 New-codeagent adapter** (`~/.cac/projects/`). `CodeagentAdapter` subclass of
       `ClaudeCodeAdapter` — reuses the JSONL parser, relabels `source="codeagent"`.
@@ -169,15 +169,18 @@ remains available if that's a concern.
 - [x] **6.9 3ms adapter.** `more_adapters.py`: `ThreeMsAdapter` — detector-only (`detect()`
       checks for `opencli` in PATH). `collect()` is a no-op placeholder; the plugin doesn't
       expose publish timestamps in a structured way yet.
-- [ ] **6.10 Unverified sources.** NOT BUILT — codex, openclaw, hermes-agent, CloudDevOps
-      Wiki, W3, Outlook/Graph. These stay as `[unverified]` in the SKILL.md catalog. The
-      open-discovery design means unknown session dirs matching a known shape are auto-
-      adopted, but no explicit detectors for these tools exist yet. → the Outlook/Graph
-      piece is repurposed as the mail+calendar backup route in Phase 9.3.
+- [x] **6.10 Unverified sources.** Built in Phase 6.10 — `unverified_adapters.py` with
+      5 adapters: `CodexAdapter` (~/.codex/sessions/, JSONL, defensive parsing for both
+      Claude-Code-style and Codex-style schemas), `OpenclawAdapter` (~/.openclaw/,
+      JSONL+SQLite), `HermesAgentAdapter` (~/.hermes-agent/, JSONL+SQLite),
+      `CloudDevOpsWikiAdapter` (via opencli, detector-only placeholder),
+      `W3Adapter` (via opencli, detector-only placeholder). Each detect() returns False
+      when the tool isn't present — silently skips on machines without them, works for
+      colleagues who do use them. 19 tests.
 
 ---
 
-## Phase 7 — Categorization + reporting polish  [deps: sklearn, wittgenstein] ✅ MOSTLY DONE (7.3 remains)
+## Phase 7 — Categorization + reporting polish  [deps: sklearn, wittgenstein] ✅ DONE
 
 - [x] **7.1 Domain detection from file paths + package manifests.** `categorize.py`:
       `detect_domain()` infers business domain (auth, api, ui, data, test, docs, config,
@@ -185,8 +188,14 @@ remains available if that's a concern.
       the crude classifier's 4.
 - [x] **7.2 Auto-taxonomy.** `cluster_tasks_ppmi()`: PPMI embeddings + K-means (sklearn).
       Produces 8 clusters from 964 tasks.
-- [ ] **7.3 LLM labeling.** NOT BUILT — optional, gated on a local LLM being available.
-      The rule-based path (7.1 + 7.4) stands alone.
+- [x] **7.3 LLM labeling.** Built in Phase 7.3 — `llm_labeling.py` with `LLMLabeler`
+      class. Auto-detects 3 local LLM backends: Ollama (preferred, `ollama run`),
+      llama-cpp-python (GGUF), Hugging Face transformers (pipeline). Falls back
+      gracefully to None when no LLM is installed — the rule-based path (7.1 + 7.4)
+      stands alone. `label_tasks()` adds `task["llm_label"]` — a 3-5 word
+      natural-language label grounded in the task's actual content (subject, inputs,
+      tools, errors, narrative). Wired into run.py as an optional post-processing step.
+      18 tests (1 skipped: integration test needs a real LLM).
 - [x] **7.4 RIPPER interpretable fallback.** `train_ripper_rules()`: trains `wittgenstein`
       RIPPER on labeled tasks, emits auditable if-then rules.
 - [x] **7.5 Report formats.** Built in Phase 9.7 — `render_markdown()` + `--output`,

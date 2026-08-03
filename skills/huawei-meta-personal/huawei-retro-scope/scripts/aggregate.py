@@ -827,11 +827,13 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                 act_h = (t.get("active_seconds") or 0) / 3600
                 eng_h = ((t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0) / 3600
                 subj = html_mod.escape((t.get("subject") or "(no subject)")[:50])
+                llm_label = t.get("llm_label")
+                label_html = f' <span class="llm-label">{html_mod.escape(llm_label)}</span>' if llm_label else ''
                 why_html = render_structured_root_cause(t, html_mod)
                 why_div = f'<div class="why-inline">{why_html}</div>' if why_html else ''
                 items.append(
                     f"<li><span class='num'>{eng_h:.1f}h human</span> / "
-                    f"<span class='num-act'>{act_h:.1f}h active</span> {subj}{why_div}</li>"
+                    f"<span class='num-act'>{act_h:.1f}h active</span> {subj}{label_html}{why_div}</li>"
                 )
             kind_total_str = f"{kind_human:.1f}h human / {kind_active:.1f}h active"
             if kind_wd:
@@ -911,6 +913,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
   .rc-difficulty .rc-label {{ color: #e65100; }}
   .rc-time .rc-label {{ color: #76b7b2; }}
   .rc-content {{ color: #666; }}
+  .llm-label {{ font-size: 0.8em; color: #7b57c7; background: #f3edf9; padding: 1px 6px; border-radius: 3px; margin-left: 4px; }}
   .wd-pct {{ font-size: 0.8em; color: #999; margin-left: 2px; }}
   .inv-high {{ color: #c62828; font-weight: 600; }}
   .inv-moderate {{ color: #e65100; font-weight: 600; }}

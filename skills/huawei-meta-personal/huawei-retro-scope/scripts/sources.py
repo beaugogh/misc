@@ -183,4 +183,10 @@ def default_registry(session_cwds: list[str] | None = None) -> SourceRegistry:
     reg.register(LegacyCodeagentAdapter())
     reg.register(OutlookAdapter())
     reg.register(ThreeMsAdapter())
+
+    # Phase 6.10: unverified-source adapters. Each detect() returns False when
+    # the tool isn't present, so they silently skip on machines without them.
+    from unverified_adapters import register_unverified_adapters
+    register_unverified_adapters(reg)
+
     return reg
