@@ -1101,20 +1101,23 @@ def _make_task(tid: str, flavor: str, events: list[dict], subject: str | None,
         "context": context,
     }
 
+    # Human-involvement metrics — MUST be computed BEFORE the narrative,
+    # because the summarizer reads task["human_data"] for idle-session
+    # detection (rubric 56). Without this ordering, human_data is None
+    # when the narrative is generated, causing all tasks to be falsely
+    # classified as "agent 自主运行" (idle).
+    _human_fn = _get_human_involvement_fn()
+    if _human_fn is not None:
+        task["human_data"] = _human_fn(events, task)
+
     # Content-driven root-cause narrative — grounded in the actual event text.
     # Stored in context["narrative"] so the render layer can display it inline.
+    # Reads task["human_data"] for idle detection — must run AFTER human_data.
     _summarize_fn = _get_summarizer()
     if _summarize_fn is not None:
         narrative = _summarize_fn(task, events)
         if narrative:
             context["narrative"] = narrative
-
-    # Human-involvement metrics — distinguish HUMAN time (the user typing,
-    # clicking, interrupting) from MACHINE time (agent working autonomously).
-    # This drives the re-ranking of time sinks by human cost, not raw active time.
-    _human_fn = _get_human_involvement_fn()
-    if _human_fn is not None:
-        task["human_data"] = _human_fn(events, task)
 
     return task
 
