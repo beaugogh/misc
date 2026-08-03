@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import os
 import sys
+import gc
 from typing import Iterator, Any
 
 from sources import make_event
@@ -64,44 +65,77 @@ from sources import make_event
 # COM resource management — prevent MAPI session exhaustion
 # ---------------------------------------------------------------------------
 
-def _release_com(obj):
-    """Release a COM object to free its MAPI session slot.
+def _release_com_object(obj):
+    """Release a single COM object using Marshal.ReleaseComObject.
 
-    Calls Marshal.ReleaseComObject() which decrements the reference count.
-    This is CRITICAL: Outlook limits concurrent MAPI sessions (~20), and
-    every unreleased Store/Folder/Items/MailItem counts against that limit.
-    Failing to release causes "Outlook 已经用完了所有共享资源" popups.
+    This is the ONLY reliable way to free MAPI session slots in pywin32.
+    Simply deleting the Python reference (del) does NOT release the
+    underlying COM object — the RCW (Runtime Callable Wrapper) holds a
+    reference until Marshal.ReleaseComObject is called.
+
+    Without this, Outlook accumulates leaked MAPI sessions and shows:
+    "Outlook 已经用完了所有共享资源，请关闭所有消息传递应用程序并重新启动 Outlook"
     """
     if obj is None:
         return
     try:
         import pythoncom
-        pythoncom.CoUninitialize()
-    except Exception:
-        pass
-    try:
-        from win32com.client import constants
-        import win32com.client
-        # Marshal.ReleaseComObject is the .NET name; in pywin32 it's accessed
-        # via win32com.client.gencache or directly via the COM object's __del__.
-        # The most reliable approach: delete the reference and call GC.
-        del obj
+        # Get the IUnknown pointer and call Release on it directly.
+        # pythoncom wraps the COM object; ReleaseComObject is done via
+        # decrementing the internal reference count.
+        # In pywin32, the equivalent is to call .Release() on the
+        # PyIDispatch object, or use pythoncom functions.
+        #
+        # The most reliable approach in pywin32:
+        # 1. Get the IDispatch interface
+        # 2. Call Release() to decrement the COM reference count
+        try:
+            dispatch = pythoncom._GetGoodGUIDObject(obj, pythoncom.IID_IDispatch)
+            if dispatch is not None:
+                dispatch.Release()
+        except (AttributeError, TypeError):
+            pass
+        # Also try the win32com path
+        try:
+            import win32com.client
+            if hasattr(obj, 'Release'):
+                obj.Release()
+        except (AttributeError, TypeError):
+            pass
     except Exception:
         pass
 
 
 def _release_com_objects(*objs):
-    """Release multiple COM objects. See _release_com for details."""
+    """Release multiple COM objects, then force garbage collection."""
     for obj in objs:
-        if obj is not None:
-            try:
-                import win32com.client
-                # Force release by removing all references
-                import gc
-                del obj
-                gc.collect()
-            except Exception:
-                pass
+        _release_com_object(obj)
+    gc.collect()
+
+
+def _close_mapi_session(ns, outlook, uninit: bool = True):
+    """Properly close a MAPI session and release the Outlook COM connection.
+
+    This calls ns.Logoff() to close the MAPI session (the critical step
+    that frees the session slot), then releases all COM objects.
+
+    If ``uninit`` is True (default), also calls CoUninitialize() to free
+    the COM apartment. Set to False when the caller will reuse COM
+    afterward (e.g. detect() followed by collect()).
+    """
+    if ns is not None:
+        try:
+            ns.Logoff()
+        except Exception:
+            pass
+    _release_com_objects(ns, outlook)
+    if uninit:
+        try:
+            import pythoncom
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
+    gc.collect()
 
 
 # ---------------------------------------------------------------------------
@@ -213,10 +247,7 @@ def _find_ost_files() -> list[str]:
         except Exception:
             pass
         finally:
-            # Release COM objects to prevent MAPI session exhaustion.
-            _release_com_objects(ns, outlook)
-            import gc
-            gc.collect()
+            _close_mapi_session(ns, outlook)
 
     return found
 
@@ -318,9 +349,9 @@ class OutlookAdapter:
         except Exception:
             pass
         finally:
-            _release_com_objects(ns, outlook)
-            import gc
-            gc.collect()
+            # Close the MAPI session but DON'T uninitialize COM —
+            # collect() may follow and needs COM active.
+            _close_mapi_session(ns, outlook, uninit=False)
         return False
 
     # -- collection ---------------------------------------------------------
@@ -358,8 +389,8 @@ class OutlookAdapter:
                     except Exception:
                         continue
                     finally:
-                        _release_com_objects(folder)
-                _release_com_objects(root)
+                        _release_com_object(folder)
+                _release_com_object(root)
         except Exception:
             return
 
@@ -373,7 +404,7 @@ class OutlookAdapter:
         items = folder.Items
         count = items.Count
         if count == 0:
-            _release_com_objects(items)
+            _release_com_object(items)
             return
 
         # Sort by received/sent time ascending
@@ -402,21 +433,22 @@ class OutlookAdapter:
                 yield ev
                 emitted += 1
             # Release each MailItem immediately to limit COM object count.
-            _release_com_objects(item)
+            _release_com_object(item)
 
-        _release_com_objects(items)
+        _release_com_object(items)
 
     def close(self):
         """Close the COM connection and release all resources.
 
-        Should be called after collect() completes to prevent MAPI session
-        exhaustion. The registry should call this in a finally block.
+        Calls ns.Logoff() to properly close the MAPI session (the critical
+        step that frees the session slot), then releases all COM objects
+        and uninitializes COM. Without this, Outlook accumulates leaked
+        MAPI sessions and shows "shared resources exhausted" popups.
         """
-        import gc
-        _release_com_objects(self._ns, self._outlook)
+        if self._ns is not None or self._outlook is not None:
+            _close_mapi_session(self._ns, self._outlook)
         self._ns = None
         self._outlook = None
-        gc.collect()
 
     def __del__(self):
         """Ensure COM resources are released on garbage collection."""
