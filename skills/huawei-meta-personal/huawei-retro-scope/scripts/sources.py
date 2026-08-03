@@ -179,7 +179,7 @@ def default_registry(session_cwds: list[str] | None = None) -> SourceRegistry:
     reg.register(WindowsRecentAdapter())
     reg.register(JumpListAdapter())
     reg.register(WeLinkRecordingsAdapter())
-    reg.register(WeLinkCLIAdapter())
+    reg.register(WeLinkCLIAdapter(enable_im=True))
     reg.register(LegacyCodeagentAdapter())
     reg.register(OutlookAdapter())
     reg.register(ThreeMsAdapter())

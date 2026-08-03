@@ -400,22 +400,37 @@ def _extract_context(events: list[dict], source_kind: str) -> dict:
     if source_kind == "comm":
         senders, subjects = [], []
         directions = set()
+        im_conversations: list[str] = []
+        im_senders: list[str] = []
+        im_message_count = 0
         for ev in events:
-            if ev.get("kind") != "email":
-                continue
+            kind = ev.get("kind")
             ti = ev.get("tool_input") or {}
-            sender = ti.get("from") or ti.get("from_email")
-            if sender:
-                senders.append(str(sender)[:60])
-            subj = ti.get("subject") or ev.get("text")
-            if subj:
-                subjects.append(str(subj)[:80])
-            d = ti.get("direction")
-            if d:
-                directions.add(d)
+            if kind == "email":
+                sender = ti.get("from") or ti.get("from_email")
+                if sender:
+                    senders.append(str(sender)[:60])
+                subj = ti.get("subject") or ev.get("text")
+                if subj:
+                    subjects.append(str(subj)[:80])
+                d = ti.get("direction")
+                if d:
+                    directions.add(d)
+            elif kind == "chat_message":
+                im_message_count += 1
+                conv_name = ti.get("conversation_name")
+                if conv_name:
+                    im_conversations.append(str(conv_name)[:60])
+                sender = ti.get("sender")
+                if sender:
+                    im_senders.append(str(sender)[:60])
         ctx["senders"] = _dedupe(senders)[:5]
         ctx["subjects"] = _dedupe(subjects)[:5]
         ctx["has_reply"] = "sent" in directions and "received" in directions
+        if im_message_count:
+            ctx["im_message_count"] = im_message_count
+            ctx["im_conversations"] = _dedupe(im_conversations)[:5]
+            ctx["im_senders"] = _dedupe(im_senders)[:5]
         return ctx
 
     if source_kind == "ai_session":

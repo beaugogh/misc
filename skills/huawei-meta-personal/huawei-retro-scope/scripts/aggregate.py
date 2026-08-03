@@ -1006,6 +1006,9 @@ def render_context_text(task: dict) -> str:
         senders = ctx.get("senders") or []
         subjects = ctx.get("subjects") or []
         has_reply = ctx.get("has_reply")
+        im_count = ctx.get("im_message_count") or 0
+        im_conversations = ctx.get("im_conversations") or []
+        im_senders = ctx.get("im_senders") or []
         if subjects:
             lines.append(f"Threads: {', '.join(subjects[:3])}")
         if senders:
@@ -1013,7 +1016,14 @@ def render_context_text(task: dict) -> str:
         if has_reply:
             lines.append("Reply sent in thread")
         else:
-            lines.append("No reply detected")
+            if not im_count:
+                lines.append("No reply detected")
+        if im_count:
+            lines.append(f"IM: {im_count} message(s) in {len(im_conversations)} conversation(s)")
+            if im_conversations:
+                lines.append(f"  Conversations: {', '.join(im_conversations[:3])}")
+            if im_senders:
+                lines.append(f"  Senders: {', '.join(im_senders[:3])}")
 
     elif source_kind == "ai_session":
         blocker = ctx.get("blocker")

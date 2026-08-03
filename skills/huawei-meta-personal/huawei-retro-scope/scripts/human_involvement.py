@@ -89,6 +89,23 @@ def is_human_action(event: dict) -> bool:
         if ti.get("direction") == "sent":
             return True
         return False
+    if kind == "chat_message":
+        # IM message. Human action if the user sent it (not received).
+        # The sender field holds the account ID; we check if it matches the
+        # current user's account. Since we don't have the user's ID here,
+        # we treat all sent IM messages as human actions by checking the
+        # conversation direction from tool_input.
+        ti = event.get("tool_input") or {}
+        # For WeLink IM, all messages in a conversation are either sent or
+        # received. The sender field is the message author. If the sender
+        # is the current user (account matches), it's a human action.
+        # We approximate: messages where sender == the user's account are human.
+        # The user's account is typically in the conversation_name or we
+        # check if the message was sent by the user.
+        # For now: all chat messages are human actions (someone typed them).
+        # The distinction between sent vs received doesn't affect whether
+        # a human was involved — both sides typing = human engagement.
+        return True
     if kind == "commit":
         # Commits are human-directed (even if the agent executed them).
         return True
@@ -127,6 +144,7 @@ def compute_human_involvement(events: list[dict], task: dict) -> dict:
     emails_sent = sum(1 for e in human_events
                       if e.get("kind") == "email"
                       and (e.get("tool_input") or {}).get("direction") == "sent")
+    im_messages = sum(1 for e in human_events if e.get("kind") == "chat_message")
     commits = sum(1 for e in human_events if e.get("kind") == "commit")
     fs_actions = sum(1 for e in human_events if e.get("source_kind") == "filesystem")
 
@@ -140,6 +158,8 @@ def compute_human_involvement(events: list[dict], task: dict) -> dict:
         action_types.append(f"{browser_clicks} click(s)/revisit(s)")
     if emails_sent:
         action_types.append(f"{emails_sent} email(s) sent")
+    if im_messages:
+        action_types.append(f"{im_messages} IM message(s)")
     if commits:
         action_types.append(f"{commits} commit(s)")
     if fs_actions:

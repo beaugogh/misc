@@ -513,21 +513,40 @@ def _summarize_meeting(events: list[dict], task: dict) -> str:
 
 
 def _summarize_comm(events: list[dict], task: dict) -> str:
-    """Produce a grounded narrative for an email/communication task."""
+    """Produce a grounded narrative for an email/communication task.
+
+    Handles both email threads and WeLink IM chat sessions.
+    """
     ctx = task.get("context") or {}
     subjects = ctx.get("subjects") or []
     senders = ctx.get("senders") or []
     has_reply = ctx.get("has_reply")
+    im_count = ctx.get("im_message_count") or 0
+    im_conversations = ctx.get("im_conversations") or []
+    im_senders = ctx.get("im_senders") or []
 
     parts: list[str] = []
+
+    # Email summary.
     if subjects:
-        parts.append(f"'{subjects[0][:60]}'.")
-    if senders:
-        parts.append(f"From {senders[0]}.")
-    if has_reply:
-        parts.append("Reply sent.")
-    else:
-        parts.append("No reply detected.")
+        parts.append(f"Email '{subjects[0][:60]}'.")
+        if senders:
+            parts.append(f"From {senders[0]}.")
+        if has_reply:
+            parts.append("Reply sent.")
+        else:
+            parts.append("No reply detected.")
+
+    # IM summary.
+    if im_count:
+        active_h = (task.get("active_seconds") or 0) / 3600
+        conv = im_conversations[0][:40] if im_conversations else "a conversation"
+        parts.append(f"{im_count} IM message(s) in {conv}.")
+        if len(im_senders) > 1:
+            parts.append(f"{len(im_senders)} participant(s).")
+        if active_h > 0.1:
+            parts.append(f"{active_h:.1f}h of messaging.")
+
     return " ".join(parts) if parts else ""
 
 
