@@ -994,16 +994,28 @@ def _derive_subject_from_events(events: list[dict]) -> str | None:
     title) or ``event["tool_input"]["subject"]``. This picks the most informative
     one so the report shows "【会议通知】 AI4W 站会" instead of "(no subject)".
     """
+    # Two-pass: first look for the most informative structured field (subject,
+    # conversation_name) across ALL events. Only then fall back to text.
+    # This prevents a message-text field from shadowing a conversation_name
+    # that appears on a later event.
     for e in events:
         ti = e.get("tool_input") or {}
-        # Meeting/email subject from tool_input
         if isinstance(ti, dict) and ti.get("subject"):
             s = str(ti["subject"]).strip().strip('"')
             if s:
                 return s[:MAX_SUBJECT_LEN]
-        # Text field (meeting title, commit message, email subject, page title)
+    # IM conversation name (second priority — identifies who the chat was with).
+    for e in events:
+        ti = e.get("tool_input") or {}
+        if isinstance(ti, dict) and ti.get("conversation_name"):
+            s = str(ti["conversation_name"]).strip().strip('"')
+            if s:
+                return s[:MAX_SUBJECT_LEN]
+    # Text field (meeting title, commit message, email subject, page title).
+    # Skip non-informative text like "(CARD_MSG)" or "(message)".
+    for e in events:
         text = (e.get("text") or "").strip().strip('"')
-        if text and text != "(no text)":
+        if text and text != "(no text)" and not re.match(r'^\([A-Z_]+\)$', text):
             return text[:MAX_SUBJECT_LEN]
     return None
 
