@@ -158,7 +158,7 @@ def aggregate(tasks: list[dict], granularity: str = "day") -> dict:
                         "unknown_count": 0, "gap_count": 0, "by_kind": {}}
         out[key]["total_seconds"] += dur
         out[key]["active_seconds"] += active
-        out[key]["human_seconds"] = out[key].get("human_seconds", 0.0) + human
+        out[key]["human_seconds"] += human
         out[key]["excised_gap_seconds"] += t.get("excised_gap_seconds") or 0.0
         out[key]["task_count"] += 1
         if is_gap:
@@ -178,7 +178,7 @@ def aggregate(tasks: list[dict], granularity: str = "day") -> dict:
                         "successes": 0, "failures": 0, "unknowns": 0, "gaps": 0}
         bk[kind]["seconds"] += dur
         bk[kind]["active_seconds"] += active
-        bk[kind]["human_seconds"] = bk[kind].get("human_seconds", 0.0) + human
+        bk[kind]["human_seconds"] += human
         bk[kind]["excised_gap_seconds"] += t.get("excised_gap_seconds") or 0.0
         bk[kind]["count"] += 1
         if is_gap:
@@ -1171,7 +1171,6 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
             current_label = "Time"
             current_content = [s.rstrip(".")]
         else:
-            current_content.append(s.rstrip("."))
             current_content.append(s.rstrip("."))
     _flush()
 

@@ -250,59 +250,6 @@ def _describe_tool_call(name: str, ti: dict) -> str:
     return f"{name}"
 
 
-def _explain_difficulty(n_errors: int, error_pairs: list[tuple[str, str]],
-                        retry_targets: list[str]) -> str:
-    """Synthesize a one-line explanation of WHY the problem was hard to solve.
-
-    Looks at the error pattern (what types of errors, how many retries) and
-    explains the difficulty in human terms — e.g. "same proxy auth failure
-    kept recurring despite 11 retries" rather than just "46 errors".
-    """
-    if not error_pairs and not retry_targets:
-        return ""
-
-    # Classify the error pattern from the error texts.
-    error_texts = [err.lower() for _, err in error_pairs]
-    all_text = " ".join(error_texts)
-
-    patterns: list[str] = []
-    if "407" in all_text or ("proxy" in all_text and "tunnel" in all_text):
-        patterns.append("corporate proxy authentication")
-    if "timeout" in all_text or "timed out" in all_text:
-        patterns.append("command timeouts")
-    if "not found" in all_text or "no such file" in all_text:
-        patterns.append("missing files/paths")
-    if "permission denied" in all_text or "access is denied" in all_text:
-        patterns.append("permission/access issues")
-    if "doesn't want to proceed" in all_text or "rejected" in all_text:
-        patterns.append("user rejecting tool uses")
-    if "exit code 128" in all_text or "merge conflict" in all_text:
-        patterns.append("git failures")
-    if "modulenotfounderror" in all_text or "importerror" in all_text:
-        patterns.append("missing Python dependencies")
-    if "syntaxerror" in all_text or "indentationerror" in all_text:
-        patterns.append("Python syntax errors")
-
-    if not patterns:
-        return f"{n_errors} errors total — repeated failures suggest the approach kept hitting walls."
-
-    # Count retries for the difficulty assessment.
-    retry_count = 0
-    if retry_targets:
-        for rt in retry_targets:
-            m = re.search(r'\((\d+)×\)', rt)
-            if m:
-                retry_count += int(m.group(1))
-
-    pattern_str = " + ".join(patterns[:2])
-    if retry_count >= 5:
-        return f"Difficulty: {pattern_str} kept recurring despite {retry_count} retries — the root cause was not addressed by the attempted fixes."
-    elif n_errors >= 10:
-        return f"Difficulty: {pattern_str} caused {n_errors} errors — multiple approaches tried without resolving the underlying issue."
-    else:
-        return f"Difficulty: {pattern_str} was the main blocker ({n_errors} errors)."
-
-
 def _summarize_ai_session(events: list[dict], task: dict) -> str:
     """Produce a grounded narrative for an AI coding session.
 
