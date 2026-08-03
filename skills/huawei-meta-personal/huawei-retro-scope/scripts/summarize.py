@@ -306,27 +306,22 @@ def _explain_difficulty(n_errors: int, error_pairs: list[tuple[str, str]],
 def _summarize_ai_session(events: list[dict], task: dict) -> str:
     """Produce a grounded narrative for an AI coding session.
 
-    Structure: Goal → Key struggle (from assistant diagnostics + error-command
-    pairs) → Retry pattern → Time explanation.
+    Structure: Goal → Struggle (merged: what failed + why it was hard) → Time.
     """
     # 1. Goal: first real user message, cleaned of conversational prefixes.
+    # Only the user's prompt — never the assistant's response.
     user_msgs = [e for e in events if e.get("kind") == "user_message" and e.get("text")]
     goal = _clean_user_goal(user_msgs[0].get("text")) if user_msgs else ""
-    # Strip conversational prefixes from the goal too (e.g. "what do you mean by X" → "X").
     goal = _strip_conversational_prefix(goal)
 
-    # 2. Assistant diagnostic sentences (the struggle narrative).
+    # 2. Error-command pairs + diagnostics (the struggle).
+    error_pairs = _pair_errors_with_commands(events)
     asst_texts = [(e.get("text") or "") for e in events if e.get("kind") == "assistant_message"]
     diagnostics = _extract_diagnostic_sentences(asst_texts)
 
-    # 3. Error-command pairs (grounded "what failed").
-    error_pairs = _pair_errors_with_commands(events)
-
-    # 4. Retry pattern: tools called 2+× on the same target.
     ctx = task.get("context") or {}
     retry_targets = ctx.get("retry_targets") or []
 
-    # 5. Time context.
     active_h = (task.get("active_seconds") or 0) / 3600
     wall_h = (task.get("wall_clock_seconds") or 0) / 3600
     excised_h = (task.get("excised_gap_seconds") or 0) / 3600
@@ -335,55 +330,22 @@ def _summarize_ai_session(events: list[dict], task: dict) -> str:
 
     parts: list[str] = []
 
-    # Goal line.
+    # Goal — just the user's intent, not the assistant's response.
     if goal and not _CONTINUATION_RE.match(goal):
         parts.append(f"Goal: {goal}.")
 
-    # Struggle narrative: synthesize WHY the problem was hard, not just WHAT failed.
-    # The user's feedback: "after reading them, i still do not know why that
-    # problem was hard to solve." So we need to explain the difficulty pattern.
-    if diagnostics and error_pairs:
-        # Lead with the assistant's diagnostic (it explains the struggle).
-        parts.append(diagnostics[0])
-        # Then the top error pair — what specifically failed.
-        cmd, err = error_pairs[0]
-        parts.append(f"Key failure: '{cmd}' → {err}.")
-        # If there are many errors of the same type, explain the pattern.
-        if n_errors >= 5:
-            parts.append(_explain_difficulty(n_errors, error_pairs, retry_targets))
-    elif diagnostics:
-        parts.append(diagnostics[0])
-        if len(diagnostics) > 1:
-            parts.append(diagnostics[1])
-        if n_errors >= 5:
-            parts.append(_explain_difficulty(n_errors, error_pairs, retry_targets))
-    elif error_pairs:
-        cmd, err = error_pairs[0]
-        parts.append(f"Failed: '{cmd}' → {err}.")
-        if len(error_pairs) > 1:
-            cmd2, err2 = error_pairs[1]
-            parts.append(f"Also: '{cmd2}' → {err2}.")
-        if n_errors >= 5:
-            parts.append(_explain_difficulty(n_errors, error_pairs, retry_targets))
-    elif n_errors > 0:
-        # Errors exist but no paired text — use the blocker from context.
-        blocker = ctx.get("blocker")
-        if blocker:
-            parts.append(f"Blocker: {blocker}.")
+    # Struggle — merged section: what went wrong + why it was hard.
+    # Reframed as a struggle description, not a mundane error log.
+    struggle = _synthesize_struggle(n_errors, error_pairs, diagnostics, retry_targets, ctx)
+    if struggle:
+        parts.append(f"Struggle: {struggle}")
 
-    # Retry pattern: clean up the retry target for display.
-    if retry_targets:
-        cleaned = _clean_retry_target(retry_targets[0])
-        parts.append(f"Retried {cleaned}.")
-
-    # Time explanation: why did it take this long?
+    # Time explanation.
     if excised_h > 1 and excised_h > active_h:
-        # Significant idle/overnight.
         parts.append(
             f"{active_h:.1f}h active in {wall_h:.1f}h wall — {excised_h:.1f}h idle/overnight gaps."
         )
     elif n_errors >= 5 or (retry_targets and active_h > 1):
-        # Time spent on errors/retries.
         parts.append(
             f"{active_h:.1f}h, {n_errors} error(s), {n_tool_calls} tool calls."
         )
@@ -400,16 +362,84 @@ def _summarize_ai_session(events: list[dict], task: dict) -> str:
     return " ".join(parts) if parts else ""
 
 
-def _summarize_browser(events: list[dict], task: dict) -> str:
-    """Produce a grounded narrative for a browser/research session.
+def _synthesize_struggle(n_errors: int, error_pairs: list[tuple[str, str]],
+                         diagnostics: list[str], retry_targets: list[str],
+                         ctx: dict) -> str:
+    """Synthesize a single struggle description that explains WHY it was hard.
 
-    The page titles + URLs reveal what was being researched. We list the key
-    pages visited (the titles tell the story), note downloads, and explain
-    whether the time was active browsing or idle tabs left open.
+    Merges the old "Struggle" (what failed) and "Difficulty" (why it was hard)
+    into one coherent description. Reframes mundane error logs as struggle
+    narratives — e.g. instead of "'edit README.md' → File has not been read
+    yet", says "repeatedly hit file-read-before-edit errors — the workflow
+    kept skipping the Read step before attempting edits."
     """
+    if not error_pairs and not diagnostics and n_errors == 0:
+        return ""
+
+    # Classify the error pattern.
+    error_texts = [err.lower() for _, err in error_pairs]
+    all_text = " ".join(error_texts)
+
+    patterns: list[str] = []
+    if "407" in all_text or ("proxy" in all_text and "tunnel" in all_text):
+        patterns.append("corporate proxy authentication blocking git/network access")
+    if "timeout" in all_text or "timed out" in all_text:
+        patterns.append("commands timing out (slow network or hanging processes)")
+    if "not found" in all_text or "no such file" in all_text:
+        patterns.append("missing files or paths — the environment wasn't set up correctly")
+    if "permission denied" in all_text or "access is denied" in all_text:
+        patterns.append("permission/access denied — insufficient privileges")
+    if "doesn't want to proceed" in all_text or "rejected" in all_text:
+        patterns.append("user rejecting tool uses — the agent kept proposing unwanted actions")
+    if "exit code 128" in all_text or "merge conflict" in all_text:
+        patterns.append("git failures (merge conflicts, push rejections)")
+    if "modulenotfounderror" in all_text or "importerror" in all_text:
+        patterns.append("missing Python dependencies — environment setup incomplete")
+    if "syntaxerror" in all_text or "indentationerror" in all_text:
+        patterns.append("Python syntax/indent errors — code kept breaking on edits")
+    if "file has not been read" in all_text:
+        patterns.append("file-read-before-edit errors — workflow kept skipping the Read step")
+
+    # Count retries.
+    retry_count = 0
+    if retry_targets:
+        for rt in retry_targets:
+            m = re.search(r'\((\d+)×\)', rt)
+            if m:
+                retry_count += int(m.group(1))
+
+    # Build the struggle description.
+    bits: list[str] = []
+
+    if patterns:
+        pattern_str = "; ".join(patterns[:2])
+        if retry_count >= 5:
+            bits.append(f"{pattern_str}, recurring despite {retry_count} retries — the root cause was not addressed by the attempted fixes")
+        elif n_errors >= 10:
+            bits.append(f"{pattern_str}, causing {n_errors} errors — multiple approaches tried without resolving the underlying issue")
+        else:
+            bits.append(f"{pattern_str} ({n_errors} errors)")
+    elif n_errors > 0:
+        if error_pairs:
+            cmd, err = error_pairs[0]
+            # Reframe the error as a struggle, not a mundane log.
+            bits.append(f"repeatedly hit '{cmd}' failures ({n_errors} total) — {err}")
+        else:
+            bits.append(f"{n_errors} errors during execution")
+    elif diagnostics:
+        # No errors but assistant diagnostics exist — use the most informative one.
+        bits.append(diagnostics[0])
+
+    if not bits and n_errors == 0:
+        return ""
+
+    return ". ".join(bits) + "."
+
+
+def _summarize_browser(events: list[dict], task: dict) -> str:
+    """Produce a grounded narrative for a browser/research session."""
     ctx = task.get("context") or {}
     titles = ctx.get("top_titles") or []
-    urls = ctx.get("top_urls") or []
     queries = ctx.get("queries") or []
     downloads = ctx.get("downloads") or 0
     n_visits = ctx.get("n_visits") or 0
@@ -420,47 +450,37 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
 
     parts: list[str] = []
 
-    # What was the user searching for? (the most direct goal signal)
+    # Goal: what was the user researching?
     if queries:
-        parts.append(f"Searched for '{queries[0][:50]}'.")
+        parts.append(f"Goal: research '{queries[0][:50]}'.")
+    elif titles:
+        parts.append(f"Goal: browsing {titles[0][:40]}.")
 
-    # The visited page titles ARE the research story — list the key ones.
+    # Struggle: what made this session take as long as it did?
+    if active_h < 0.05 and wall_h > 1:
+        first_page = titles[0][:40] if titles else "browsing"
+        parts.append(f"Struggle: tabs left open {wall_h:.1f}h on {first_page} with no measurable activity — forgotten, not actively used.")
+    elif excised_h > 0.5 and excised_h > active_h:
+        parts.append(f"Struggle: only {active_h:.1f}h of active browsing in {wall_h:.1f}h wall — {excised_h:.1f}h of idle/overnight tabs left open.")
+    elif n_visits > 50 and active_h > 2:
+        parts.append(f"Struggle: extensive browsing ({n_visits} visits) — searching for hard-to-find information across many pages.")
+
+    # What was visited.
     if titles:
         key_pages = _dedupe(titles)[:3]
         parts.append(f"Visited: {', '.join(key_pages)}.")
-
-    # Downloads = artifact produced (research outcome).
     if downloads:
         parts.append(f"Downloaded {downloads} file(s).")
 
-    # Time explanation: active vs idle tabs.
-    if active_h < 0.05 and wall_h > 1:
-        # Tabs left open, no measurable activity.
-        first_page = titles[0][:40] if titles else "browsing"
-        parts.append(
-            f"Tabs open {wall_h:.1f}h but no measurable activity — "
-            f"left open on {first_page}."
-        )
-    elif excised_h > 0.5 and excised_h > active_h:
-        parts.append(
-            f"{active_h:.1f}h active browsing in {wall_h:.1f}h — "
-            f"{excised_h:.1f}h idle/overnight tabs left open."
-        )
-    elif active_h > 0.1:
-        if n_visits > 10:
-            parts.append(f"{active_h:.1f}h, {n_visits} visits.")
-        else:
-            parts.append(f"{active_h:.1f}h browsing.")
+    # Time.
+    if active_h > 0.1 and excised_h <= 0.5:
+        parts.append(f"{active_h:.1f}h active browsing.")
 
     return " ".join(parts) if parts else ""
 
 
 def _summarize_meeting(events: list[dict], task: dict) -> str:
-    """Produce a grounded narrative for a meeting.
-
-    The subject, location, organizer, and time span tell the story. For
-    multi-day events, we explain the cap. For all-day markers, we say so.
-    """
+    """Produce a grounded narrative for a meeting."""
     ctx = task.get("context") or {}
     subject = ctx.get("subject") or task.get("subject") or ""
     organizer = ctx.get("organizer")
@@ -473,13 +493,15 @@ def _summarize_meeting(events: list[dict], task: dict) -> str:
 
     # All-day calendar marker — not a real meeting.
     if is_all_day:
-        return f"'{subject[:60]}' is an all-day calendar marker — 0h real meeting time."
+        return f"Goal: calendar day-marker '{subject[:60]}'. Struggle: not a real meeting — 0h human time. The user did not attend anything."
 
     parts: list[str] = []
 
-    # Subject is the content.
+    # Goal: what was the meeting about?
     if subject:
-        parts.append(f"'{subject[:60]}'.")
+        parts.append(f"Goal: attend '{subject[:60]}'.")
+    else:
+        parts.append("Goal: attend meeting.")
 
     # Context: who, where.
     context_bits: list[str] = []
@@ -490,33 +512,25 @@ def _summarize_meeting(events: list[dict], task: dict) -> str:
     if context_bits:
         parts.append(f"({', '.join(context_bits)}).")
 
-    # Time explanation.
-    # Multi-day detection: wall > 24h (a full calendar day) OR the active time
-    # was capped (excised > 0 with active >= 8h means the raw duration exceeded
-    # 8h and was capped). A 9h single-day workshop is NOT multi-day.
+    # Struggle: what made this meeting take as long as it did?
     if wall_h > 24 or (excised_h > 0 and active_h >= 8):
-        # Multi-day event. Use (active + excised) for the real span — wall is
-        # already capped to MAX_MEETING_DURATION (24h) so it understates the
-        # true calendar span for events lasting several days.
         real_span_h = active_h + excised_h
         days = real_span_h / 24
-        parts.append(
-            f"Multi-day event ({days:.1f} days), capped to {active_h:.0f}h — "
-            f"actual attendance unknown."
-        )
-    elif active_h > 0:
+        parts.append(f"Struggle: multi-day event ({days:.1f} days), capped to {active_h:.0f}h — actual attendance unknown, calendar data doesn't show who participated.")
+    elif active_h == 0 and wall_h > 0:
+        parts.append(f"Struggle: {wall_h:.1f}h wall-clock but 0h active — no human interaction detected, likely a meeting window left open.")
+    elif active_h > 4:
+        parts.append(f"Struggle: long meeting ({active_h:.1f}h) — calendar data doesn't show actual participation level.")
+
+    # Time.
+    if active_h > 0:
         parts.append(f"{active_h:.1f}h meeting.")
-    elif wall_h > 0:
-        parts.append(f"{wall_h:.1f}h wall-clock, 0h active.")
 
     return " ".join(parts) if parts else ""
 
 
 def _summarize_comm(events: list[dict], task: dict) -> str:
-    """Produce a grounded narrative for an email/communication task.
-
-    Handles both email threads and WeLink IM chat sessions.
-    """
+    """Produce a grounded narrative for an email/communication task."""
     ctx = task.get("context") or {}
     subjects = ctx.get("subjects") or []
     senders = ctx.get("senders") or []
@@ -527,23 +541,28 @@ def _summarize_comm(events: list[dict], task: dict) -> str:
 
     parts: list[str] = []
 
-    # Email summary.
+    # Email.
     if subjects:
-        parts.append(f"Email '{subjects[0][:60]}'.")
+        parts.append(f"Goal: handle email '{subjects[0][:60]}'.")
         if senders:
             parts.append(f"From {senders[0]}.")
+        # Struggle: was this a thread that needed attention?
         if has_reply:
-            parts.append("Reply sent.")
+            parts.append("Struggle: active back-and-forth thread — reply sent, indicating the matter required response.")
         else:
-            parts.append("No reply detected.")
+            parts.append("Struggle: no reply detected — either read-only or the matter didn't require a response.")
 
-    # IM summary.
+    # IM.
     if im_count:
         active_h = (task.get("active_seconds") or 0) / 3600
         conv = im_conversations[0][:40] if im_conversations else "a conversation"
-        parts.append(f"{im_count} IM message(s) in {conv}.")
-        if len(im_senders) > 1:
-            parts.append(f"{len(im_senders)} participant(s).")
+        parts.append(f"Goal: participate in IM chat ({conv}).")
+        if im_count > 50:
+            parts.append(f"Struggle: heavy messaging ({im_count} messages, {len(im_senders)} participants) — prolonged discussion requiring significant human engagement.")
+        elif im_count > 10:
+            parts.append(f"Struggle: moderate messaging ({im_count} messages) — back-and-forth discussion.")
+        else:
+            parts.append(f"{im_count} messages exchanged.")
         if active_h > 0.1:
             parts.append(f"{active_h:.1f}h of messaging.")
 
@@ -556,7 +575,11 @@ def _summarize_vcs(events: list[dict], task: dict) -> str:
     subjects = ctx.get("commit_subjects") or []
     if subjects:
         active_h = (task.get("active_seconds") or 0) / 3600
-        parts = [f"{len(subjects)} commit(s): '{subjects[0][:60]}'."]
+        parts = [f"Goal: commit code — '{subjects[0][:60]}'."]
+        if len(subjects) > 3:
+            parts.append(f"Struggle: {len(subjects)} commits in this session — iterative development with multiple checkpoints.")
+        elif active_h > 1:
+            parts.append(f"Struggle: {active_h:.1f}h spent on version control — significant git work (rebasing, merging, or resolving conflicts).")
         if active_h > 0.1:
             parts.append(f"{active_h:.1f}h VCS activity.")
         return " ".join(parts)

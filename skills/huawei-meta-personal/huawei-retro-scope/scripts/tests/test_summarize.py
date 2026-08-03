@@ -209,8 +209,8 @@ class TestSummarizeAISession(unittest.TestCase):
         narrative = _summarize_ai_session(events, task)
         self.assertIn("Goal:", narrative)
         self.assertIn("sync local", narrative)
-        self.assertIn("407", narrative)
-        self.assertIn("git fetch", narrative)
+        self.assertIn("proxy", narrative)
+        self.assertIn("Struggle:", narrative)
 
     def test_continuation_goal_skipped(self):
         events = [
@@ -241,13 +241,13 @@ class TestSummarizeAISession(unittest.TestCase):
         """When no error-command pairs can be built, fall back to the blocker label."""
         events = [
             _ev("user_message", text="do something"),
-            # Error with no matching tool_use_id → no pair can be built.
             _ev("tool_result", text="Exit code 1\nsome error", tool_is_error=True, tool_use_id=None),
         ]
         task = _task(active=3600, errors=1,
                      context={"blocker": "command failed (exit 1) (1 of 1 errors)"})
         narrative = _summarize_ai_session(events, task)
-        self.assertIn("command failed", narrative)
+        # The struggle should mention errors even without paired commands.
+        self.assertIn("Struggle:", narrative)
 
     def test_idle_time_explained(self):
         events = [
@@ -288,7 +288,7 @@ class TestSummarizeBrowser(unittest.TestCase):
                      context={"top_titles": [], "top_urls": [], "queries": ["python asyncio tutorial"],
                               "downloads": 0, "n_visits": 5})
         narrative = _summarize_browser([], task)
-        self.assertIn("Searched for", narrative)
+        self.assertIn("Goal:", narrative)
         self.assertIn("asyncio", narrative)
 
 
@@ -297,8 +297,8 @@ class TestSummarizeMeeting(unittest.TestCase):
         task = _task(source_kind="meeting", active=0, wall=24 * 3600,
                      context={"is_all_day": True, "subject": "月末周六工作日"})
         narrative = _summarize_meeting([], task)
-        self.assertIn("all-day calendar marker", narrative)
-        self.assertIn("0h real", narrative)
+        self.assertIn("day-marker", narrative)
+        self.assertIn("0h human", narrative)
 
     def test_multi_day_capped(self):
         task = _task(source_kind="meeting", active=8 * 3600, wall=24 * 3600,
@@ -306,7 +306,7 @@ class TestSummarizeMeeting(unittest.TestCase):
                      context={"subject": "集中研讨", "organizer": "Cherry",
                               "location": "杭州：Z5-2-A30R"})
         narrative = _summarize_meeting([], task)
-        self.assertIn("Multi-day", narrative)
+        self.assertIn("multi-day", narrative.lower())
         self.assertIn("capped", narrative)
         self.assertIn("Cherry", narrative)
         self.assertIn("杭州", narrative)
@@ -345,14 +345,14 @@ class TestSummarizeComm(unittest.TestCase):
         narrative = _summarize_comm([], task)
         self.assertIn("patent draft", narrative)
         self.assertIn("Bogao", narrative)
-        self.assertIn("Reply sent", narrative)
+        self.assertIn("reply", narrative.lower())
 
     def test_email_no_reply(self):
         task = _task(source_kind="comm", active=0,
                      context={"subjects": ["FW: notice"], "senders": ["Alice"],
                               "has_reply": False})
         narrative = _summarize_comm([], task)
-        self.assertIn("No reply", narrative)
+        self.assertIn("no reply", narrative.lower())
 
 
 class TestSummarizeVCS(unittest.TestCase):

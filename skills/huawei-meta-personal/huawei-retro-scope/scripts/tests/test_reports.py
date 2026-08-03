@@ -884,7 +884,7 @@ class TestRootCauseRendering(unittest.TestCase):
                    "tool_input": {"is_all_day": False, "subject": "conference"}}]
         task = _make_task("t1", "implicit", events, None)
         line = render_context_inline(task)
-        self.assertIn("Multi-day event", line)
+        self.assertIn("multi-day", line.lower())
         self.assertIn("capped", line)
         # wall_clock should reflect the real span, clamped to MAX_MEETING_DURATION
         self.assertAlmostEqual(task["wall_clock_seconds"], MAX_MEETING_DURATION, delta=1)

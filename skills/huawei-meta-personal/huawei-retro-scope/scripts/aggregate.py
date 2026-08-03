@@ -142,6 +142,7 @@ def aggregate(tasks: list[dict], granularity: str = "day") -> dict:
         kind = classify_task(t)
         dur = t.get("duration_seconds") or t.get("wall_clock_seconds") or 0.0
         active = t.get("active_seconds") or 0.0
+        human = ((t.get("human_data") or {}).get("human_engaged_seconds") or 0)
         success = t.get("success")
         # A "gap" is a task with 0 active time — a single event (or burst at one
         # timestamp) that couldn't be paired into a measurable duration. We know
@@ -151,11 +152,13 @@ def aggregate(tasks: list[dict], granularity: str = "day") -> dict:
         key = _period_key(start, granularity)
         if key not in out:
             out[key] = {"total_seconds": 0.0, "active_seconds": 0.0,
+                        "human_seconds": 0.0,
                         "excised_gap_seconds": 0.0,
                         "task_count": 0, "success_count": 0, "failure_count": 0,
                         "unknown_count": 0, "gap_count": 0, "by_kind": {}}
         out[key]["total_seconds"] += dur
         out[key]["active_seconds"] += active
+        out[key]["human_seconds"] = out[key].get("human_seconds", 0.0) + human
         out[key]["excised_gap_seconds"] += t.get("excised_gap_seconds") or 0.0
         out[key]["task_count"] += 1
         if is_gap:
@@ -169,11 +172,13 @@ def aggregate(tasks: list[dict], granularity: str = "day") -> dict:
         bk = out[key]["by_kind"]
         if kind not in bk:
             bk[kind] = {"seconds": 0.0, "active_seconds": 0.0,
+                        "human_seconds": 0.0,
                         "excised_gap_seconds": 0.0,
                         "count": 0,
                         "successes": 0, "failures": 0, "unknowns": 0, "gaps": 0}
         bk[kind]["seconds"] += dur
         bk[kind]["active_seconds"] += active
+        bk[kind]["human_seconds"] = bk[kind].get("human_seconds", 0.0) + human
         bk[kind]["excised_gap_seconds"] += t.get("excised_gap_seconds") or 0.0
         bk[kind]["count"] += 1
         if is_gap:
@@ -639,6 +644,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
         for j, (kind, stats) in enumerate(kinds):
             h = stats["seconds"] / 3600
             ah = stats.get("active_seconds", 0.0) / 3600
+            hh = stats.get("human_seconds", 0.0) / 3600
             pct = (stats["seconds"] / row["total_seconds"] * 100) if row["total_seconds"] else 0
             ksc = stats.get("successes", 0)
             kfc = stats.get("failures", 0)
@@ -656,6 +662,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                 f'<td><span class="kind-dot" style="background:{color}"></span>{html_mod.escape(kind)}</td>'
                 f'<td class="num">{h:.1f}</td>'
                 f'<td class="num">{ah:.1f}</td>'
+                f'<td class="num">{hh:.1f}</td>'
                 f'<td class="num">{pct:.1f}</td>'
                 f'<td class="num">{stats["count"]}</td>'
                 f'<td class="num {sr_class}">{sr_str}</td>'
@@ -910,7 +917,6 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
   .rc-label {{ font-weight: 600; color: #555; }}
   .rc-goal .rc-label {{ color: #4e79a7; }}
   .rc-struggle .rc-label {{ color: #c62828; }}
-  .rc-difficulty .rc-label {{ color: #e65100; }}
   .rc-time .rc-label {{ color: #76b7b2; }}
   .rc-content {{ color: #666; }}
   .llm-label {{ font-size: 0.8em; color: #7b57c7; background: #f3edf9; padding: 1px 6px; border-radius: 3px; margin-left: 4px; }}
@@ -952,7 +958,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 <h2>Breakdown by period</h2>
 <table>
   <thead>
-    <tr><th>Period</th><th>Kind</th><th>Wall(h)</th><th>Active(h)</th><th>%</th><th>Tasks</th><th>Success</th><th>Unknown%</th></tr>
+    <tr><th>Period</th><th>Kind</th><th>Wall(h)</th><th>Active(h)</th><th>Human(h)</th><th>%</th><th>Tasks</th><th>Success</th><th>Unknown%</th></tr>
   </thead>
   <tbody>
 {table_rows_html}
@@ -1090,10 +1096,9 @@ def render_context_text(task: dict) -> str:
 def render_structured_root_cause(task: dict, html_mod) -> str:
     """Render the root cause as structured HTML with labeled sections.
 
-    Instead of a single lump of escaped text, breaks the narrative into:
+    Breaks the narrative into:
       - Goal: what the user was trying to do
-      - Struggle: what went wrong / what was hard
-      - Difficulty: why it was hard to resolve (pattern + retry count)
+      - Struggle: what went wrong and why it was hard (merged)
       - Time: where the time went (active vs wall vs idle)
 
     Falls back to render_context_inline (escaped) when no structured parts
@@ -1102,17 +1107,12 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
     ctx = task.get("context") or {}
     narrative = ctx.get("narrative")
     if not narrative:
-        # Fall back to the single-line version.
         line = render_context_inline(task)
         return html_mod.escape(line) if line else ""
 
-    # The narrative is a plain-text string with sentences like:
-    #   "Goal: install skill-creator. Let me wait for it. Key failure: 'npm...' → timeout.
-    #    Difficulty: ... Retried Edit SKILL.md (44×). 9.8h active in 30.4h wall — 20.6h idle."
-    # Break it into structured parts by detecting the labeled sentences.
+    # The narrative uses labeled sentences: "Goal: ...", "Struggle: ...", "Time: ..."
     parts: list[tuple[str, str]] = []  # (label, content)
 
-    # Split into sentences.
     sentences = re.split(r'(?<=[.!?])\s+', narrative)
 
     current_label = ""
@@ -1123,7 +1123,6 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
         if current_label and current_content:
             parts.append((current_label, " ".join(current_content)))
         elif current_content:
-            # Unlabeled sentence — goes into the previous section or a "Summary".
             if parts:
                 label, prev = parts[-1]
                 parts[-1] = (label, prev + " " + " ".join(current_content))
@@ -1141,6 +1140,10 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
             _flush()
             current_label = "Goal"
             current_content = [s[len("Goal:"):].strip().rstrip(".")]
+        elif s.startswith("Struggle:"):
+            _flush()
+            current_label = "Struggle"
+            current_content = [s[len("Struggle:"):].strip().rstrip(".")]
         elif s.startswith("Key failure:"):
             _flush()
             current_label = "Struggle"
@@ -1149,16 +1152,18 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
             _flush()
             current_label = "Struggle"
             current_content = [s[len("Failed:"):].strip().rstrip(".")]
-        elif s.startswith("Also:"):
-            current_content.append(s[len("Also:"):].strip().rstrip("."))
         elif s.startswith("Difficulty:"):
+            # Old-format narratives may have separate Difficulty labels —
+            # merge into Struggle (rubric 25: they're duplicative).
             _flush()
-            current_label = "Difficulty"
+            current_label = "Struggle"
             current_content = [s[len("Difficulty:"):].strip().rstrip(".")]
         elif s.startswith("Blocker:"):
             _flush()
             current_label = "Struggle"
             current_content = [s[len("Blocker:"):].strip().rstrip(".")]
+        elif s.startswith("Also:"):
+            current_content.append(s[len("Also:"):].strip().rstrip("."))
         elif s.startswith("Retried"):
             current_content.append(s.rstrip("."))
         elif re.match(r'^[\d.]+h (active|human|continuous)', s):
@@ -1166,7 +1171,7 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
             current_label = "Time"
             current_content = [s.rstrip(".")]
         else:
-            # Unlabeled sentence — add to current section or as context.
+            current_content.append(s.rstrip("."))
             current_content.append(s.rstrip("."))
     _flush()
 
@@ -1177,7 +1182,6 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
     label_icons = {
         "Goal": "🎯",
         "Struggle": "⚠️",
-        "Difficulty": "🔥",
         "Time": "⏱️",
         "Summary": "📋",
     }
