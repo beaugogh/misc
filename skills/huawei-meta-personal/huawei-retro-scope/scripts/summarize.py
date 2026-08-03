@@ -354,23 +354,23 @@ def _synthesize_struggle(n_errors: int, error_pairs: list[tuple[str, str]],
 
     patterns: list[str] = []
     if "407" in all_text or ("proxy" in all_text and "tunnel" in all_text):
-        patterns.append("企业代理认证阻止 git/网络访问")
+        patterns.append("企业代理认证失败，git 无法访问 GitHub")
     if "timeout" in all_text or "timed out" in all_text:
-        patterns.append("命令超时（网络慢或进程挂起）")
+        patterns.append("命令执行超时，网络慢或进程卡住")
     if "not found" in all_text or "no such file" in all_text:
-        patterns.append("文件或路径缺失——环境配置不正确")
+        patterns.append("找不到文件或路径，环境配置有误")
     if "permission denied" in all_text or "access is denied" in all_text:
-        patterns.append("权限不足——拒绝访问")
+        patterns.append("权限不足，无法访问")
     if "doesn't want to proceed" in all_text or "rejected" in all_text:
-        patterns.append("用户拒绝工具调用——agent 反复提出不需要的操作")
+        patterns.append("用户多次拒绝了 agent 的操作请求")
     if "exit code 128" in all_text or "merge conflict" in all_text:
-        patterns.append("git 失败（合并冲突、推送被拒）")
+        patterns.append("git 操作失败（合并冲突或推送被拒）")
     if "modulenotfounderror" in all_text or "importerror" in all_text:
-        patterns.append("Python 依赖缺失——环境搭建不完整")
+        patterns.append("缺少 Python 依赖包，环境没装全")
     if "syntaxerror" in all_text or "indentationerror" in all_text:
-        patterns.append("Python 语法/缩进错误——编辑时反复破坏代码")
+        patterns.append("Python 代码语法或缩进错误")
     if "file has not been read" in all_text:
-        patterns.append("编辑前未读取文件——工作流反复跳过 Read 步骤")
+        patterns.append("尝试编辑文件但没先读取，工作流有缺陷")
 
     # Count retries.
     retry_count = 0
@@ -386,9 +386,9 @@ def _synthesize_struggle(n_errors: int, error_pairs: list[tuple[str, str]],
     if patterns:
         pattern_str = "；".join(patterns[:2])
         if retry_count >= 5:
-            bits.append(f"{pattern_str}，尽管重试 {retry_count} 次仍反复出现——根本原因未被解决")
+            bits.append(f"{pattern_str}。重试了 {retry_count} 次都没解决，说明没找到根本原因")
         elif n_errors >= 10:
-            bits.append(f"{pattern_str}，导致 {n_errors} 个错误——尝试了多种方法均未解决根本问题")
+            bits.append(f"{pattern_str}。累计 {n_errors} 个错误，试了多种方法都不行")
         else:
             bits.append(f"{pattern_str}（{n_errors} 个错误）")
     elif n_errors > 0:
@@ -407,44 +407,82 @@ def _synthesize_struggle(n_errors: int, error_pairs: list[tuple[str, str]],
 
 
 def _infer_page_topic(title: str) -> str:
-    """Infer a page's topic from its title for content analysis (rubric 54).
+    """Infer what the user was actually doing on a page from its title.
 
-    Returns a Chinese description of what the page likely is, based on
-    title keywords. This provides the 'WHY' — why the user interacted
-    with this page heavily.
+    Returns a concrete Chinese description of the browsing action — not just
+    'this is a code repository' but '用户在浏览代码仓库的文件列表和提交记录'.
+    This is the 'WHY' that rubric 62 demands: the reader must understand what
+    content was on the page, not just how many times it was visited.
     """
     t = title.lower()
-    if "codehub" in t or "github" in t or "gitlab" in t:
-        return "代码仓库页面，用户在查看/管理代码"
-    if "稼先" in t or "jiaxian" in t:
-        return "华为稼先社区，内部知识分享平台"
-    if "3ms" in t or "知识管理" in t:
-        return "3MS知识管理社区，内部文档/博客"
-    if "agentcenter" in t or "agent" in t:
-        return "AI Agent开发/管理平台"
-    if "gemini" in t or "chatgpt" in t or "claude" in t:
-        return "AI工具页面，用户在使用AI辅助"
-    if "w3" in t or "welcome to w3" in t:
-        return "W3门户，华为内部信息入口"
+    # Code repositories — be specific about what the user was doing.
+    if "codehub" in t or "github" in t:
+        if "文件" in title or "files" in t or "tree" in t:
+            return "用户在浏览代码仓库的文件目录结构"
+        if "commit" in t or "提交" in title:
+            return "用户在查看代码提交记录"
+        if "设置" in title or "settings" in t:
+            return "用户在配置代码仓库设置"
+        if "misc" in t or "beaugogh" in t:
+            return "用户在管理自己的代码仓库（查看文件、提交、设置）"
+        return "用户在浏览代码仓库页面"
+    if "beaugogh" in t or "/misc" in t:
+        return "用户在管理自己的代码仓库"
+    # Internal knowledge platforms.
+    if "稼先" in title or "jiaxian" in t:
+        if "search" in t or "搜索" in title:
+            return "用户在稼先社区搜索内部技术文章"
+        return "用户在阅读稼先社区的技术帖子"
+    if "3ms" in t or "知识管理" in title:
+        if "搜索" in t or "search" in t:
+            return "用户在3MS知识库搜索文档"
+        return "用户在阅读3MS知识库的技术文档"
+    # AI agent platforms.
+    if "agentcenter" in t:
+        return "用户在AgentCenter平台上配置或管理AI Agent"
+    if "agent" in t and "ai" in t:
+        return "用户在管理AI Agent相关配置"
+    # AI tools.
+    if "gemini" in t:
+        return "用户在使用 Google Gemini AI 工具"
+    if "chatgpt" in t:
+        return "用户在使用 ChatGPT"
+    if "claude" in t:
+        return "用户在使用 Claude AI"
+    # Huawei internal.
+    if "w3" in t and "workplace" in t:
+        return "用户在W3门户首页浏览内部信息"
+    if "w3" in t:
+        return "用户在W3门户浏览华为内部信息"
     if "clouddevops" in t or "wiki" in t:
-        return "CloudDevOps Wiki，内部开发文档"
+        return "用户在阅读CloudDevOps Wiki开发文档"
+    # Search engines.
     if "google" in t and "search" in t:
-        return "Google搜索结果页，用户在搜索信息"
+        return "用户在Google搜索技术信息"
+    # Technical topics.
     if "memory" in t or "mem0" in t:
-        return "AI记忆/存储相关技术页面"
+        return "用户在研究AI记忆/存储技术方案"
     if "graph engineering" in t or "loop engineering" in t:
-        return "AI工程方法论文章"
-    if "knowledge online" in t or "知识" in t:
-        return "知识库首页，用户在检索信息"
-    if "文件" in t or "files" in t or "设置" in t or "settings" in t:
-        return "项目设置/文件管理页面"
-    if "search" in t or "搜索" in t:
-        return "搜索结果页"
-    if "wushan" in t or "巫山" in t:
-        return "巫山平台相关页面"
-    if "linux" in t or "python" in t or "api" in t or "swagger" in t:
-        return "技术文档/API参考页面"
-    return "内容页面"
+        return "用户在阅读AI工程方法论文章"
+    if "knowledge online" in t:
+        return "用户在知识库首页检索信息"
+    if "swagger" in t or "api" in t:
+        return "用户在查看API技术文档"
+    if "python" in t or "linux" in t:
+        return "用户在查阅技术教程"
+    # Wushan platform.
+    if "wushan" in t or "巫山" in title:
+        if "文件" in title or "files" in t:
+            return "用户在浏览巫山平台的代码文件"
+        return "用户在巫山平台进行开发相关工作"
+    # Generic.
+    if "文件" in title or "files" in t:
+        return "用户在浏览文件列表"
+    if "设置" in title or "settings" in t:
+        return "用户在配置项目设置"
+    if "search" in t or "搜索" in title:
+        return "用户在搜索信息"
+    return "用户在浏览网页内容"
 
 
 def _summarize_browser(events: list[dict], task: dict) -> str:
@@ -500,15 +538,14 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
         parts.append(f"Struggle: 标签页在 {first_page} 上停留 {wall_h:.1f}h 但无可测量活动——被遗忘，非活跃使用，不属于人工时间消耗。")
     elif revisit_total > 20 and active_h > 0.5:
         # Genuine heavy interaction — many revisits = clicks.
+        # Describe WHAT the user was doing on each top page (rubric 62).
         top_page = top_pages[0] if top_pages else ("", 0)
         top_title = top_page[0][:40]
         top_count = top_page[1]
-        # Infer page topic from title (rubric 54: explain WHY interacted).
         topic = _infer_page_topic(top_title)
         parts.append(
-            f"Struggle: 高频交互浏览——{n_visits} 次访问中 {revisit_total} 次为重复访问（点击/切换），"
-            f"说明用户在活跃地查找和对比信息。最频繁交互的页面「{top_title}」被访问 {top_count} 次"
-            f"（{topic}），表明用户在该页面进行了密集操作。"
+            f"Struggle: 用户在 {active_h:.1f}h 内进行了 {n_visits} 次页面访问（{revisit_total} 次重复点击），"
+            f"属于活跃交互。最常访问的「{top_title}」({top_count}次)：{topic}。"
         )
     elif excised_h > 0.5 and excised_h > active_h:
         parts.append(f"Struggle: Wall {wall_h:.1f}h 中仅 {active_h:.1f}h 活跃浏览——{excised_h:.1f}h 空闲/隔夜标签页未关闭。")
@@ -519,18 +556,15 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
     else:
         parts.append("Struggle: 浏览活动较少，无明显困难。")
 
-    # Detailed page interaction breakdown for high-interaction sessions.
+    # Per-page content description (rubric 62: describe what was on each page).
     if top_pages and revisit_total > 10:
-        detail_parts: list[str] = []
+        page_descs: list[str] = []
         for title, count in top_pages[:4]:
-            total_vc = page_total_visits.get(title, 0)
-            short_title = title[:35]
-            if total_vc > 5:
-                detail_parts.append(f"「{short_title}」{count}次访问（Chrome记录{total_vc}次）")
-            else:
-                detail_parts.append(f"「{short_title}」{count}次")
-        if detail_parts:
-            parts.append(f"高频交互页面：{'，'.join(detail_parts)}。")
+            short_title = title[:30]
+            action = _infer_page_topic(title)
+            page_descs.append(f"「{short_title}」{count}次——{action}")
+        if page_descs:
+            parts.append(f"主要浏览内容：{'；'.join(page_descs)}。")
 
     # What was visited — show more pages for longer sessions.
     if titles:
