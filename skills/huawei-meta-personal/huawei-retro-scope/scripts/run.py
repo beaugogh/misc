@@ -288,8 +288,10 @@ def _export_session_records(tasks: list[dict], events: list[dict], output_dir: s
     commit subjects (git), file names (file-edit), and event timeline.
 
     Only exports tasks with is_genuine_time_sink=True (the ones that matter).
+    Filenames are human-readable: source_kind_date_subject_taskid.json
     """
     import json as _json
+    from datetime import datetime as _dt, timezone as _tz
     records_dir = os.path.join(output_dir, "session_records")
     os.makedirs(records_dir, exist_ok=True)
 
@@ -312,8 +314,14 @@ def _export_session_records(tasks: list[dict], events: list[dict], output_dir: s
             continue
 
         tid = t.get("id", f"task-{exported}")
-        # Sanitize filename.
-        safe_tid = re.sub(r'[^\w\-]', '_', tid)[:60]
+        # Human-readable filename: source_kind + subject + date.
+        sk = t.get("source_kind", "unknown")
+        subj = (t.get("subject") or "no-subject")[:40]
+        start_dt = _dt.fromtimestamp(t.get("start") or 0, tz=_tz.utc)
+        date_str = start_dt.strftime("%Y%m%d")
+        safe_subj = re.sub(r'[^\w\-]', '_', subj)[:40]
+        safe_tid = re.sub(r'[^\w\-]', '_', tid)[:30]
+        filename = f"{sk}_{date_str}_{safe_subj}_{safe_tid}.json"
         record = {
             "id": tid,
             "subject": t.get("subject"),
@@ -345,7 +353,7 @@ def _export_session_records(tasks: list[dict], events: list[dict], output_dir: s
         record["event_timeline"] = timeline
         record["event_count_total"] = len(task_events)
 
-        filepath = os.path.join(records_dir, f"{safe_tid}.json")
+        filepath = os.path.join(records_dir, filename)
         with open(filepath, "w", encoding="utf-8") as f:
             _json.dump(record, f, ensure_ascii=False, indent=2)
         exported += 1
