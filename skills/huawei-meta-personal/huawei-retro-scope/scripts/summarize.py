@@ -392,7 +392,12 @@ def _synthesize_struggle(n_errors: int, error_pairs: list[tuple[str, str]],
 
 
 def _summarize_browser(events: list[dict], task: dict) -> str:
-    """Produce a grounded narrative for a browser/research session."""
+    """Produce a grounded narrative for a browser/research session.
+
+    Analyzes page interaction depth (revisits, visit_count) to distinguish
+    genuine engagement from forgotten tabs. For high-interaction pages,
+    explains WHY the user likely interacted so much based on the page titles.
+    """
     ctx = task.get("context") or {}
     titles = ctx.get("top_titles") or []
     queries = ctx.get("queries") or []
@@ -403,6 +408,27 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
     wall_h = (task.get("wall_clock_seconds") or 0) / 3600
     excised_h = (task.get("excised_gap_seconds") or 0) / 3600
 
+    # Analyze per-page interaction depth from raw events.
+    from collections import Counter
+    page_visit_counts: Counter = Counter()  # title → number of visit events
+    page_total_visits: dict[str, int] = {}  # title → max visit_count seen (Chrome's count)
+    for ev in events:
+        if ev.get("kind") != "visit":
+            continue
+        ti = ev.get("tool_input") or {}
+        title = (ti.get("title") or ev.get("text") or "").strip()
+        if not title or title == "(no title)":
+            continue
+        page_visit_counts[title] += 1
+        vc = ti.get("visit_count") or 0
+        if isinstance(vc, (int, float)) and vc > page_total_visits.get(title, 0):
+            page_total_visits[title] = int(vc)
+
+    # Top interacted pages (by number of visit events = clicks/revisits).
+    top_pages = page_visit_counts.most_common(5)
+    revisit_total = sum(1 for ev in events if ev.get("kind") == "visit"
+                        and (ev.get("tool_input") or {}).get("visit_count", 0) > 1)
+
     parts: list[str] = []
 
     # Goal: what was the user researching?
@@ -411,10 +437,21 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
     elif titles:
         parts.append(f"Goal: 浏览 {titles[0][:40]}。")
 
-    # Struggle: what made this session take as long as it did?
+    # Struggle: distinguish genuine interaction from forgotten tabs.
     if active_h < 0.05 and wall_h > 1:
+        # No measurable activity — forgotten tab, NOT a time sink.
         first_page = titles[0][:40] if titles else "browsing"
-        parts.append(f"Struggle: 标签页在 {first_page} 上停留 {wall_h:.1f}h 但无可测量活动——被遗忘，非活跃使用。")
+        parts.append(f"Struggle: 标签页在 {first_page} 上停留 {wall_h:.1f}h 但无可测量活动——被遗忘，非活跃使用，不属于人工时间消耗。")
+    elif revisit_total > 20 and active_h > 0.5:
+        # Genuine heavy interaction — many revisits = clicks.
+        top_page = top_pages[0] if top_pages else ("", 0)
+        top_title = top_page[0][:40]
+        top_count = top_page[1]
+        parts.append(
+            f"Struggle: 高频交互浏览——{n_visits} 次访问中 {revisit_total} 次为重复访问（点击/切换），"
+            f"说明用户在活跃地查找和对比信息。最频繁交互的页面「{top_title}」被访问 {top_count} 次，"
+            f"表明该页面内容与用户目标高度相关。"
+        )
     elif excised_h > 0.5 and excised_h > active_h:
         parts.append(f"Struggle: Wall {wall_h:.1f}h 中仅 {active_h:.1f}h 活跃浏览——{excised_h:.1f}h 空闲/隔夜标签页未关闭。")
     elif n_visits > 50 and active_h > 2:
@@ -423,6 +460,19 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
         parts.append(f"Struggle: 浏览了 {n_visits} 个页面，活跃浏览 {active_h:.1f}h。")
     else:
         parts.append("Struggle: 浏览活动较少，无明显困难。")
+
+    # Detailed page interaction breakdown for high-interaction sessions.
+    if top_pages and revisit_total > 10:
+        detail_parts: list[str] = []
+        for title, count in top_pages[:4]:
+            total_vc = page_total_visits.get(title, 0)
+            short_title = title[:35]
+            if total_vc > 5:
+                detail_parts.append(f"「{short_title}」{count}次访问（Chrome记录{total_vc}次）")
+            else:
+                detail_parts.append(f"「{short_title}」{count}次")
+        if detail_parts:
+            parts.append(f"高频交互页面：{'，'.join(detail_parts)}。")
 
     # What was visited — show more pages for longer sessions.
     if titles:
@@ -435,6 +485,8 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
     # Time.
     if active_h > 0.1 and excised_h <= 0.5:
         parts.append(f"{active_h:.1f}h 活跃浏览。")
+
+    return " ".join(parts) if parts else ""
 
     return " ".join(parts) if parts else ""
 
