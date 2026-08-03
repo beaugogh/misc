@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -760,7 +761,6 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                 act_h = (t.get("active_seconds") or 0) / 3600
                 eng_h = _human_engaged_h(t) / 3600
                 wall_h = (t.get("wall_clock_seconds") or 0) / 3600
-                wd_pct = _working_day_pct(eng_h)
                 hd = t.get("human_data") or {}
                 inv = hd.get("human_involvement", "?")
                 kind = html_mod.escape(classify_task(t))
@@ -768,26 +768,36 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                 start_str = _dt.fromtimestamp(t.get("start") or 0).strftime("%m-%d %H:%M")
                 tid = html_mod.escape(t.get("id", "?"))
                 color = kind_colors.get(classify_task(t), "#888")
-                why = html_mod.escape(render_context_inline(t))
                 inv_class = f"inv-{inv}"
+                # Structured root cause — broken into labeled parts instead of a lump.
+                why_html = render_structured_root_cause(t, html_mod)
+                # Three-way time: wall / active / human with percentages.
+                # % are relative to wall (the total span): active% and human% of wall.
+                act_pct = (act_h / wall_h * 100) if wall_h > 0 else 0
+                eng_pct = (eng_h / wall_h * 100) if wall_h > 0 else 0
+                # Cap at 999 for display.
+                act_pct_str = f"{min(act_pct, 999):.0f}%" if wall_h > 0 else "—"
+                eng_pct_str = f"{min(eng_pct, 999):.0f}%" if wall_h > 0 else "—"
                 rows.append(
                     f'      <tr>'
                     f'<td class="num">{i}</td>'
                     f'<td class="num">{eng_h:.1f}h</td>'
-                    f'<td class="num {inv_class}">{inv}</td>'
+                    f'<td class="num">{eng_pct_str}</td>'
                     f'<td class="num">{act_h:.1f}h</td>'
-                    f'<td class="num">{wd_pct}</td>'
+                    f'<td class="num">{act_pct_str}</td>'
+                    f'<td class="num">{wall_h:.1f}h</td>'
+                    f'<td class="num {inv_class}">{inv}</td>'
                     f'<td><span class="kind-dot" style="background:{color}"></span>{kind}</td>'
                     f'<td>{start_str}</td>'
                     f'<td>{subj}</td>'
-                    f'<td class="why">{why}</td>'
+                    f'<td class="why">{why_html}</td>'
                     f'<td class="task-id">{tid}</td>'
                     f'</tr>'
                 )
             top_tasks_html = f"""<h2>Top 5 human time sinks</h2>
-<p class="hint">Ranked by human engagement, not raw active time. % = share of one 8h working day. Drill into any: <code>python run.py --task &lt;id&gt; --drill</code></p>
+<p class="hint">Three-way time: <strong>Wall</strong> (total clock span) → <strong>Active</strong> (work detected) → <strong>Human</strong> (user engaged). % are of Wall. Ranked by Human time. Drill: <code>python run.py --task &lt;id&gt; --drill</code></p>
 <table class="top-tasks">
-  <thead><tr><th>#</th><th>Human</th><th>Involvement</th><th>Active</th><th>% of 8h</th><th>Kind</th><th>Start</th><th>Subject</th><th>Root cause</th><th>Task ID</th></tr></thead>
+  <thead><tr><th>#</th><th>Human</th><th>%W</th><th>Active</th><th>%W</th><th>Wall</th><th>Involv.</th><th>Kind</th><th>Start</th><th>Subject</th><th>Root cause</th><th>Task ID</th></tr></thead>
   <tbody>
 {chr(10).join(rows)}
   </tbody>
@@ -806,18 +816,24 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
             kind_tasks = sorted(by_kind_tasks[kind],
                                 key=lambda t: t.get("active_seconds") or 0, reverse=True)[:3]
             kind_active = sum(t.get("active_seconds", 0) for t in by_kind_tasks[kind]) / 3600
+            kind_human = sum(
+                (t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0
+                for t in by_kind_tasks[kind]
+            ) / 3600
             kind_wd = _as_working_days(kind_active)
             color = kind_colors.get(kind, "#888")
             items = []
             for t in kind_tasks:
                 act_h = (t.get("active_seconds") or 0) / 3600
-                wd_pct = _working_day_pct(act_h)
+                eng_h = ((t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0) / 3600
                 subj = html_mod.escape((t.get("subject") or "(no subject)")[:50])
-                why = html_mod.escape(render_context_inline(t))
-                why_html = f'<div class="why-inline">{why}</div>' if why else ''
-                wd_span = f' <span class="wd-pct">{wd_pct}</span>' if wd_pct else ''
-                items.append(f"<li><span class='num'>{act_h:.1f}h</span>{wd_span} {subj}{why_html}</li>")
-            kind_total_str = f"{kind_active:.1f}h"
+                why_html = render_structured_root_cause(t, html_mod)
+                why_div = f'<div class="why-inline">{why_html}</div>' if why_html else ''
+                items.append(
+                    f"<li><span class='num'>{eng_h:.1f}h human</span> / "
+                    f"<span class='num-act'>{act_h:.1f}h active</span> {subj}{why_div}</li>"
+                )
+            kind_total_str = f"{kind_human:.1f}h human / {kind_active:.1f}h active"
             if kind_wd:
                 kind_total_str += f" · {kind_wd}"
             kind_sections.append(
@@ -842,6 +858,11 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
         for t in (tasks or [])
     ) / 3600
     working_basis = f"8h/day" if actual_working_hours <= 0 else f"{actual_working_hours:.0f}h actual"
+
+    # Three-way time breakdown: wall → active → human, with percentages.
+    human_pct_of_active = (human_engaged_total / total_active * 100) if total_active > 0 else 0
+    active_pct_of_wall = (total_active / total_wall * 100) if total_wall > 0 else 0
+    human_pct_of_wall = (human_engaged_total / total_wall * 100) if total_wall > 0 else 0
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -878,10 +899,18 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
   .kind-section {{ background: #fafbfc; border: 1px solid #e8e8e8; border-radius: 6px; padding: 12px 16px; }}
   .kind-section ul {{ list-style: none; padding-left: 0; margin: 0.3em 0; }}
   .kind-section li {{ padding: 3px 0; font-size: 0.88em; }}
-  .kind-section .num {{ font-weight: 600; color: #4e79a7; display: inline-block; width: 50px; }}
+  .kind-section .num {{ font-weight: 600; color: #4e79a7; display: inline-block; width: 75px; }}
+  .kind-section .num-act {{ font-weight: 600; color: #76b7b2; }}
   .kind-total {{ font-size: 0.85em; color: #888; font-weight: normal; }}
-  .top-tasks td.why {{ font-size: 0.82em; color: #666; max-width: 320px; }}
+  .top-tasks td.why {{ font-size: 0.82em; color: #666; max-width: 340px; }}
   .why-inline {{ font-size: 0.85em; color: #888; margin-left: 56px; margin-top: 2px; }}
+  .rc-part {{ margin: 2px 0; line-height: 1.4; }}
+  .rc-label {{ font-weight: 600; color: #555; }}
+  .rc-goal .rc-label {{ color: #4e79a7; }}
+  .rc-struggle .rc-label {{ color: #c62828; }}
+  .rc-difficulty .rc-label {{ color: #e65100; }}
+  .rc-time .rc-label {{ color: #76b7b2; }}
+  .rc-content {{ color: #666; }}
   .wd-pct {{ font-size: 0.8em; color: #999; margin-left: 2px; }}
   .inv-high {{ color: #c62828; font-weight: 600; }}
   .inv-moderate {{ color: #e65100; font-weight: 600; }}
@@ -896,12 +925,12 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 <h1>Time report (by {html_mod.escape(granularity)})</h1>
 <div class="summary">
   <strong>Range:</strong> {html_mod.escape(range_str)} &nbsp;|&nbsp;
-  <strong>Active:</strong> {total_active:.1f}h{f" ({wd_total})" if wd_total else ""} &nbsp;|&nbsp;
-  <strong>Human:</strong> {human_engaged_total:.1f}h &nbsp;|&nbsp;
   <strong>Wall:</strong> {total_wall:.1f}h &nbsp;|&nbsp;
+  <strong>Active:</strong> {total_active:.1f}h ({active_pct_of_wall:.0f}% of wall){f" · {wd_total}" if wd_total else ""} &nbsp;|&nbsp;
+  <strong>Human:</strong> {human_engaged_total:.1f}h ({human_pct_of_active:.0f}% of active, {human_pct_of_wall:.0f}% of wall) &nbsp;|&nbsp;
   <strong>Tasks:</strong> {total_tasks}
 </div>
-<p class="hint">Working-day basis: {working_basis}. Time sinks ranked by human engagement, not raw active time.</p>
+<p class="hint">Three-way time: <strong>Wall</strong> = total clock span → <strong>Active</strong> = work detected ({active_pct_of_wall:.0f}% of wall) → <strong>Human</strong> = user engaged ({human_pct_of_active:.0f}% of active). Working-day basis: {working_basis}. Time sinks ranked by human engagement.</p>
 
 {data_avail_html}
 
@@ -1053,6 +1082,112 @@ def render_context_text(task: dict) -> str:
             lines.append(f"Files: {', '.join(os.path.basename(f) for f in files)}")
 
     return "\n".join(lines)
+
+
+def render_structured_root_cause(task: dict, html_mod) -> str:
+    """Render the root cause as structured HTML with labeled sections.
+
+    Instead of a single lump of escaped text, breaks the narrative into:
+      - Goal: what the user was trying to do
+      - Struggle: what went wrong / what was hard
+      - Difficulty: why it was hard to resolve (pattern + retry count)
+      - Time: where the time went (active vs wall vs idle)
+
+    Falls back to render_context_inline (escaped) when no structured parts
+    can be extracted.
+    """
+    ctx = task.get("context") or {}
+    narrative = ctx.get("narrative")
+    if not narrative:
+        # Fall back to the single-line version.
+        line = render_context_inline(task)
+        return html_mod.escape(line) if line else ""
+
+    # The narrative is a plain-text string with sentences like:
+    #   "Goal: install skill-creator. Let me wait for it. Key failure: 'npm...' → timeout.
+    #    Difficulty: ... Retried Edit SKILL.md (44×). 9.8h active in 30.4h wall — 20.6h idle."
+    # Break it into structured parts by detecting the labeled sentences.
+    parts: list[tuple[str, str]] = []  # (label, content)
+
+    # Split into sentences.
+    sentences = re.split(r'(?<=[.!?])\s+', narrative)
+
+    current_label = ""
+    current_content: list[str] = []
+
+    def _flush():
+        nonlocal current_label, current_content
+        if current_label and current_content:
+            parts.append((current_label, " ".join(current_content)))
+        elif current_content:
+            # Unlabeled sentence — goes into the previous section or a "Summary".
+            if parts:
+                label, prev = parts[-1]
+                parts[-1] = (label, prev + " " + " ".join(current_content))
+            else:
+                parts.append(("Summary", " ".join(current_content)))
+        current_label = ""
+        current_content = []
+
+    for sent in sentences:
+        s = sent.strip()
+        if not s:
+            continue
+        # Detect labeled sentences.
+        if s.startswith("Goal:"):
+            _flush()
+            current_label = "Goal"
+            current_content = [s[len("Goal:"):].strip().rstrip(".")]
+        elif s.startswith("Key failure:"):
+            _flush()
+            current_label = "Struggle"
+            current_content = [s[len("Key failure:"):].strip().rstrip(".")]
+        elif s.startswith("Failed:"):
+            _flush()
+            current_label = "Struggle"
+            current_content = [s[len("Failed:"):].strip().rstrip(".")]
+        elif s.startswith("Also:"):
+            current_content.append(s[len("Also:"):].strip().rstrip("."))
+        elif s.startswith("Difficulty:"):
+            _flush()
+            current_label = "Difficulty"
+            current_content = [s[len("Difficulty:"):].strip().rstrip(".")]
+        elif s.startswith("Blocker:"):
+            _flush()
+            current_label = "Struggle"
+            current_content = [s[len("Blocker:"):].strip().rstrip(".")]
+        elif s.startswith("Retried"):
+            current_content.append(s.rstrip("."))
+        elif re.match(r'^[\d.]+h (active|human|continuous)', s):
+            _flush()
+            current_label = "Time"
+            current_content = [s.rstrip(".")]
+        else:
+            # Unlabeled sentence — add to current section or as context.
+            current_content.append(s.rstrip("."))
+    _flush()
+
+    if not parts:
+        return html_mod.escape(narrative)
+
+    # Render as structured HTML divs.
+    label_icons = {
+        "Goal": "🎯",
+        "Struggle": "⚠️",
+        "Difficulty": "🔥",
+        "Time": "⏱️",
+        "Summary": "📋",
+    }
+    divs = []
+    for label, content in parts:
+        icon = label_icons.get(label, "•")
+        divs.append(
+            f'<div class="rc-part rc-{label.lower()}">'
+            f'<span class="rc-label">{icon} {html_mod.escape(label)}:</span> '
+            f'<span class="rc-content">{html_mod.escape(content)}</span>'
+            f'</div>'
+        )
+    return "".join(divs)
 
 
 def render_context_inline(task: dict) -> str:
