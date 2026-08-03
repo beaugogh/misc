@@ -58,6 +58,9 @@ class LLMLabeler:
         self._ollama_model = ollama_model
         self._timeout = timeout
         self._backend = self._detect_backend()
+        # Cached model instances (loaded once, reused for all tasks).
+        self._llm: object = None        # llama_cpp.Llama instance
+        self._pipe: object = None       # transformers pipeline instance
 
     def _detect_backend(self) -> Optional[str]:
         """Detect the best available local LLM backend.
@@ -205,16 +208,21 @@ class LLMLabeler:
         return None
 
     def _label_with_llama_cpp(self, prompt: str) -> Optional[str]:
-        """Generate a label using llama-cpp-python."""
+        """Generate a label using llama-cpp-python.
+
+        The Llama instance is cached on first use and reused for all subsequent
+        calls (loading a GGUF model takes seconds — doing it per-task would be
+        impractical for large task sets).
+        """
         try:
-            from llama_cpp import Llama
-            # Use a small default model if one exists in the standard location.
-            # The user must download a .gguf model first.
-            model_path = os.environ.get("LLM_MODEL_PATH")
-            if not model_path or not os.path.isfile(model_path):
-                return None  # No model file configured.
-            llm = Llama(model_path=model_path, n_ctx=512, verbose=False)
-            response = llm(
+            if self._llm is None:
+                from llama_cpp import Llama
+                # The user must download a .gguf model and set LLM_MODEL_PATH.
+                model_path = os.environ.get("LLM_MODEL_PATH")
+                if not model_path or not os.path.isfile(model_path):
+                    return None  # No model file configured.
+                self._llm = Llama(model_path=model_path, n_ctx=512, verbose=False)
+            response = self._llm(
                 prompt,
                 max_tokens=20,
                 temperature=0.3,
@@ -226,17 +234,47 @@ class LLMLabeler:
             return None
 
     def _label_with_transformers(self, prompt: str) -> Optional[str]:
-        """Generate a label using Hugging Face transformers."""
+        """Generate a label using Hugging Face transformers.
+
+        The pipeline is cached on first use. IMPORTANT: the model must already
+        be cached locally — this method does NOT download models from the
+        internet (offline-only constraint). Set LLM_MODEL_NAME to a model that's
+        already in the HF cache, or pre-download with `huggingface-cli download`.
+        """
         try:
-            from transformers import pipeline
-            # Use a small text2text-generation model (e.g. flan-t5-small).
-            model_name = os.environ.get("LLM_MODEL_NAME", "google/flan-t5-small")
-            pipe = pipeline("text2text-generation", model=model_name, max_length=20)
-            result = pipe(prompt)
+            if self._pipe is None:
+                from transformers import pipeline
+                model_name = os.environ.get("LLM_MODEL_NAME", "google/flan-t5-small")
+                # Check if the model is already cached locally (offline safety).
+                # transformers caches under ~/.cache/huggingface/hub/models--<org>--<name>.
+                # If not cached, pipeline() would try to download — violating the
+                # offline constraint. We check the cache and skip if not present.
+                if not self._is_model_cached(model_name):
+                    return None  # Model not cached — skip (offline constraint).
+                self._pipe = pipeline("text2text-generation", model=model_name, max_length=20)
+            result = self._pipe(prompt)
             text = result[0]["generated_text"].strip()
             return self._clean_label(text) if text else None
         except Exception:
             return None
+
+    def _is_model_cached(self, model_name: str) -> bool:
+        """Check if a Hugging Face model is already cached locally.
+
+        Returns True if the model exists in the HF cache directory, False
+        otherwise. This prevents internet downloads (offline constraint).
+        """
+        # HF cache is typically at ~/.cache/huggingface/hub/models--<org>--<name>.
+        cache_dir = os.environ.get(
+            "HF_HOME",
+            os.path.join(os.path.expanduser("~"), ".cache", "huggingface"),
+        )
+        hub_dir = os.path.join(cache_dir, "hub")
+        if not os.path.isdir(hub_dir):
+            return False
+        # Model name format: "org/name" → "models--org--name".
+        model_dir_name = "models--" + model_name.replace("/", "--")
+        return os.path.isdir(os.path.join(hub_dir, model_dir_name))
 
     def _clean_label(self, raw: str) -> str:
         """Clean up the LLM output into a proper label.

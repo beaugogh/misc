@@ -26,14 +26,14 @@ can and logs unparseable records to stderr.
 from __future__ import annotations
 
 import os
+import re
 import json
 import glob
 import shutil
 import sqlite3
 import subprocess
 from typing import Iterator
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import datetime
 
 from sources import make_event
 
@@ -242,7 +242,7 @@ class OpenclawAdapter:
             if not msg_table:
                 return
             # Get column names.
-            cur.execute(f"PRAGMA table_info({msg_table})")
+            cur.execute(f'PRAGMA table_info("{msg_table}")')
             cols = {row[1].lower(): row[1] for row in cur.fetchall()}
             # Find timestamp column.
             ts_col = None
@@ -258,7 +258,12 @@ class OpenclawAdapter:
             content_col = cols.get("content") or cols.get("text") or cols.get("message") or cols.get("body")
             session_col = cols.get("session_id") or cols.get("sessionid")
 
-            cur.execute(f"SELECT * FROM {msg_table} ORDER BY {ts_col}")
+            # Validate identifiers are safe (alphanumeric + underscore only)
+            # before interpolating into SQL to prevent injection via crafted DB names.
+            _IDENT_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+            if not _IDENT_RE.match(msg_table) or (ts_col and not _IDENT_RE.match(ts_col)):
+                return  # Suspicious table/column name — skip this DB.
+            cur.execute(f'SELECT * FROM "{msg_table}" ORDER BY "{ts_col}"')
             for row in cur.fetchall():
                 col_names = [desc[0] for desc in cur.description]
                 row_dict = dict(zip(col_names, row))
@@ -377,7 +382,9 @@ class CloudDevOpsWikiAdapter:
     source_kind = "doc_authoring"
 
     def detect(self) -> bool:
-        # Check if opencli is available AND has a clouddevops/wiki command.
+        # Check if opencli is available AND has a dedicated clouddevops-wiki command.
+        # We check for "clouddevops" as a command name, NOT just "wiki" (which
+        # appears in the huawei-3ms plugin description and would false-positive).
         if not shutil.which("opencli"):
             return False
         try:
@@ -387,9 +394,11 @@ class CloudDevOpsWikiAdapter:
             )
             if result.returncode != 0:
                 return False
-            # Check for clouddevops or wiki commands in the output.
-            output = result.stdout.lower()
-            return "clouddevops" in output or "wiki" in output
+            # Look for a line that starts with "clouddevops" (a command name).
+            for line in result.stdout.split("\n"):
+                if line.strip().lower().startswith("clouddevops"):
+                    return True
+            return False
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
             return False
 
