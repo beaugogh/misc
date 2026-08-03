@@ -1,6 +1,6 @@
 # PLAN — huawei-retro-scope implementation roadmap
 
-**Status as of 2026-08-01: Phases 0a–11 are BUILT and verified. All planned items complete.** 522 tests pass (2 skipped).
+**Status as of 2026-08-03: Phases 0a–12 are BUILT and verified. All planned items complete.** 522 tests pass (5 skipped).
 14 source adapters registered; 13 detect on the author's machine. The pipeline runs
 end-to-end via `python run.py` with multi-horizon analysis (90d/30d/7d/1d default),
 content-driven root-cause narratives, human-involvement detection, three-way time
@@ -486,6 +486,50 @@ human interaction dominating the top 5. Four commits across an iterative cycle:
 - [x] **11.4.3** Working-day percentages: `_as_working_days()` and `_working_day_pct()`
       throughout the UI. Summary header: "Working-day basis: 291h actual" (from human
       activity, not flat 8h/day).
+
+---
+
+## Phase 12 — Genuine interaction detection & content investigation  [no new deps] ✅ DONE
+
+Born from rubrics 54-60: the skill must distinguish genuine human interaction from
+forgotten/abandoned sessions, and investigate the actual content of coding sessions,
+browser pages, WeLink chats, and file edits to explain WHY they took time.
+
+### 12.1 Idle session detection foundation  [no new deps] ✅
+- [x] **12.1.1** `human_involvement.py`: added `is_genuine_time_sink` field — True when
+      `human_action_count >= 5` AND `human_engaged_seconds > 300` (5+ actions, 5+ min engaged).
+      Tasks that don't meet this threshold are flagged as "被遗忘/非活跃使用".
+- [x] **12.1.2** `aggregate.py render_html()`: top 10 filtered to genuine time sinks only.
+      Low-engagement tasks listed in a separate "低参与度任务" section.
+
+### 12.2 Coding session content investigation (rubric 56) ✅
+- [x] **12.2.1** Idle coding session detection: if `human_engaged_seconds < 0.1 * active_seconds`
+      (user engaged < 10% of active time), narrative says "agent自主运行，人工参与度低".
+- [x] **12.2.2** Content investigation: extract top 3 user prompts (not just the first)
+      as `user_prompts` in context, shown in the narrative as evidence.
+- [x] **12.2.3** Specific error evidence: when errors exist, show the actual error text
+      (not just pattern classification) as verifiable evidence.
+
+### 12.3 Browser content analysis (rubric 54) ✅
+- [x] **12.3.1** Topic inference from page titles: categorize pages (CodeHub=代码仓库,
+      稼先社区=内部知识搜索, Google Gemini=AI工具, 3MS搜索=文档搜索, etc.)
+- [x] **12.3.2** For top-interacted pages, explain WHY based on inferred topic:
+      "「AgentCenter」是华为内部AI Agent开发平台，表明用户在密集配置或调试Agent".
+- [x] **12.3.3** Evidence references: cite visit count + Chrome visit_count as verifiable
+      evidence.
+
+### 12.4 WeLink chat content summarization (rubric 58) ✅
+- [x] **12.4.1** Topic synthesis from message texts: extract keywords, summarize as
+      1-sentence description ("讨论涉及学位证明报销流程").
+- [x] **12.4.2** Explain WHY it took long: "需要与5位参与者确认，消息往返228条".
+- [x] **12.4.3** Forgotten chat detection: low human engagement → "非活跃使用".
+
+### 12.5 File editing content investigation (rubric 60) ✅
+- [x] **12.5.1** Genuine editing detection: file appearing in multiple events with different
+      timestamps = genuine editing (VSCode Local History saves versions).
+- [x] **12.5.2** File type inference: .py=Python, .md=文档, .pptx=演示文稿, .xlsx=表格.
+- [x] **12.5.3** Edit version count: more versions = more editing, shown in narrative.
+- [x] **12.5.4** Explain WHY: "频繁编辑 rubrics.md（4个版本），表明用户在反复修改评估标准".
 
 
 
