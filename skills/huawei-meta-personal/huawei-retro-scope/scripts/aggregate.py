@@ -928,6 +928,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
   .data-avail {{ font-size: 0.88em; }}
   .data-avail .no-data {{ background: #fff8f8; }}
   .data-avail .no-data-msg {{ color: #c62828; font-style: italic; }}
+  .section-divider {{ border: none; border-top: 2px solid #e0e0e0; margin: 2em 0; }}
 </style>
 </head>
 <body>
@@ -941,19 +942,15 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 </div>
 <p class="hint">三类时间：<strong>Wall</strong>（总时钟跨度）→ <strong>Active</strong>（检测到的工作，占 Wall {active_pct_of_wall:.0f}%）→ <strong>Human</strong>（用户参与，占 Active {human_pct_of_active:.0f}%）。工作日基准：{working_basis}。时间消耗按 Human 时间排序。</p>
 
-{data_avail_html}
+<hr class="section-divider">
 
-{insights_html}
+{top_tasks_html}
 
-<h2>各类型 Active 时间</h2>
-<div class="chart-container">
-<svg width="{chart_width:.0f}" height="{chart_height}" xmlns="http://www.w3.org/2000/svg">
-{svg_content}
-</svg>
-<div class="legend">
-{legend_html}
-</div>
-</div>
+<hr class="section-divider">
+
+{kind_subjects_html}
+
+<hr class="section-divider">
 
 <h2>按周期明细</h2>
 <table>
@@ -965,9 +962,23 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
   </tbody>
 </table>
 
-{top_tasks_html}
+<h2>各类型 Active 时间</h2>
+<div class="chart-container">
+<svg width="{chart_width:.0f}" height="{chart_height}" xmlns="http://www.w3.org/2000/svg">
+{svg_content}
+</svg>
+<div class="legend">
+{legend_html}
+</div>
+</div>
 
-{kind_subjects_html}
+<hr class="section-divider">
+
+{insights_html}
+
+<hr class="section-divider">
+
+{data_avail_html}
 
 </body>
 </html>"""
