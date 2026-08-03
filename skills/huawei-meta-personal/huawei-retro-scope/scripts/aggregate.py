@@ -239,9 +239,8 @@ def generate_insights(tasks: list[dict], agg: dict) -> list[str]:
         if context_inline:
             hint += f". {context_inline}"
         insights.append(
-            f"Human time sink: {eng_h:.1f}h human engagement "
-            f"({act_h:.1f}h total active, {inv}) on '{subj[:60]}' ({kind}{hint}). "
-            f"Drill: --task {t.get('id', '?')} --drill"
+            f"人工时间消耗：{eng_h:.1f}h 人工参与"
+            f"（共 {act_h:.1f}h active，{inv}）——'{subj[:60]}'（{kind}{hint}）。"
         )
 
     # Also flag tasks with high active time but LOW human involvement — these
@@ -252,34 +251,30 @@ def generate_insights(tasks: list[dict], agg: dict) -> list[str]:
     if autonomous_lookalikes:
         names = [(t.get("subject") or "(no subject)")[:40] for t in autonomous_lookalikes[:3]]
         insights.append(
-            f"{len(autonomous_lookalikes)} task(s) had high active time but LOW human "
-            f"involvement — mostly autonomous agent work, not human time sinks: "
-            f"{', '.join(names)}."
+            f"{len(autonomous_lookalikes)} 个任务 active 时间较长但人工参与度低——"
+            f"主要为 agent 自主工作，非人工时间消耗：{', '.join(names)}。"
         )
 
     # --- 2. Meeting load ---
     meeting_tasks = [t for t in tasks if classify_task(t) == "meeting"]
     if meeting_tasks:
         meeting_h = sum(t.get("active_seconds") or 0 for t in meeting_tasks) / 3600
-        # Count all-day events (24h duration = calendar artifact, not real meeting)
         all_day = [t for t in meeting_tasks
                     if (t.get("active_seconds") or 0) >= 24 * 3600 - 1]
-        # Date span for daily average
         starts = [t.get("start") or 0 for t in meeting_tasks]
         if starts:
             span_days = max(1, (max(starts) - min(starts)) / 86400)
             daily_avg = meeting_h / span_days
-            line = (f"Meeting load: {meeting_h:.0f}h across {len(meeting_tasks)} meetings "
-                    f"(~{daily_avg:.1f}h/day)")
+            line = (f"会议负荷：{meeting_h:.0f}h，共 {len(meeting_tasks)} 个会议"
+                    f"（日均 {daily_avg:.1f}h/天）")
             if all_day:
-                line += (f" — {len(all_day)} all-day calendar entry(ies) counted as 24h; "
-                         f"these are likely day-markers, not real meetings")
+                line += (f"——{len(all_day)} 个全天日历条目被计为 24h；"
+                         f"这些可能是日期标记，非真实会议")
             insights.append(line)
 
     # --- 3. Recurring pain patterns ---
     pain_tasks = [t for t in tasks if t.get("errors") and t.get("errors") >= 2]
     if len(pain_tasks) >= 2:
-        # Group by subject keyword to find recurrence
         from collections import Counter
         keywords = Counter()
         for t in pain_tasks:
@@ -289,15 +284,15 @@ def generate_insights(tasks: list[dict], agg: dict) -> list[str]:
                     keywords[trigger] += 1
         recurring = [(k, n) for k, n in keywords.most_common(3) if n >= 2]
         if recurring:
-            parts = [f"'{k}' failed across {n} tasks" for k, n in recurring]
+            parts = [f"'{k}' 在 {n} 个任务中失败" for k, n in recurring]
             insights.append(
-                f"Recurring pain: {', '.join(parts)} — these repeat the same error "
-                f"pattern and are automation candidates."
+                f"反复出现的痛点：{', '.join(parts)}——这些重复相同的错误模式，"
+                f"是自动化候选对象。"
             )
         else:
             insights.append(
-                f"{len(pain_tasks)} tasks had 2+ errors — review for retry patterns "
-                f"(use --top N to find them, then --task <id> --drill)."
+                f"{len(pain_tasks)} 个任务出现 2+ 个错误——检查重试模式"
+                f"（用 --top N 查找，再 --task <id> --drill 下钻）。"
             )
 
     # --- 4. Success measurement gaps ---
@@ -316,19 +311,18 @@ def generate_insights(tasks: list[dict], agg: dict) -> list[str]:
                    if v["unk"] > 0 and v["succ"] == 0 and v["fail"] == 0]
     if all_unknown:
         insights.append(
-            f"Success not yet measured for: {', '.join(sorted(all_unknown))} — "
-            f"these aren't failures, just categories with no success signal detected yet."
+            f"尚未度量成功率的类别：{', '.join(sorted(all_unknown))}——"
+            f"这些不是失败，只是尚未检测到成功信号的类别。"
         )
 
     # --- 5. Parallelism / overlap ---
-    # Use excised_gap_seconds as a proxy for idle, and count tasks with wall >> active
     high_wall = [t for t in tasks
                  if (t.get("wall_clock_seconds") or 0) > 2 * max(t.get("active_seconds") or 0, 1)
                  and (t.get("wall_clock_seconds") or 0) > 3600]
     if len(high_wall) >= 3:
         insights.append(
-            f"{len(high_wall)} tasks have wall-clock 2×+ their active time — "
-            f"long idle/overlap periods. Use --top to find them and --drill to see why."
+            f"{len(high_wall)} 个任务的 Wall 时间是 Active 的 2 倍以上——"
+            f"存在长时间空闲/重叠。用 --top 查找，--drill 查看原因。"
         )
 
     return insights
