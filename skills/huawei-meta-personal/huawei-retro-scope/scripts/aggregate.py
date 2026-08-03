@@ -1124,9 +1124,10 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
         return html_mod.escape(line) if line else ""
 
     # The narrative uses labeled sentences: "Goal: ...", "Struggle: ...", "Time: ..."
+    # Split on both English (.!?) and Chinese (。！？) sentence boundaries.
     parts: list[tuple[str, str]] = []  # (label, content)
 
-    sentences = re.split(r'(?<=[.!?])\s+', narrative)
+    sentences = re.split(r'(?<=[.!?。！？])\s+', narrative)
 
     current_label = ""
     current_content: list[str] = []
@@ -1152,39 +1153,37 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
         if s.startswith("Goal:"):
             _flush()
             current_label = "Goal"
-            current_content = [s[len("Goal:"):].strip().rstrip(".")]
+            current_content = [s[len("Goal:"):].strip().rstrip(".。")]
         elif s.startswith("Struggle:"):
             _flush()
             current_label = "Struggle"
-            current_content = [s[len("Struggle:"):].strip().rstrip(".")]
+            current_content = [s[len("Struggle:"):].strip().rstrip(".。")]
         elif s.startswith("Key failure:"):
             _flush()
             current_label = "Struggle"
-            current_content = [s[len("Key failure:"):].strip().rstrip(".")]
+            current_content = [s[len("Key failure:"):].strip().rstrip(".。")]
         elif s.startswith("Failed:"):
             _flush()
             current_label = "Struggle"
-            current_content = [s[len("Failed:"):].strip().rstrip(".")]
+            current_content = [s[len("Failed:"):].strip().rstrip(".。")]
         elif s.startswith("Difficulty:"):
-            # Old-format narratives may have separate Difficulty labels —
-            # merge into Struggle (rubric 25: they're duplicative).
             _flush()
             current_label = "Struggle"
-            current_content = [s[len("Difficulty:"):].strip().rstrip(".")]
+            current_content = [s[len("Difficulty:"):].strip().rstrip(".。")]
         elif s.startswith("Blocker:"):
             _flush()
             current_label = "Struggle"
-            current_content = [s[len("Blocker:"):].strip().rstrip(".")]
+            current_content = [s[len("Blocker:"):].strip().rstrip(".。")]
         elif s.startswith("Also:"):
-            current_content.append(s[len("Also:"):].strip().rstrip("."))
+            current_content.append(s[len("Also:"):].strip().rstrip(".。"))
         elif s.startswith("Retried"):
-            current_content.append(s.rstrip("."))
+            current_content.append(s.rstrip(".。"))
         elif re.match(r'^[\d.]+h (active|human|continuous)', s):
             _flush()
             current_label = "Time"
-            current_content = [s.rstrip(".")]
+            current_content = [s.rstrip(".。")]
         else:
-            current_content.append(s.rstrip("."))
+            current_content.append(s.rstrip(".。"))
     _flush()
 
     if not parts:
