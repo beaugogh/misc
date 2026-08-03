@@ -42,3 +42,26 @@
 * Give top 10 time sinks.
 
 * if vcs means git, just say git. if IM means welink chats, just say welink. Use specific program names when you can.
+
+* all 根因 cells should contain 目标 and 困难,  i notice some cells only contain 目标 but miss 困难.
+
+* if it is web-browsing that takes much human time, you need to investigate the web page contents that were being browsed, and analyze the root causes on why that browsing took that much time. give concrete/detailed examples if necessary.
+
+* if it is welink chat or other IM chatting that took much human time, you need to invertigate the chat contents being communicated, analyse and summarize them to reveal the root causes on why those communications took long. give concrete/detailed examples if necessary.
+
+* it is not entirely clear to me on the differences between research and planning, and what planning is exactly. 
+
+* we are looking for genuine time sinks and painpoints, if a web page is simply forgotten to be closed, it does not count as a painpoint. you need to detect if within a web page, the user frequently clicks, scrolled or drag/dropped, or performed any other actions on the web page, if that is the case, and it took a long time, then it genuinely can be considered a time sink and a painpoint. and you need to be very insightful and specific about the painpoint webpage contents that the user interacted with, demonstrating why do you think that the user interacted so much with the said web pages. provide verifiable evidences/sources/references if necessary. provide examples if necessary.
+
+* we are looking for genuine time sinks and painpoints for coding session, if a coding session/terminal tab is simply forgotten to be closed, it does not count as a painpoint. you need to detect if within a coding session, the user frequently types or gives instructions, if that is the case, and it took a relatively long time, then it genuinely can be considered a time sink and a painpoint. and you need to be very insightful and specific about the painful coding session that the user interacted with, investigating its content, demonstrating why do you think that the user interacted so much within the coding session, be it claude code, codeAgent, openclaw, opencode, hermes or codex. provide verifiable evidences/sources/references if necessary. provide examples if necessary.
+
+* we are looking for genuine time sinks and painpoints for chat sessions, typically welink chat sessions, but could also be other IM services, if a chat session is simply forgotten to be closed, it does not count as a painpoint. you need to detect if within a chat session, the user frequently types or interacts with others, if that is the case, and it took a relatively long time, then it genuinely can be considered a time sink and a painpoint. and you need to be very insightful and specific about the lengthy chat session, investigating its content, demonstrating why do you think that the user interacted so much within the chat session. provide verifiable evidences/sources/references if necessary. provide examples if necessary.
+
+* we are looking for genuine time sinks and painpoints for file editing, typically microsoft word/excel/powerpoint file editing, but could also be other files, e.g. a simple text file. if a file is simply forgotten to be closed, it does not count as a painpoint. you need to detect if for a specific opened file, if the user frequently types or interacts with it, if that is the case, and it took a relatively long time, then it genuinely can be considered a time sink and a painpoint. and you need to be very insightful and specific about the lengthy file editing session, investigating its content, what did the user add, remove or modify, demonstrating why do you think that the user spent that much time editing that file. provide verifiable evidences/sources/references if necessary. provide examples if necessary.
+
+* avoid description like, for this is useless, because the user still does not know what exactly is the content on the websites AgentCentor or beaugogh/misc that the user interacted with: 593 次访问中 378 次为重复访问（点击/切换），说明用户在活跃地查找和对比信息。最频繁交互的页面「AgentCenter」被访问 86 次（AI Agent开发/管理平台），表明用户在该页面进行了密集操作 高频交互页面：「AgentCenter」86次访问（Chrome记录10次），「beaugogh/misc」39次访问（Chrome记录46次），「所有-W3搜索」34次，「Welcome to W3 Workplace」27次访问（Chrome记录62次）. 
+
+* avoid description like this, for it is useless, as it is awkwardly phrased, the user does not understand what it means: 命令超时（网络慢或进程挂起）；用户拒绝工具调用——agent 反复提出不需要的操作，尽管重试 99 次仍反复出现——根本原因未被解决
+
+* besides the report outputs in different timescales, detailed and comprehensive session records should be extracted for later inspection and as evidence. session records include chat sessions, coding sessions, browser sessions, meeting sessions, file editing sessions, etc. anything that give a clear trace of content / actions for clear understanding.
+
