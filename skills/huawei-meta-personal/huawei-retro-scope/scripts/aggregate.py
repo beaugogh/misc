@@ -882,7 +882,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>时间报告（{html_mod.escape(granularity)}）</title>
 <style>
-  body {{ font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 2em; color: #2c2c2c; max-width: 1200px; }}
+  body {{ font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 2em; color: #2c2c2c; max-width: 1600px; }}
   h1 {{ font-size: 1.6em; border-bottom: 3px solid #4e79a7; padding-bottom: 0.3em; }}
   h2 {{ font-size: 1.25em; margin-top: 2em; color: #333; }}
   h3 {{ font-size: 1.05em; margin: 0.5em 0; }}
@@ -913,7 +913,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
   .kind-section .num {{ font-weight: 600; color: #4e79a7; display: inline-block; width: 75px; }}
   .kind-section .num-act {{ font-weight: 600; color: #76b7b2; }}
   .kind-total {{ font-size: 0.85em; color: #888; font-weight: normal; }}
-  .top-tasks td.why {{ font-size: 0.82em; color: #666; max-width: 340px; }}
+  .top-tasks td.why {{ font-size: 0.82em; color: #666; max-width: 560px; min-width: 300px; }}
   .why-inline {{ font-size: 0.85em; color: #888; margin-left: 56px; margin-top: 2px; }}
   .rc-part {{ margin: 2px 0; line-height: 1.4; }}
   .rc-label {{ font-weight: 600; color: #555; }}
