@@ -45,6 +45,28 @@ import os
 import re
 from typing import Iterator
 
+# Content-driven root-cause summarizer — produces human-interpretable narratives
+# from the actual event text (prompts, assistant diagnostics, errors, page titles).
+# Imported lazily inside _make_task to avoid a circular import (summarize.py
+# imports from segment_tasks for its self-test only, guarded by __main__).
+def _get_summarizer():
+    try:
+        from summarize import summarize_root_cause
+        return summarize_root_cause
+    except ImportError:
+        return None
+
+# Human-involvement detector — distinguishes HUMAN time (the user typing,
+# clicking, interrupting) from MACHINE time (the agent running autonomously).
+# This is the key to identifying real time sinks: a 10h autonomous agent run
+# with 2 prompts is NOT a human time sink, even though active_seconds=10h.
+def _get_human_involvement_fn():
+    try:
+        from human_involvement import compute_human_involvement
+        return compute_human_involvement
+    except ImportError:
+        return None
+
 # Heuristic thresholds for implicit segmentation.
 GAP_THRESHOLD_SECONDS = 30 * 60  # 30 min gap => likely a new task
 MAX_SUBJECT_LEN = 120
@@ -70,9 +92,82 @@ def _summarize_message(text: str | None) -> str:
     if not text:
         return "(no text)"
     text = text.strip().replace("\n", " ")
+    # Clean system-reminder wrappers and command metadata from the subject.
+    text = _clean_subject_text(text)
+    if not text:
+        return "(no text)"
     if len(text) > MAX_SUBJECT_LEN:
         return text[:MAX_SUBJECT_LEN] + "…"
     return text
+
+
+# Conversational prefixes that make a prompt read as a question/chat rather
+# than a task description. Stripping these yields a cleaner subject.
+# E.g. "what do you mean by install skill-creator" → "install skill-creator"
+#      "i cannot do this, help me debug: git clone..." → "git clone..."
+_CONVERSATION_PREFIXES = [
+    "what do you mean by ", "what is ", "what are ", "what does ",
+    "i cannot do this, help me debug: ", "help me debug: ",
+    "i see you are struggling, maybe there are some skills that help you: ",
+    "can you ", "could you ", "please ", "i want to ", "i need to ",
+    "i need you to ", "let's ", "lets ", "how about ", "how do i ",
+    "how to ", "why is ", "why does ", "why did ",
+    "wait, you should have already set up the ",
+    "yes, continue", "make sure the skill ",
+]
+# System-reminder patterns — extract the useful bit, discard the wrapper.
+_SYSTEM_REMINDER_RE = re.compile(
+    r'<system-reminder>.*?The user named this session "([^"]+)".*?</system-reminder>',
+    re.DOTALL
+)
+
+
+def _clean_subject_text(text: str) -> str:
+    """Clean a raw user prompt into a descriptive task subject.
+
+    Strips system-reminder wrappers, command metadata, and conversational
+    prefixes so the subject reads as a task description, not a chat message.
+    """
+    t = text.strip()
+    # Extract session name from system-reminder wrappers.
+    m = _SYSTEM_REMINDER_RE.search(t)
+    if m:
+        session_name = m.group(1).strip()
+        # Use the session name as the subject — it's the user's own title.
+        rest = _SYSTEM_REMINDER_RE.sub("", t).strip()
+        if rest and len(rest) > 10:
+            # There's content after the reminder — use it.
+            t = rest
+        else:
+            return f'"{session_name}" session'
+    # Strip command-wrapper lines entirely.
+    for wrapper in ("<command-name>", "<local-command-stdout>",
+                    "<command-message>", "<command-args>", "<system-reminder>"):
+        if wrapper in t:
+            # If there's a /goal command-args, extract it.
+            if "<command-args>" in t:
+                m = re.search(r'<command-args>(.*?)</command-args>', t, re.DOTALL)
+                if m:
+                    t = m.group(1).strip()
+                    break
+            # Otherwise, strip lines containing command metadata.
+            lines = [ln for ln in t.split("\n")
+                     if not any(w in ln for w in
+                                ("<command-name>", "<local-command-stdout>",
+                                 "<command-message>", "<command-args>",
+                                 "<system-reminder>", "</system-reminder>"))]
+            t = " ".join(ln.strip() for ln in lines if ln.strip()).strip()
+            break
+    # Strip conversational prefixes (case-insensitive).
+    t_lower = t.lower()
+    for prefix in _CONVERSATION_PREFIXES:
+        if t_lower.startswith(prefix):
+            t = t[len(prefix):].strip()
+            break
+    # Capitalize first letter for readability.
+    if t:
+        t = t[0].upper() + t[1:]
+    return t
 
 
 def _is_correction(text: str | None) -> bool:
@@ -305,22 +400,37 @@ def _extract_context(events: list[dict], source_kind: str) -> dict:
     if source_kind == "comm":
         senders, subjects = [], []
         directions = set()
+        im_conversations: list[str] = []
+        im_senders: list[str] = []
+        im_message_count = 0
         for ev in events:
-            if ev.get("kind") != "email":
-                continue
+            kind = ev.get("kind")
             ti = ev.get("tool_input") or {}
-            sender = ti.get("from") or ti.get("from_email")
-            if sender:
-                senders.append(str(sender)[:60])
-            subj = ti.get("subject") or ev.get("text")
-            if subj:
-                subjects.append(str(subj)[:80])
-            d = ti.get("direction")
-            if d:
-                directions.add(d)
+            if kind == "email":
+                sender = ti.get("from") or ti.get("from_email")
+                if sender:
+                    senders.append(str(sender)[:60])
+                subj = ti.get("subject") or ev.get("text")
+                if subj:
+                    subjects.append(str(subj)[:80])
+                d = ti.get("direction")
+                if d:
+                    directions.add(d)
+            elif kind == "chat_message":
+                im_message_count += 1
+                conv_name = ti.get("conversation_name")
+                if conv_name:
+                    im_conversations.append(str(conv_name)[:60])
+                sender = ti.get("sender")
+                if sender:
+                    im_senders.append(str(sender)[:60])
         ctx["senders"] = _dedupe(senders)[:5]
         ctx["subjects"] = _dedupe(subjects)[:5]
         ctx["has_reply"] = "sent" in directions and "received" in directions
+        if im_message_count:
+            ctx["im_message_count"] = im_message_count
+            ctx["im_conversations"] = _dedupe(im_conversations)[:5]
+            ctx["im_senders"] = _dedupe(im_senders)[:5]
         return ctx
 
     if source_kind == "ai_session":
@@ -359,6 +469,17 @@ def _extract_context(events: list[dict], source_kind: str) -> dict:
         ctx["dominant_tools"] = [t for t, _ in sorted(tool_counter.items(),
                                                       key=lambda x: -x[1])[:5]]
         ctx["files_touched"] = sorted(files_touched)[:5]
+        # User prompts: top 3 distinct user messages (evidence of what the user was instructing).
+        user_prompts = []
+        for ev in events:
+            if ev.get("kind") == "user_message" and ev.get("text"):
+                text = ev["text"].strip().replace("\n", " ")
+                # Skip system-reminders and command wrappers.
+                if text and not text.startswith("<") and not text.startswith("[Request"):
+                    prompt = text[:80]
+                    if prompt not in user_prompts:
+                        user_prompts.append(prompt)
+        ctx["user_prompts"] = user_prompts[:3]
         return ctx
 
     if source_kind == "vcs":
@@ -884,16 +1005,28 @@ def _derive_subject_from_events(events: list[dict]) -> str | None:
     title) or ``event["tool_input"]["subject"]``. This picks the most informative
     one so the report shows "【会议通知】 AI4W 站会" instead of "(no subject)".
     """
+    # Two-pass: first look for the most informative structured field (subject,
+    # conversation_name) across ALL events. Only then fall back to text.
+    # This prevents a message-text field from shadowing a conversation_name
+    # that appears on a later event.
     for e in events:
         ti = e.get("tool_input") or {}
-        # Meeting/email subject from tool_input
         if isinstance(ti, dict) and ti.get("subject"):
             s = str(ti["subject"]).strip().strip('"')
             if s:
                 return s[:MAX_SUBJECT_LEN]
-        # Text field (meeting title, commit message, email subject, page title)
+    # IM conversation name (second priority — identifies who the chat was with).
+    for e in events:
+        ti = e.get("tool_input") or {}
+        if isinstance(ti, dict) and ti.get("conversation_name"):
+            s = str(ti["conversation_name"]).strip().strip('"')
+            if s:
+                return s[:MAX_SUBJECT_LEN]
+    # Text field (meeting title, commit message, email subject, page title).
+    # Skip non-informative text like "(CARD_MSG)" or "(message)".
+    for e in events:
         text = (e.get("text") or "").strip().strip('"')
-        if text and text != "(no text)":
+        if text and text != "(no text)" and not re.match(r'^\([A-Z_]+\)$', text):
             return text[:MAX_SUBJECT_LEN]
     return None
 
@@ -936,7 +1069,10 @@ def _make_task(tid: str, flavor: str, events: list[dict], subject: str | None,
         wall_clock = active
     source_kind = first.get("source_kind", "ai_session")
     success, success_evidence = _determine_success(flavor, events, task_status, source_kind)
-    return {
+    context = _extract_context(events, source_kind)
+
+    # Build the task dict first (the summarizer reads task["context"], time fields).
+    task = {
         "id": tid,
         "flavor": flavor,
         "source": first.get("source", "claude_code"),
@@ -962,8 +1098,28 @@ def _make_task(tid: str, flavor: str, events: list[dict], subject: str | None,
         "success": success,
         "success_evidence": success_evidence,
         "task_status": task_status,
-        "context": _extract_context(events, source_kind),
+        "context": context,
     }
+
+    # Human-involvement metrics — MUST be computed BEFORE the narrative,
+    # because the summarizer reads task["human_data"] for idle-session
+    # detection (rubric 56). Without this ordering, human_data is None
+    # when the narrative is generated, causing all tasks to be falsely
+    # classified as "agent 自主运行" (idle).
+    _human_fn = _get_human_involvement_fn()
+    if _human_fn is not None:
+        task["human_data"] = _human_fn(events, task)
+
+    # Content-driven root-cause narrative — grounded in the actual event text.
+    # Stored in context["narrative"] so the render layer can display it inline.
+    # Reads task["human_data"] for idle detection — must run AFTER human_data.
+    _summarize_fn = _get_summarizer()
+    if _summarize_fn is not None:
+        narrative = _summarize_fn(task, events)
+        if narrative:
+            context["narrative"] = narrative
+
+    return task
 
 
 def segment_explicit(events: list[dict]) -> tuple[list[dict], list[dict]]:

@@ -181,8 +181,8 @@ class TestSegmentation(unittest.TestCase):
         implicit = [t for t in tasks if t["flavor"] == "implicit"]
         self.assertEqual(len(implicit), 2)
         subjects = [t["subject"] for t in implicit]
-        self.assertIn("first task", subjects)
-        self.assertIn("second task", subjects)
+        self.assertIn("First task", subjects)
+        self.assertIn("Second task", subjects)
 
     def test_implicit_correction_extends_task(self):
         """A correction user message does NOT start a new task."""

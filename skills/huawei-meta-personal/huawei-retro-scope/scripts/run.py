@@ -46,6 +46,7 @@ from __future__ import annotations
 import sys
 import os
 import json
+import re
 import argparse
 from datetime import datetime, timezone
 
@@ -173,7 +174,10 @@ def _render_drill_down(result: dict, task: dict) -> str:
     lines.append("")
     act_h = (result.get("total_active_seconds") or 0) / 3600
     wall_h = (result.get("total_wall_seconds") or 0) / 3600
-    lines.append(f"Active: {act_h:.1f}h | Wall: {wall_h:.1f}h | "
+    from aggregate import _working_day_pct
+    wd_pct = _working_day_pct(act_h)
+    wd_str = f" ({wd_pct} of 8h)" if wd_pct else ""
+    lines.append(f"Active: {act_h:.1f}h{wd_str} | Wall: {wall_h:.1f}h | "
                  f"Stages: {len(result.get('stages', []))}")
     lines.append("")
 
@@ -240,28 +244,121 @@ def _render_top_tasks(tasks: list[dict], n: int) -> str:
     ``--task <id> --drill`` on anything that looks like a time sink.
     """
     from datetime import datetime as _dt
-    ranked = sorted(tasks, key=lambda t: t.get("active_seconds") or 0, reverse=True)[:n]
+    # Rank by HUMAN engaged time — the user's actual time cost, not machine time.
+    def _human_engaged_h(t):
+        return (t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0
+    ranked = sorted(tasks, key=_human_engaged_h, reverse=True)[:n]
     total_active = sum(t.get("active_seconds") or 0 for t in tasks) / 3600
+    total_human = sum(_human_engaged_h(t) for t in tasks) / 3600
 
-    lines = [f"# Top {len(ranked)} tasks by active time"]
-    lines.append(f"(of {len(tasks)} tasks, {total_active:.1f}h active total)")
+    lines = [f"# Top {len(ranked)} tasks by HUMAN engaged time"]
+    from aggregate import _as_working_days, _working_day_pct, WORKING_DAY_HOURS
+    wd_total = _as_working_days(total_human)
+    total_str = f"{total_human:.1f}h human engaged"
+    if wd_total:
+        total_str += f" ({wd_total})"
+    total_str += f" / {total_active:.1f}h total active"
+    lines.append(f"(of {len(tasks)} tasks, {total_str})")
     lines.append("")
-    lines.append(f"{'#':>3}  {'Active':>7}  {'Wall':>7}  {'Kind':<11} {'Start':<12} "
-                 f"{'Success':<11} {'Subject'}")
-    lines.append("-" * 100)
+    lines.append(f"{'#':>3}  {'Human':>7}  {'%8h':>5}  {'Active':>7}  {'Involv':>7}  "
+                 f"{'Kind':<11} {'Start':<12} {'Subject'}")
+    lines.append("-" * 115)
     for i, t in enumerate(ranked, 1):
+        eng = _human_engaged_h(t) / 3600
         act = (t.get("active_seconds") or 0) / 3600
-        wall = (t.get("wall_clock_seconds") or 0) / 3600
+        wd_pct = _working_day_pct(eng)
+        hd = t.get("human_data") or {}
+        inv = (hd.get("human_involvement") or "?")[:7]
         kind = (t.get("source_kind") or "?")[:11]
         start_str = _dt.fromtimestamp(t.get("start") or 0).strftime("%m-%d %H:%M")
-        succ = (t.get("success") or "?")[:11]
         subj = (t.get("subject") or (t.get("text") or "")[:50] or "(no subject)")[:48]
-        lines.append(f"{i:>3}  {act:>6.1f}h  {wall:>6.1f}h  {kind:<11} {start_str:<12} "
-                     f"{succ:<11} {subj}")
+        lines.append(f"{i:>3}  {eng:>6.1f}h  {wd_pct:>5}  {act:>6.1f}h  {inv:>7}  "
+                     f"{kind:<11} {start_str:<12} {subj}")
         lines.append(f"       id: {t.get('id', '?')}")
     lines.append("")
     lines.append("Drill into any task:  python run.py --task <id> --drill")
     return "\n".join(lines)
+
+
+def _export_session_records(tasks: list[dict], events: list[dict], output_dir: str) -> None:
+    """Export detailed session records as evidence files (rubric 66).
+
+    Writes a JSON file per task with: subject, time, human_data, narrative,
+    user prompts (coding), message texts (chat), page titles (browser),
+    commit subjects (git), file names (file-edit), and event timeline.
+
+    Only exports tasks with is_genuine_time_sink=True (the ones that matter).
+    Filenames are human-readable: source_kind_date_subject_taskid.json
+    """
+    import json as _json
+    from datetime import datetime as _dt, timezone as _tz
+    records_dir = os.path.join(output_dir, "session_records")
+    os.makedirs(records_dir, exist_ok=True)
+
+    # Build a lookup from task start/end to events.
+    def _events_for_task(t):
+        start = t.get("start", 0)
+        end = t.get("end", 0)
+        sid = t.get("session_id")
+        return [e for e in events
+                if e.get("timestamp") is not None
+                and start <= e.get("timestamp", 0) <= end
+                and (e.get("session_id") == sid if sid else True)]
+
+    exported = 0
+    for t in tasks:
+        hd = t.get("human_data") or {}
+        if not hd.get("is_genuine_time_sink"):
+            continue
+        if (hd.get("human_engaged_seconds") or 0) < 600:  # < 10 min engaged
+            continue
+
+        tid = t.get("id", f"task-{exported}")
+        # Human-readable filename: source_kind + subject + date.
+        sk = t.get("source_kind", "unknown")
+        subj = (t.get("subject") or "no-subject")[:40]
+        start_dt = _dt.fromtimestamp(t.get("start") or 0, tz=_tz.utc)
+        date_str = start_dt.strftime("%Y%m%d")
+        safe_subj = re.sub(r'[^\w\-]', '_', subj)[:40]
+        safe_tid = re.sub(r'[^\w\-]', '_', tid)[:30]
+        filename = f"{sk}_{date_str}_{safe_subj}_{safe_tid}.json"
+        record = {
+            "id": tid,
+            "subject": t.get("subject"),
+            "source_kind": t.get("source_kind"),
+            "start": t.get("start"),
+            "end": t.get("end"),
+            "active_seconds": t.get("active_seconds"),
+            "wall_clock_seconds": t.get("wall_clock_seconds"),
+            "human_data": hd,
+            "narrative": (t.get("context") or {}).get("narrative"),
+            "context": {k: v for k, v in (t.get("context") or {}).items()
+                        if k != "narrative"},
+            "errors": t.get("errors"),
+            "tool_calls": t.get("tool_calls"),
+            "tool_names": t.get("tool_names"),
+        }
+
+        # Add event timeline (capped at 200 events).
+        task_events = _events_for_task(t)
+        timeline = []
+        for ev in task_events[:200]:
+            timeline.append({
+                "timestamp": ev.get("timestamp"),
+                "kind": ev.get("kind"),
+                "text": (ev.get("text") or "")[:200],
+                "tool_name": ev.get("tool_name"),
+                "tool_is_error": ev.get("tool_is_error"),
+            })
+        record["event_timeline"] = timeline
+        record["event_count_total"] = len(task_events)
+
+        filepath = os.path.join(records_dir, filename)
+        with open(filepath, "w", encoding="utf-8") as f:
+            _json.dump(record, f, ensure_ascii=False, indent=2)
+        exported += 1
+
+    print(f"[session_records] exported {exported} genuine time sink records → {records_dir}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -367,14 +464,18 @@ def _run_multi_horizon(tasks: list[dict], events: list[dict],
         n_sources = len({t.get("source_kind") for t in horizon_tasks
                          if t.get("source_kind")})
         insights = generate_insights(horizon_tasks, agg)
+        from aggregate import _as_working_days
+        wd_str = _as_working_days(total_active)
         report_infos.append({
             "label": label, "days": days, "filename": filename,
             "since": since_date, "until": end_date_str,
-            "active_h": total_active, "task_count": total_tasks,
+            "active_h": total_active, "wd": wd_str,
+            "task_count": total_tasks,
             "n_sources": n_sources,
             "top_insight": insights[0] if insights else "",
         })
-        print(f"  {label}: {total_active:.1f}h active, {total_tasks} tasks, "
+        wd_display = f" ({wd_str})" if wd_str else ""
+        print(f"  {label}: {total_active:.1f}h active{wd_display}, {total_tasks} tasks, "
               f"{n_sources} sources → {filepath}", file=sys.stderr)
 
     # Build the dashboard index page.
@@ -387,11 +488,14 @@ def _run_multi_horizon(tasks: list[dict], events: list[dict],
         insight_esc = html_mod.escape(info["top_insight"][:120])
         insight_html = (f'<p class="card-insight">{insight_esc}</p>'
                         if insight_esc else "")
+        wd_html = ""
+        if info.get("wd"):
+            wd_html = f' <span class="card-wd">{html_mod.escape(info["wd"])}</span>'
         cards.append(
             f'  <a class="horizon-card" href="{html_mod.escape(info["filename"])}">'
             f'<div class="card-label">{label_esc}</div>'
             f'<div class="card-range">{since_esc} → {until_esc}</div>'
-            f'<div class="card-stats"><strong>{info["active_h"]:.1f}h</strong> active, '
+            f'<div class="card-stats"><strong>{info["active_h"]:.1f}h</strong> active{wd_html}, '
             f'{info["task_count"]} tasks, {info["n_sources"]} sources</div>'
             f'{insight_html}'
             f'</a>'
@@ -421,6 +525,7 @@ def _run_multi_horizon(tasks: list[dict], events: list[dict],
   .card-label {{ font-size: 1.4em; font-weight: 700; color: #4e79a7; }}
   .card-range {{ font-size: 0.85em; color: #888; margin: 0.2em 0; }}
   .card-stats {{ font-size: 0.95em; margin: 0.3em 0; }}
+  .card-wd {{ font-size: 0.85em; color: #888; }}
   .card-insight {{ font-size: 0.82em; color: #555; margin-top: 0.5em; padding-top: 0.5em; border-top: 1px solid #eee; }}
 </style>
 </head>
@@ -617,6 +722,26 @@ def main():
     except Exception as e:
         print(f"[refine_success] stage failed: {e}", file=sys.stderr)
         print("[refine_success] continuing with pre-refined success values.", file=sys.stderr)
+
+    # --- Optional LLM labeling (Phase 7.3) ---
+    try:
+        from llm_labeling import label_tasks, get_labeler
+        labeler = get_labeler()
+        if labeler.is_available:
+            print(f"[llm_labeling] backend: {labeler.backend_name} — labeling tasks...", file=sys.stderr)
+            tasks = label_tasks(tasks)
+            labeled = sum(1 for t in tasks if t.get("llm_label"))
+            print(f"[llm_labeling] labeled {labeled}/{len(tasks)} tasks.", file=sys.stderr)
+    except Exception as e:
+        print(f"[llm_labeling] stage skipped: {e}", file=sys.stderr)
+
+    # --- Export detailed session records as evidence (rubric 66) ---
+    # Extracts detailed session records for later inspection.
+    _output_dir = args.output_dir or "output"
+    try:
+        _export_session_records(tasks, events, _output_dir)
+    except Exception as e:
+        print(f"[session_records] export failed: {e}", file=sys.stderr)
 
     # --- Multi-horizon mode (default) vs single-range mode ---
     # Multi-horizon is the default (--horizons=90d,30d,7d,1d). It's disabled when:

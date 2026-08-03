@@ -165,8 +165,8 @@ class TestRenderHTML(unittest.TestCase):
 
     def test_contains_th_headers(self):
         """Output contains table header cells with expected column names."""
-        self.assertIn("<th>Period</th>", self.output)
-        self.assertIn("<th>Kind</th>", self.output)
+        self.assertIn("<th>周期</th>", self.output)
+        self.assertIn("<th>类型</th>", self.output)
         self.assertIn("<th>Wall(h)</th>", self.output)
 
     def test_contains_bar_rects(self):
@@ -584,7 +584,14 @@ class TestTopTasks(unittest.TestCase):
 
     @staticmethod
     def _task(tid, active_h, wall_h=None, kind="ai_session", subject="t",
-              success="unknown", start=1000.0):
+              success="unknown", start=1000.0, human_engaged_h=None):
+        """Build a minimal task for top-tasks testing.
+
+        human_engaged_h: if provided, sets human_data.human_engaged_seconds so
+        the task ranks by human time. If None, defaults to active_h (so tasks
+        without explicit human_data still rank by active time as a fallback).
+        """
+        he = active_h if human_engaged_h is None else human_engaged_h
         return {
             "id": tid,
             "active_seconds": active_h * 3600,
@@ -593,15 +600,22 @@ class TestTopTasks(unittest.TestCase):
             "subject": subject,
             "success": success,
             "start": start,
+            "human_data": {
+                "human_engaged_seconds": he * 3600,
+                "human_involvement": "high" if he > 0 else "none",
+                "human_action_count": int(he * 10),
+                "machine_autonomous_seconds": max(0, active_h - he) * 3600,
+                "human_action_types": [f"{int(he*10)} prompt(s)"] if he > 0 else [],
+            },
         }
 
-    def test_ranks_by_active_time_descending(self):
-        """Tasks must be sorted by active time, highest first."""
+    def test_ranks_by_human_engaged_time_descending(self):
+        """Tasks must be sorted by HUMAN engaged time, highest first."""
         import run as run_module
         tasks = [
-            self._task("a", 1.0, subject="small"),
-            self._task("b", 5.0, subject="biggest"),
-            self._task("c", 3.0, subject="medium"),
+            self._task("a", 1.0, subject="small", human_engaged_h=1.0),
+            self._task("b", 5.0, subject="biggest", human_engaged_h=5.0),
+            self._task("c", 3.0, subject="medium", human_engaged_h=3.0),
         ]
         out = run_module._render_top_tasks(tasks, 3)
         # biggest must appear before medium before small
@@ -631,11 +645,11 @@ class TestTopTasks(unittest.TestCase):
         self.assertIn("--task <id> --drill", out)
 
     def test_shows_total_active_and_task_count(self):
-        """The header reports the total active hours and task count for context."""
+        """The header reports the total active/human hours and task count."""
         import run as run_module
         tasks = [self._task("a", 2.0), self._task("b", 3.0)]
         out = run_module._render_top_tasks(tasks, 5)
-        self.assertIn("5.0h active total", out)
+        self.assertIn("5.0h total active", out)
         self.assertIn("of 2 tasks", out)
 
     def test_n_larger_than_task_count_is_safe(self):
@@ -646,13 +660,16 @@ class TestTopTasks(unittest.TestCase):
         id_lines = [ln for ln in out.splitlines() if ln.strip().startswith("id:")]
         self.assertEqual(len(id_lines), 3)
 
-    def test_zero_active_time_task_included(self):
-        """A task with 0 active time (single event, honest gap) is still listable."""
+    def test_zero_human_task_ranks_below_active_task(self):
+        """A task with 0 human engagement ranks below a task with human engagement."""
         import run as run_module
-        tasks = [self._task("a", 0.0, subject="unpaired event"),
-                 self._task("b", 2.0, subject="real work")]
+        tasks = [self._task("a", 0.0, subject="unpaired event", human_engaged_h=0.0),
+                 self._task("b", 2.0, subject="real work", human_engaged_h=2.0)]
         out = run_module._render_top_tasks(tasks, 5)
-        self.assertIn("unpaired event", out)
+        # real work (2.0h human) must rank above unpaired event (0h human)
+        idx_real = out.index("real work")
+        idx_unpaired = out.index("unpaired event")
+        self.assertLess(idx_real, idx_unpaired)
 
 
 class TestContextRendering(unittest.TestCase):
@@ -731,11 +748,15 @@ class TestContextRendering(unittest.TestCase):
              "subject": "fix bug", "event_count": 10, "success": True,
              "source_kind": "ai_session", "errors": 3,
              "context": {"blocker": "command timeout (3 errors)",
-                         "files_touched": ["run.py"]}},
+                         "files_touched": ["run.py"]},
+             "human_data": {"human_engaged_seconds": 2400, "human_involvement": "high",
+                            "human_action_count": 50, "machine_autonomous_seconds": 0,
+                            "human_action_types": ["50 prompt(s)"],
+                            "is_genuine_time_sink": True}},
         ]
         agg = aggregate(tasks, "day")
         html = render_html(agg, "day", tasks=tasks)
-        self.assertIn("Root cause", html)
+        self.assertIn("根因", html)
         self.assertIn("blocker:", html)
 
     def test_html_kind_section_shows_context_inline(self):
@@ -760,7 +781,10 @@ class TestContextRendering(unittest.TestCase):
             {"start": 1782967200.0, "active_seconds": 36000, "wall_clock_seconds": 40000,
              "subject": "sync main", "source_kind": "ai_session", "errors": 46,
              "tool_names": ["Edit", "Bash"], "id": "t1",
-             "context": {"blocker": "corporate proxy auth (407) (12 of 46 errors)"}},
+             "context": {"blocker": "corporate proxy auth (407) (12 of 46 errors)"},
+             "human_data": {"human_engaged_seconds": 36000, "human_involvement": "high",
+                            "human_action_count": 100, "machine_autonomous_seconds": 0,
+                            "human_action_types": ["100 prompt(s)"]}},
         ]
         insights = generate_insights(tasks, {"2026-07": {}})
         joined = " ".join(insights)
@@ -781,7 +805,7 @@ class TestDataAvailability(unittest.TestCase):
         ]
         html = render_data_availability_html(tasks, 1782967200.0, 1783053600.0)
         self.assertIn("ai_session", html)
-        self.assertIn("No data in range", html)
+        self.assertIn("范围内无数据", html)
         self.assertIn("browser", html)  # listed as no data
         self.assertIn("meeting", html)  # listed as no data
 
@@ -811,9 +835,9 @@ class TestDataAvailability(unittest.TestCase):
         agg = aggregate(tasks, "day")
         html = render_html(agg, "day", tasks=tasks,
                            since_ts=base, until_ts=base + 86400)
-        self.assertIn("Data availability", html)
+        self.assertIn("数据可用性", html)
         self.assertIn("ai_session", html)
-        self.assertIn("No data in range", html)  # browser/meeting/etc. are empty
+        self.assertIn("范围内无数据", html)  # browser/meeting/etc. are empty
 
     def test_no_data_availability_section_without_dates(self):
         """render_html omits data-availability when since_ts/until_ts not given."""
@@ -825,7 +849,7 @@ class TestDataAvailability(unittest.TestCase):
         ]
         agg = aggregate(tasks, "day")
         html = render_html(agg, "day", tasks=tasks)
-        self.assertNotIn("Data availability", html)
+        self.assertNotIn("数据可用性", html)
 
 
 class TestRootCauseRendering(unittest.TestCase):
@@ -861,8 +885,8 @@ class TestRootCauseRendering(unittest.TestCase):
                    "tool_input": {"is_all_day": False, "subject": "conference"}}]
         task = _make_task("t1", "implicit", events, None)
         line = render_context_inline(task)
-        self.assertIn("Multi-day event", line)
-        self.assertIn("capped", line)
+        self.assertIn("跨天", line)
+        self.assertIn("封顶", line)
         # wall_clock should reflect the real span, clamped to MAX_MEETING_DURATION
         self.assertAlmostEqual(task["wall_clock_seconds"], MAX_MEETING_DURATION, delta=1)
         # active should be capped to 8h

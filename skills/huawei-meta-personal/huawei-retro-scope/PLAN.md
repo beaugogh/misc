@@ -1,11 +1,14 @@
 # PLAN — huawei-retro-scope implementation roadmap
 
-**Status as of 2026-07-30: Phases 0a–10 are BUILT and verified.** 272 tests pass (1 skipped).
+**Status as of 2026-08-03: Phases 0a–12 are BUILT and verified. All planned items complete.** 522 tests pass (5 skipped).
 14 source adapters registered; 13 detect on the author's machine. The pipeline runs
-end-to-end via `python run.py` with parallel-task detection, three-valued success, and
+end-to-end via `python run.py` with multi-horizon analysis (90d/30d/7d/1d default),
+content-driven root-cause narratives, human-involvement detection, three-way time
+accounting (wall/active/human), parallel-task detection, three-valued success, and
 stage-by-stage drill-down. Phase 9 (backup routes) built via 6 parallel sub-agents across 3
-waves; Phase 10 (model frontiers) built via 3 parallel sub-agents in 1 wave + integration.
-See the dispatch records below.
+waves; Phase 10 (model frontiers) built via 3 parallel sub-agents in 1 wave + integration;
+Phase 11 (human time sinks + content-driven analysis) built iteratively across multiple
+commits. See the dispatch records below.
 
 Each phase produces a working, testable increment. Phases are ordered by dependency: earlier
 phases unblock or inform later ones. Items within a phase are roughly independent.
@@ -84,7 +87,7 @@ phases unblock or inform later ones. Items within a phase are roughly independen
 
 ---
 
-## Phase 4 — Cross-source identity + better segmentation  [deps: ruptures, sklearn, igraph] ✅ DONE (4.5 deferred)
+## Phase 4 — Cross-source identity + better segmentation  [deps: ruptures, sklearn, igraph] ✅ DONE
 
 - [x] **4.1 Library verification + install.** `ruptures`, `scikit-learn`, `igraph`
       installed from tuna mirror. `splink` failed to install (silent failure) — used the
@@ -102,9 +105,11 @@ phases unblock or inform later ones. Items within a phase are roughly independen
       clusters (52 multi-task). Splink unavailable; igraph path used as documented fallback.
       Over-merges some clusters (59-task cluster) — semantic similarity on cwd is coarse;
       needs tuning.
-- [ ] **4.5 Evaluation harness.** WindowDiff + Collar-Based F1 against a hand-labeled
-      benchmark. NOT YET DONE — needs a manually-annotated one-day benchmark subset. No
-      blocker; deferred until we have labeled data to tune PELT β and the Leiden λ against.
+- [x] **4.5 Evaluation harness.** WindowDiff + Collar-Based F1 against a hand-labeled
+      benchmark. Built in Phase 9.8 — `eval_segmentation.py` (22 tests, pure stdlib),
+      `--eval` flag live. Baseline: WindowDiff=0.417, F1=0.222 (recall 14.3% — PELT β
+      under-segments; this is the baseline to tune against). Fixture at
+      `tests/fixtures/eval_benchmark.json` (4 sessions, 1711 events, 21 boundaries).
 
 ---
 
@@ -124,15 +129,16 @@ remains available if that's a concern.
 
 ---
 
-## Phase 6 — More sources  [selective deps] ✅ MOSTLY DONE (6.2, 6.10 remain)
+## Phase 6 — More sources  [selective deps] ✅ DONE
 
 - [x] **6.1 New-codeagent adapter** (`~/.cac/projects/`). `CodeagentAdapter` subclass of
       `ClaudeCodeAdapter` — reuses the JSONL parser, relabels `source="codeagent"`.
-- [ ] **6.2 Legacy-codeagent adapter** (`ngagent.db` SQLite). NOT YET BUILT — this is the
-      one unbuilt adapter with a **verified schema and no access blocker**. Would be the
-      first SQL adapter (validates the registry handles non-JSONL). Schema documented in
-      SKILL.md: `session`/`message`/`part` tables, millis INTEGER timestamps. → folded into
-      Phase 9 parallel track P3.
+- [x] **6.2 Legacy-codeagent adapter** (`ngagent.db` SQLite). Built in Phase 9.5 —
+      `LegacyCodeagentAdapter` reads `ngagent.db` SQLite (opencode DB). Verified schema:
+      session/message/part/project/metrics tables, millis timestamps. Emits
+      user_message/assistant_message/tool_use/tool_result/reasoning events. First SQL
+      adapter — first real SQL-level incremental (`WHERE time_created > ?` in millis).
+      263 events extracted live. 19 tests.
 - [x] **6.3 Browser history adapter** (Chrome/Edge). `browser_adapter.py`: copy-then-read
       (Chrome locks while running). Emits visit/download/search events. Chrome-epoch
       (micros-since-1601) normalized to Unix epoch.
@@ -153,8 +159,9 @@ remains available if that's a concern.
       (666 chat messages, two-step: enumerate conversations then fetch). Defensive envelope
       parsing (`{data:{data:[]}}`, `{conversation_info:[]}`, `{respData:{chatInfo:[]}}`),
       API-error detection, CARD_MSG text extraction. `detect()` checks `welink-cli` in PATH.
-      IM is opt-in (`enable_im=True`, default off — N+1 subprocess calls make it slow).
-      19 tests pinning the parsing contract. **This single adapter retires the meeting-
+      IM is now **enabled by default** (`enable_im=True` in `default_registry()` —
+      Phase 11.4 enabled it after the user noticed it was missing; 790 IM messages
+      collected live). 19 tests pinning the parsing contract. **This single adapter retires the meeting-
       duration gap and partially retires the Outlook/Graph email+calendar blocker** (6.10)
       for colleagues with welink-cli.
 - [x] **6.8 Windows Recent.** `more_adapters.py`: `.lnk` files with mtime + target-from-name.
@@ -162,15 +169,18 @@ remains available if that's a concern.
 - [x] **6.9 3ms adapter.** `more_adapters.py`: `ThreeMsAdapter` — detector-only (`detect()`
       checks for `opencli` in PATH). `collect()` is a no-op placeholder; the plugin doesn't
       expose publish timestamps in a structured way yet.
-- [ ] **6.10 Unverified sources.** NOT BUILT — codex, openclaw, hermes-agent, CloudDevOps
-      Wiki, W3, Outlook/Graph. These stay as `[unverified]` in the SKILL.md catalog. The
-      open-discovery design means unknown session dirs matching a known shape are auto-
-      adopted, but no explicit detectors for these tools exist yet. → the Outlook/Graph
-      piece is repurposed as the mail+calendar backup route in Phase 9.3.
+- [x] **6.10 Unverified sources.** Built in Phase 6.10 — `unverified_adapters.py` with
+      5 adapters: `CodexAdapter` (~/.codex/sessions/, JSONL, defensive parsing for both
+      Claude-Code-style and Codex-style schemas), `OpenclawAdapter` (~/.openclaw/,
+      JSONL+SQLite), `HermesAgentAdapter` (~/.hermes-agent/, JSONL+SQLite),
+      `CloudDevOpsWikiAdapter` (via opencli, detector-only placeholder),
+      `W3Adapter` (via opencli, detector-only placeholder). Each detect() returns False
+      when the tool isn't present — silently skips on machines without them, works for
+      colleagues who do use them. 19 tests.
 
 ---
 
-## Phase 7 — Categorization + reporting polish  [deps: sklearn, wittgenstein] ✅ MOSTLY DONE (7.3, 7.5 partial)
+## Phase 7 — Categorization + reporting polish  [deps: sklearn, wittgenstein] ✅ DONE
 
 - [x] **7.1 Domain detection from file paths + package manifests.** `categorize.py`:
       `detect_domain()` infers business domain (auth, api, ui, data, test, docs, config,
@@ -178,14 +188,19 @@ remains available if that's a concern.
       the crude classifier's 4.
 - [x] **7.2 Auto-taxonomy.** `cluster_tasks_ppmi()`: PPMI embeddings + K-means (sklearn).
       Produces 8 clusters from 964 tasks.
-- [ ] **7.3 LLM labeling.** NOT BUILT — optional, gated on a local LLM being available.
-      The rule-based path (7.1 + 7.4) stands alone.
+- [x] **7.3 LLM labeling.** Built in Phase 7.3 — `llm_labeling.py` with `LLMLabeler`
+      class. Auto-detects 3 local LLM backends: Ollama (preferred, `ollama run`),
+      llama-cpp-python (GGUF), Hugging Face transformers (pipeline). Falls back
+      gracefully to None when no LLM is installed — the rule-based path (7.1 + 7.4)
+      stands alone. `label_tasks()` adds `task["llm_label"]` — a 3-5 word
+      natural-language label grounded in the task's actual content (subject, inputs,
+      tools, errors, narrative). Wired into run.py as an optional post-processing step.
+      18 tests (1 skipped: integration test needs a real LLM).
 - [x] **7.4 RIPPER interpretable fallback.** `train_ripper_rules()`: trains `wittgenstein`
       RIPPER on labeled tasks, emits auditable if-then rules.
-- [ ] **7.5 Report formats.** PARTIAL — stdout text + JSON output work. Markdown file
-      output, CLI table view, and HTML dashboard not yet implemented. The output-format
-      open question is partially resolved (stdout + JSON), fully resolved when file
-      output is added. → folded into Phase 9 parallel track P5.
+- [x] **7.5 Report formats.** Built in Phase 9.7 — `render_markdown()` + `--output`,
+      `render_table()` + `--format table`, `render_html()` (self-contained HTML with inline
+      CSS + SVG chart). All five formats work: stdout text, JSON, Markdown, table, HTML.
 
 ---
 
@@ -347,7 +362,16 @@ Phase 10 was built via 3 parallel sub-agents in 1 wave + main-agent integration.
   it for non-welink-cli users via recording ffprobe duration.
 - **welink-cli dependency** → Phase 9: backup routes ensure the skill works without
   welink-cli for 3 of 4 domains (meetings/calendar/mail). IM is welink-cli-only by design
-  (no local store exists) — surfaced honestly in the discovery report (9.4).
+  (no local store exists) — surfaced honestly in the discovery report (9.4). Phase 11.4
+  enabled IM by default since the user explicitly wanted it.
+- **Human vs machine time** → ✅ resolved (Phase 11.2): `human_involvement.py` detects
+  human actions and computes `human_engaged_seconds` separately from `active_seconds`.
+  Time sinks ranked by human cost, not raw active time.
+- **Root-cause narrative quality** → ✅ resolved (Phase 11.1): `summarize.py` reads the
+  actual event content (prompts, diagnostics, errors) and produces grounded narratives.
+  Structured rendering (Phase 11.3.3) breaks them into labeled parts.
+- **8h/day assumption** → ✅ resolved (Phase 11.2.4): `compute_actual_working_hours()`
+  derives the denominator from real human activity.
 
 ---
 
@@ -397,7 +421,117 @@ main-agent integration.
       success-value assertions existed). Wired: run.py calls `refine_success()` after
       cross-source linking.
 
-## What's deliberately NOT in this plan
+---
+
+## Phase 11 — Human time sinks + content-driven analysis  [no new deps] ✅ DONE
+
+Born from the user's feedback that the report output was "bordering on useless" — generic
+pattern-bucket labels, no distinction between human and machine time, meetings with zero
+human interaction dominating the top 5. Four commits across an iterative cycle:
+
+### 11.1 Content-driven root-cause narratives  [no new deps] ✅
+- [x] **11.1.1** `summarize.py`: reads the ACTUAL event text (user prompts, assistant
+      diagnostic messages, error texts, browser titles, meeting subjects) and produces
+      grounded narratives. Replaces generic labels like "blocker: command timeout (21 of
+      46 errors)" with "Goal: sync local main with remote. The fetch failed with a 407
+      proxy auth error. Key failure: 'git fetch origin' → CONNECT tunnel failed, response
+      407."
+- [x] **11.1.2** `_pair_errors_with_commands()`: matches `tool_use_id` to pair each error
+      with the exact command that caused it. `_explain_difficulty()` synthesizes WHY the
+      problem was hard: "command timeouts + user rejecting tool uses kept recurring despite
+      99 retries — the root cause was not addressed by the attempted fixes."
+- [x] **11.1.3** Per-source_kind narratives: ai_session (goal+struggle+difficulty+time),
+      browser (visited pages+downloads+idle tabs), meeting (subject+organizer+location+
+      multi-day cap), comm (email+IM), vcs (commits), filesystem (files).
+- [x] **11.1.4** `_clean_user_goal()`: strips conversational prefixes ("what do you mean by
+      install X" → "Install X") and system-reminder wrappers. `_clean_subject_text()` in
+      segment_tasks.py applies the same cleaning to task subjects.
+- [x] **11.1.5** 40 tests in `test_summarize.py`.
+
+### 11.2 Human-involvement detection  [no new deps] ✅
+- [x] **11.2.1** `human_involvement.py`: identifies HUMAN actions (user messages, interrupts,
+      rejections, browser revisits, emails sent, IM messages, commits, filesystem events)
+      and computes `human_engaged_seconds` — time between consecutive human actions where
+      gaps ≤30min (human stepped away for longer gaps).
+- [x] **11.2.2** `machine_autonomous_seconds`: active time NOT attributable to human
+      engagement. `human_involvement` level: high (50+ actions), moderate (10+), low (<10),
+      none (0 — e.g. meeting from calendar data alone, idle browser tabs).
+- [x] **11.2.3** Time sinks RE-RANKED BY HUMAN ENGAGED TIME, not raw active time. Meetings
+      with 0 human interaction are gone from the top 5. Autonomous agent runs flagged as
+      "LOW human involvement — mostly autonomous agent work."
+- [x] **11.2.4** `compute_actual_working_hours()`: derives the working-hour denominator
+      from real human activity instead of assuming flat 8h/day.
+- [x] **11.2.5** 26 tests in `test_human_involvement.py`.
+
+### 11.3 Three-way time accounting + structured root cause  [no new deps] ✅
+- [x] **11.3.1** Three-way time: Wall (total clock span) → Active (work detected) → Human
+      (user engaged). Summary header shows all three with percentages: "Wall: 15501.8h |
+      Active: 712.5h (5% of wall) | Human: 291.4h (41% of active, 2% of wall)".
+- [x] **11.3.2** Top tasks table: columns for Human, %W, Active, %W, Wall, Involvement —
+      showing all three time types per task with percentages relative to Wall.
+- [x] **11.3.3** `render_structured_root_cause()`: breaks the narrative into labeled HTML
+      blocks (🎯 Goal / ⚠️ Struggle / 🔥 Difficulty / ⏱️ Time) with color coding, instead
+      of a single lump of text.
+- [x] **11.3.4** Per-kind breakdown: "0.3h human / 379.4h active" per task, with structured
+      root cause under each item.
+
+### 11.4 WeLink IM enabled + multi-horizon + working-day %  [no new deps] ✅
+- [x] **11.4.1** `enable_im=True` in `default_registry()` — IM collection now runs by
+      default. 790 messages collected; IM conversations appear as comm tasks in the report.
+      `is_human_action()` recognizes `chat_message` events; `_summarize_comm` includes IM
+      summary ("237 IM message(s) in <conversation>. 5 participant(s). 5.9h of messaging.").
+- [x] **11.4.2** Multi-horizon analysis (carried from earlier session): default
+      `python run.py` generates 4 HTML reports (90d/30d/7d/1d) + dashboard index page.
+      `--horizons` flag for custom ranges. Data-availability section per source.
+- [x] **11.4.3** Working-day percentages: `_as_working_days()` and `_working_day_pct()`
+      throughout the UI. Summary header: "Working-day basis: 291h actual" (from human
+      activity, not flat 8h/day).
+
+---
+
+## Phase 12 — Genuine interaction detection & content investigation  [no new deps] ✅ DONE
+
+Born from rubrics 54-60: the skill must distinguish genuine human interaction from
+forgotten/abandoned sessions, and investigate the actual content of coding sessions,
+browser pages, WeLink chats, and file edits to explain WHY they took time.
+
+### 12.1 Idle session detection foundation  [no new deps] ✅
+- [x] **12.1.1** `human_involvement.py`: added `is_genuine_time_sink` field — True when
+      `human_action_count >= 5` AND `human_engaged_seconds > 300` (5+ actions, 5+ min engaged).
+      Tasks that don't meet this threshold are flagged as "被遗忘/非活跃使用".
+- [x] **12.1.2** `aggregate.py render_html()`: top 10 filtered to genuine time sinks only.
+      Low-engagement tasks listed in a separate "低参与度任务" section.
+
+### 12.2 Coding session content investigation (rubric 56) ✅
+- [x] **12.2.1** Idle coding session detection: if `human_engaged_seconds < 0.1 * active_seconds`
+      (user engaged < 10% of active time), narrative says "agent自主运行，人工参与度低".
+- [x] **12.2.2** Content investigation: extract top 3 user prompts (not just the first)
+      as `user_prompts` in context, shown in the narrative as evidence.
+- [x] **12.2.3** Specific error evidence: when errors exist, show the actual error text
+      (not just pattern classification) as verifiable evidence.
+
+### 12.3 Browser content analysis (rubric 54) ✅
+- [x] **12.3.1** Topic inference from page titles: categorize pages (CodeHub=代码仓库,
+      稼先社区=内部知识搜索, Google Gemini=AI工具, 3MS搜索=文档搜索, etc.)
+- [x] **12.3.2** For top-interacted pages, explain WHY based on inferred topic:
+      "「AgentCenter」是华为内部AI Agent开发平台，表明用户在密集配置或调试Agent".
+- [x] **12.3.3** Evidence references: cite visit count + Chrome visit_count as verifiable
+      evidence.
+
+### 12.4 WeLink chat content summarization (rubric 58) ✅
+- [x] **12.4.1** Topic synthesis from message texts: extract keywords, summarize as
+      1-sentence description ("讨论涉及学位证明报销流程").
+- [x] **12.4.2** Explain WHY it took long: "需要与5位参与者确认，消息往返228条".
+- [x] **12.4.3** Forgotten chat detection: low human engagement → "非活跃使用".
+
+### 12.5 File editing content investigation (rubric 60) ✅
+- [x] **12.5.1** Genuine editing detection: file appearing in multiple events with different
+      timestamps = genuine editing (VSCode Local History saves versions).
+- [x] **12.5.2** File type inference: .py=Python, .md=文档, .pptx=演示文稿, .xlsx=表格.
+- [x] **12.5.3** Edit version count: more versions = more editing, shown in narrative.
+- [x] **12.5.4** Explain WHY: "频繁编辑 rubrics.md（4个版本），表明用户在反复修改评估标准".
+
+
 
 - **No live tracking.** Ever. Retrospective-only is a hard requirement.
 - **No manager-analyzing-team deployment.** Opt-in self-analysis only.

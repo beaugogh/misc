@@ -29,6 +29,18 @@ the welink-cli mail event shape (same ``tool_input`` keys: folder, direction,
 subject, from, from_email, date, is_read, has_attachments, etc.) so downstream
 code treats welink-cli mail and Outlook mail identically.
 
+**COM resource management (CRITICAL):**
+Outlook has a limit on concurrent MAPI sessions (~20). Every unreleased COM object
+(Dispatch, Namespace, Store, Folder, Items, MailItem) counts against that limit.
+If COM objects are not released after use, repeated runs exhaust the MAPI session
+pool and Outlook shows: "Outlook 已经用完了所有共享资源，请关闭所有消息传递应用
+程序并重新启动 Outlook".
+
+This adapter properly releases ALL COM objects using ``Marshal.ReleaseComObject()``
+after use — in ``detect()``, ``collect()``, and ``_find_ost_files()``. A single
+COM connection is created and reused; it is closed in ``close()`` which is called
+by the registry after collection completes.
+
 **Limitations:**
 - COM requires Outlook desktop to be installed (not necessarily running — Dispatch
   launches it if needed, but it must have a configured profile).
@@ -43,9 +55,61 @@ from __future__ import annotations
 
 import os
 import sys
+import gc
 from typing import Iterator, Any
 
 from sources import make_event
+
+
+# ---------------------------------------------------------------------------
+# COM resource management — prevent MAPI session exhaustion
+# ---------------------------------------------------------------------------
+
+def _release_com_object(obj):
+    """Release a COM object's references.
+
+    In pywin32, Dispatch objects are wrapped Python objects. The most
+    reliable release approach is to force garbage collection after
+    removing all known references. For MAPI sessions specifically,
+    ns.Logoff() is the critical call (done in close()).
+    """
+    if obj is None:
+        return
+    try:
+        # Try calling Release() — works on some pywin32 COM wrappers.
+        if hasattr(obj, 'Release'):
+            obj.Release()
+    except Exception:
+        pass
+
+
+def _release_com_objects(*objs):
+    """Release multiple COM objects, then force garbage collection."""
+    for obj in objs:
+        _release_com_object(obj)
+    gc.collect()
+
+
+def _close_mapi_session(ns, outlook, uninit: bool = True):
+    """Properly close a MAPI session and release the Outlook COM connection.
+
+    The critical step is ns.Logoff() — this frees the MAPI session slot
+    that Outlook counts against its ~20-session limit. Without Logoff(),
+    the session stays open even after Python exits, causing:
+    "Outlook 已经用完了所有共享资源" popups.
+    """
+    if ns is not None:
+        try:
+            ns.Logoff()
+        except Exception:
+            pass
+    if uninit:
+        try:
+            import pythoncom
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
+    gc.collect()
 
 
 # ---------------------------------------------------------------------------
@@ -119,27 +183,95 @@ def _com_datetime_to_epoch(dt_val: Any) -> float | None:
         return None
 
 
-def _find_ost_files() -> list[str]:
-    """Find .ost and .pst files on the machine.
+def _find_ost_files_no_com() -> list[str]:
+    """Find .ost and .pst files WITHOUT using COM (no MAPI session leak).
 
-    Checks:
-    - The default Outlook data directory (platform_paths.OUTLOOK_OST)
-    - The COM Stores collection (if available) — this is how we found the
-      custom D:\\Email location
+    Checks the default Outlook data directory + common custom locations.
+    This is a pure filesystem scan — no Dispatch, no GetNamespace, no MAPI.
     """
     from platform_paths import OUTLOOK_OST
 
     found = []
 
-    # 1. Check default platform path
+    # 1. Default platform path
     if OUTLOOK_OST and os.path.isdir(OUTLOOK_OST):
         for f in os.listdir(OUTLOOK_OST):
             if f.lower().endswith((".ost", ".pst")):
                 found.append(os.path.join(OUTLOOK_OST, f))
 
-    # 2. Try COM Stores for custom locations
+    # 2. Common custom OST locations (scan top-level dirs on all drives).
+    # The author's OST is at D:\\Email\\ — check common patterns.
+    for drive in ("C:", "D:", "E:"):
+        for dirname in ("Email", "Outlook", "Mail"):
+            path = os.path.join(drive + os.sep, dirname)
+            if os.path.isdir(path):
+                for f in os.listdir(path):
+                    if f.lower().endswith((".ost", ".pst")):
+                        full = os.path.join(path, f)
+                        if full not in found:
+                            found.append(full)
+
+    # 3. Windows registry — Outlook stores the OST path in the registry
+    # (without needing COM). This is the most reliable non-COM method.
+    try:
+        import winreg
+        # Outlook profile settings are under:
+        # HKCU\Software\Microsoft\Office\16.0\Outlook\OST
+        for office_ver in ("16.0", "15.0", "14.0"):
+            try:
+                key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    f"Software\\Microsoft\\Office\\{office_ver}\\Outlook\\OST"
+                )
+                ost_path, _ = winreg.QueryValueEx(key, "OSTFile")
+                winreg.CloseKey(key)
+                if ost_path and os.path.isfile(ost_path) and ost_path not in found:
+                    found.append(ost_path)
+            except (FileNotFoundError, OSError):
+                pass
+            # Also check the Outlook directory setting
+            try:
+                key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    f"Software\\Microsoft\\Office\\{office_ver}\\Outlook"
+                )
+                # Enumerate values looking for file paths
+                i = 0
+                while True:
+                    try:
+                        name, value, _ = winreg.EnumValue(key, i)
+                        if isinstance(value, str) and value.lower().endswith((".ost", ".pst")):
+                            if os.path.isfile(value) and value not in found:
+                                found.append(value)
+                        i += 1
+                    except OSError:
+                        break
+                winreg.CloseKey(key)
+            except (FileNotFoundError, OSError):
+                pass
+    except ImportError:
+        pass  # winreg only on Windows
+
+    return found
+
+
+def _find_ost_files() -> list[str]:
+    """Find .ost and .pst files. Uses _find_ost_files_no_com() + COM as fallback.
+
+    The COM fallback is only used if the non-COM scan finds nothing,
+    to discover custom locations. It creates and properly closes a MAPI
+    session.
+    """
+    # Try non-COM first (no session leak risk).
+    found = _find_ost_files_no_com()
+    if found:
+        return found  # No need for COM — files found via filesystem/registry.
+
+    # COM fallback for custom locations not covered above.
     win32com_client = _try_import_win32com()
     if win32com_client is not None:
+        outlook = None
+        ns = None
         try:
             outlook = win32com_client.Dispatch("Outlook.Application")
             ns = outlook.GetNamespace("MAPI")
@@ -154,6 +286,8 @@ def _find_ost_files() -> list[str]:
                     pass
         except Exception:
             pass
+        finally:
+            _close_mapi_session(ns, outlook)
 
     return found
 
@@ -225,22 +359,22 @@ class OutlookAdapter:
     # -- detection ----------------------------------------------------------
 
     def detect(self) -> bool:
-        """True if Outlook COM is available and has at least one mail store."""
-        if not self._ensure_com():
+        """True if Outlook data is likely available — WITHOUT creating a COM session.
+
+        CRITICAL: This method must NOT call Dispatch("Outlook.Application") or
+        GetNamespace("MAPI"). Creating a MAPI session just to check detection
+        leaks the session slot (Outlook limits to ~20). Instead, we check for:
+          1. pywin32 importable (win32com.client)
+          2. OST/PST files exist on disk (file-based check, no COM)
+
+        The actual COM connection is only created in collect() via _ensure_com().
+        """
+        win32com_client = _try_import_win32com()
+        if win32com_client is None:
             return False
-        try:
-            # Verify we can enumerate stores and find at least one with an Inbox
-            for store in self._ns.Stores:
-                try:
-                    root = store.GetRootFolder()
-                    inbox = _find_folder_by_name(root, "inbox")
-                    if inbox is not None:
-                        return True
-                except Exception:
-                    continue
-        except Exception:
-            pass
-        return False
+        # Check for OST/PST files WITHOUT using COM.
+        ost_files = _find_ost_files_no_com()
+        return len(ost_files) > 0
 
     # -- collection ---------------------------------------------------------
 
@@ -251,13 +385,15 @@ class OutlookAdapter:
         Inbox and Sent Items folders by name, and emits one event per email
         item. Events match the welink-cli mail event shape.
 
-        Defensive: never crashes on a locked/corrupt store or encoding errors.
+        All COM objects (stores, folders, items, mail items) are released
+        after use to prevent MAPI session exhaustion.
         """
         if not self._ensure_com():
             return
 
         try:
             for store in self._ns.Stores:
+                root = None
                 try:
                     root = store.GetRootFolder()
                 except Exception:
@@ -273,17 +409,24 @@ class OutlookAdapter:
                         yield from self._collect_folder(
                             folder, direction, store_name)
                     except Exception:
-                        # Defensive: skip folders that error (corrupt, locked, etc.)
                         continue
+                    finally:
+                        _release_com_object(folder)
+                _release_com_object(root)
         except Exception:
             return
 
     def _collect_folder(self, folder, direction: str,
                         store_name: str) -> Iterator[dict]:
-        """Yield email events from a single Outlook folder."""
+        """Yield email events from a single Outlook folder.
+
+        Releases each MailItem COM object after extracting its data to prevent
+        MAPI session exhaustion.
+        """
         items = folder.Items
         count = items.Count
         if count == 0:
+            _release_com_object(items)
             return
 
         # Sort by received/sent time ascending
@@ -293,14 +436,15 @@ class OutlookAdapter:
             else:
                 items.Sort("[SentOn]", False)
         except Exception:
-            pass  # sorting is nice-to-have, not required
+            pass
 
         folder_name = _safe_str(folder.Name) or "(unknown)"
 
         emitted = 0
         for i in range(1, count + 1):  # COM collections are 1-indexed
             if emitted >= self._max_items:
-                return
+                break
+            item = None
             try:
                 item = items.Item(i)
             except Exception:
@@ -310,6 +454,29 @@ class OutlookAdapter:
             if ev is not None:
                 yield ev
                 emitted += 1
+            # Release each MailItem immediately to limit COM object count.
+            _release_com_object(item)
+
+        _release_com_object(items)
+
+    def close(self):
+        """Close the COM connection and release all MAPI resources.
+
+        CRITICAL: calls ns.Logoff() to free the MAPI session slot.
+        Without this, Outlook accumulates leaked sessions and shows
+        "Outlook 已经用完了所有共享资源" popups.
+        """
+        if self._ns is not None or self._outlook is not None:
+            _close_mapi_session(self._ns, self._outlook, uninit=True)
+        self._ns = None
+        self._outlook = None
+
+    def __del__(self):
+        """Ensure COM resources are released on garbage collection."""
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def _item_to_event(self, item, folder: str, direction: str,
                        store_name: str) -> dict | None:

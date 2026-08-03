@@ -548,6 +548,23 @@ def _detect_browser_during_coding(events: list[dict], refined: list[dict]) -> li
             "parent_task_id": ct.get("id"),
             "context": browser_ctx,
         }
+
+        # Content-driven root-cause narrative (same as _make_task in segment_tasks).
+        try:
+            from summarize import summarize_root_cause
+            narrative = summarize_root_cause(b_task, overlapping_browser)
+            if narrative:
+                browser_ctx["narrative"] = narrative
+        except ImportError:
+            pass
+
+        # Human-involvement metrics (same as _make_task in segment_tasks).
+        try:
+            from human_involvement import compute_human_involvement
+            b_task["human_data"] = compute_human_involvement(overlapping_browser, b_task)
+        except ImportError:
+            pass
+
         browser_tasks.append(b_task)
 
         # Ensure the coding task is tagged as foreground.
