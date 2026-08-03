@@ -286,6 +286,16 @@ def _summarize_ai_session(events: list[dict], task: dict) -> str:
     struggle = _synthesize_struggle(n_errors, error_pairs, diagnostics, retry_targets, ctx)
     if struggle:
         parts.append(f"Struggle: {struggle}")
+    elif active_h > 0.5:
+        # No errors/diagnostics, but the task had significant active time —
+        # describe what was done as the "struggle" (the work itself).
+        files = ctx.get("files_touched") or []
+        if files:
+            parts.append(f"Struggle: 编辑了 {len(files)} 个文件（{', '.join(os.path.basename(f) for f in files[:3])}），{n_tool_calls} 次工具调用。")
+        else:
+            parts.append(f"Struggle: {n_tool_calls} 次工具调用，无明显错误。")
+    else:
+        parts.append("Struggle: 任务时间较短，无明显困难。")
 
     # Time explanation.
     if excised_h > 1 and excised_h > active_h:
@@ -409,10 +419,15 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
         parts.append(f"Struggle: Wall {wall_h:.1f}h 中仅 {active_h:.1f}h 活跃浏览——{excised_h:.1f}h 空闲/隔夜标签页未关闭。")
     elif n_visits > 50 and active_h > 2:
         parts.append(f"Struggle: 大量浏览（{n_visits} 次访问）——在多个页面中搜索难以找到的信息。")
+    elif active_h > 0.1:
+        parts.append(f"Struggle: 浏览了 {n_visits} 个页面，活跃浏览 {active_h:.1f}h。")
+    else:
+        parts.append("Struggle: 浏览活动较少，无明显困难。")
 
-    # What was visited.
+    # What was visited — show more pages for longer sessions.
     if titles:
-        key_pages = _dedupe(titles)[:3]
+        max_pages = 5 if active_h > 2 else 3
+        key_pages = _dedupe(titles)[:max_pages]
         parts.append(f"访问：{', '.join(key_pages)}。")
     if downloads:
         parts.append(f"下载了 {downloads} 个文件。")
@@ -466,6 +481,8 @@ def _summarize_meeting(events: list[dict], task: dict) -> str:
         parts.append(f"Struggle: Wall {wall_h:.1f}h 但 0h active——未检测到人工交互，可能是会议窗口未关闭。")
     elif active_h > 4:
         parts.append(f"Struggle: 会议时长 {active_h:.1f}h——日历数据无法显示实际参与程度。")
+    elif active_h > 0:
+        parts.append(f"Struggle: 会议 {active_h:.1f}h，日历数据无法显示实际参与程度。")
 
     # Time.
     if active_h > 0:
@@ -500,13 +517,24 @@ def _summarize_comm(events: list[dict], task: dict) -> str:
     if im_count:
         active_h = (task.get("active_seconds") or 0) / 3600
         conv = im_conversations[0][:40] if im_conversations else "一段对话"
-        parts.append(f"Goal: 参与 IM 聊天（{conv}）。")
+        parts.append(f"Goal: 参与 WeLink 聊天（{conv}）。")
+        # Extract sample message texts from events for content context.
+        sample_msgs: list[str] = []
+        for ev in events:
+            if ev.get("kind") == "chat_message":
+                text = (ev.get("text") or "").strip()
+                if text and len(text) > 5 and not text.startswith("("):
+                    sample_msgs.append(text[:60])
+                    if len(sample_msgs) >= 2:
+                        break
         if im_count > 50:
             parts.append(f"Struggle: 大量消息（{im_count} 条，{len(im_senders)} 位参与者）——长时间讨论，需要大量人工参与。")
         elif im_count > 10:
             parts.append(f"Struggle: 中等量消息（{im_count} 条）——来回讨论。")
         else:
-            parts.append(f"交换了 {im_count} 条消息。")
+            parts.append(f"Struggle: {im_count} 条消息交换。")
+        if sample_msgs:
+            parts.append(f"内容示例：{'；'.join(sample_msgs)}。")
         if active_h > 0.1:
             parts.append(f"{active_h:.1f}h 消息交流。")
 
@@ -524,6 +552,8 @@ def _summarize_vcs(events: list[dict], task: dict) -> str:
             parts.append(f"Struggle: 本次会话 {len(subjects)} 次提交——迭代开发，多个检查点。")
         elif active_h > 1:
             parts.append(f"Struggle: 版本控制耗时 {active_h:.1f}h——大量 git 操作（变基、合并或解决冲突）。")
+        else:
+            parts.append(f"Struggle: {len(subjects)} 次提交，{active_h:.1f}h git 活动。")
         if active_h > 0.1:
             parts.append(f"{active_h:.1f}h VCS 活动。")
         return " ".join(parts)
@@ -539,7 +569,10 @@ def _summarize_filesystem(events: list[dict], task: dict) -> str:
         names = [os.path.basename(f) for f in files[:3]]
         parts = [f"Goal: 编辑文件。触碰了 {len(files)} 个文件：{', '.join(names)}。"]
         if active_h > 0.1:
+            parts.append(f"Struggle: 文件编辑 {active_h:.1f}h，涉及 {len(files)} 个文件。")
             parts.append(f"{active_h:.1f}h。")
+        else:
+            parts.append("Struggle: 文件编辑活动较少。")
         return " ".join(parts)
     return ""
 

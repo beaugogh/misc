@@ -64,11 +64,12 @@ def classify_task(task: dict) -> str:
     "other" bucket shrinks to near-zero:
       - coding       — AI-session task that edits/builds (Edit/Write/Read/Bash)
       - planning     — AI-session task with task-management tools only (TaskCreate,
-                       TaskUpdate, EnterPlanMode) or short no-tool turns (chat/review)
-      - research     — browser visits/searches, or WebSearch/WebFetch tool use
-      - vcs          — git commits/checkouts
+                       TaskUpdate, EnterPlanMode) or short no-tool turns (chat/review).
+                       These are planning/discussion sessions, not hands-on coding.
+      - research     — web browser visits/searches, or WebSearch/WebFetch tool use
+      - git          — git commits/checkouts
       - meeting      — calendar events, meeting recordings
-      - communication — email, IM
+      - welink       — email, WeLink IM chats
       - file-edit    — manual file activity (VSCode Local History, Windows Recent)
     """
     tools = set(task.get("tool_names") or [])
@@ -80,11 +81,11 @@ def classify_task(task: dict) -> str:
     if source_kind == "browser":
         return "research"
     if source_kind == "vcs":
-        return "vcs"
+        return "git"
     if source_kind == "meeting":
         return "meeting"
     if source_kind == "comm":
-        return "communication"
+        return "welink"
 
     # Filesystem-sourced tasks (VSCode history, Windows Recent, Jump Lists).
     if source_kind == "filesystem":
@@ -755,15 +756,15 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
         def _human_engaged_h(t: dict) -> float:
             return (t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0
         ranked = sorted(tasks, key=_human_engaged_h, reverse=True)
-        top5 = [t for t in ranked[:5] if _human_engaged_h(t) > 0]
-        if top5:
+        top10 = [t for t in ranked[:10] if _human_engaged_h(t) > 0]
+        if top10:
             # Compute per-type totals for percentage denominators (rubric 36):
             # h/H, a/A, w/W — each type's percentage is relative to its own total.
             total_human_h = sum(_human_engaged_h(t) for t in tasks) / 3600
             total_active_h = sum(t.get("active_seconds") or 0 for t in tasks) / 3600
             total_wall_h = sum(t.get("wall_clock_seconds") or 0 for t in tasks) / 3600
             rows = []
-            for i, t in enumerate(top5, 1):
+            for i, t in enumerate(top10, 1):
                 act_h = (t.get("active_seconds") or 0) / 3600
                 eng_h = _human_engaged_h(t) / 3600
                 wall_h = (t.get("wall_clock_seconds") or 0) / 3600
@@ -797,7 +798,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                     f'<td class="task-id">{tid}</td>'
                     f'</tr>'
                 )
-            top_tasks_html = f"""<h2>Top 5 人工时间消耗</h2>
+            top_tasks_html = f"""<h2>Top 10 人工时间消耗</h2>
 <p class="hint">三类时间：<strong>Wall</strong>（总时钟跨度）→ <strong>Active</strong>（检测到的工作）→ <strong>Human</strong>（用户参与）。百分比按类型计算：h/H, a/A, w/W。按 Human 时间排序。下钻：<code>python run.py --task &lt;id&gt; --drill</code></p>
 <table class="top-tasks">
   <thead><tr><th>#</th><th>Human</th><th>%H</th><th>Active</th><th>%A</th><th>Wall</th><th>%W</th><th>参与度</th><th>类型</th><th>开始</th><th>主题</th><th>根因</th><th>Task ID</th></tr></thead>
@@ -850,6 +851,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
             )
         if kind_sections:
             kind_subjects_html = '<h2>各类工作内容</h2>\n' + \
+                                 '<p class="hint">类型说明：coding=AI编程，planning=AI讨论/任务管理（非动手编程），research=网页浏览/搜索，git=代码提交，meeting=会议，welink=邮件/WeLink聊天，file-edit=本地文件编辑</p>\n' + \
                                  '<div class="kind-grid">\n' + \
                                  "\n".join(kind_sections) + '\n</div>'
 
