@@ -87,7 +87,7 @@ phases unblock or inform later ones. Items within a phase are roughly independen
 
 ---
 
-## Phase 4 — Cross-source identity + better segmentation  [deps: ruptures, sklearn, igraph] ✅ DONE (4.5 deferred)
+## Phase 4 — Cross-source identity + better segmentation  [deps: ruptures, sklearn, igraph] ✅ DONE
 
 - [x] **4.1 Library verification + install.** `ruptures`, `scikit-learn`, `igraph`
       installed from tuna mirror. `splink` failed to install (silent failure) — used the
@@ -105,9 +105,11 @@ phases unblock or inform later ones. Items within a phase are roughly independen
       clusters (52 multi-task). Splink unavailable; igraph path used as documented fallback.
       Over-merges some clusters (59-task cluster) — semantic similarity on cwd is coarse;
       needs tuning.
-- [ ] **4.5 Evaluation harness.** WindowDiff + Collar-Based F1 against a hand-labeled
-      benchmark. NOT YET DONE — needs a manually-annotated one-day benchmark subset. No
-      blocker; deferred until we have labeled data to tune PELT β and the Leiden λ against.
+- [x] **4.5 Evaluation harness.** WindowDiff + Collar-Based F1 against a hand-labeled
+      benchmark. Built in Phase 9.8 — `eval_segmentation.py` (22 tests, pure stdlib),
+      `--eval` flag live. Baseline: WindowDiff=0.417, F1=0.222 (recall 14.3% — PELT β
+      under-segments; this is the baseline to tune against). Fixture at
+      `tests/fixtures/eval_benchmark.json` (4 sessions, 1711 events, 21 boundaries).
 
 ---
 
@@ -127,15 +129,16 @@ remains available if that's a concern.
 
 ---
 
-## Phase 6 — More sources  [selective deps] ✅ MOSTLY DONE (6.2, 6.10 remain)
+## Phase 6 — More sources  [selective deps] ✅ MOSTLY DONE (6.10 remains)
 
 - [x] **6.1 New-codeagent adapter** (`~/.cac/projects/`). `CodeagentAdapter` subclass of
       `ClaudeCodeAdapter` — reuses the JSONL parser, relabels `source="codeagent"`.
-- [ ] **6.2 Legacy-codeagent adapter** (`ngagent.db` SQLite). NOT YET BUILT — this is the
-      one unbuilt adapter with a **verified schema and no access blocker**. Would be the
-      first SQL adapter (validates the registry handles non-JSONL). Schema documented in
-      SKILL.md: `session`/`message`/`part` tables, millis INTEGER timestamps. → folded into
-      Phase 9 parallel track P3.
+- [x] **6.2 Legacy-codeagent adapter** (`ngagent.db` SQLite). Built in Phase 9.5 —
+      `LegacyCodeagentAdapter` reads `ngagent.db` SQLite (opencode DB). Verified schema:
+      session/message/part/project/metrics tables, millis timestamps. Emits
+      user_message/assistant_message/tool_use/tool_result/reasoning events. First SQL
+      adapter — first real SQL-level incremental (`WHERE time_created > ?` in millis).
+      263 events extracted live. 19 tests.
 - [x] **6.3 Browser history adapter** (Chrome/Edge). `browser_adapter.py`: copy-then-read
       (Chrome locks while running). Emits visit/download/search events. Chrome-epoch
       (micros-since-1601) normalized to Unix epoch.
@@ -174,7 +177,7 @@ remains available if that's a concern.
 
 ---
 
-## Phase 7 — Categorization + reporting polish  [deps: sklearn, wittgenstein] ✅ MOSTLY DONE (7.3, 7.5 partial)
+## Phase 7 — Categorization + reporting polish  [deps: sklearn, wittgenstein] ✅ MOSTLY DONE (7.3 remains)
 
 - [x] **7.1 Domain detection from file paths + package manifests.** `categorize.py`:
       `detect_domain()` infers business domain (auth, api, ui, data, test, docs, config,
@@ -186,10 +189,9 @@ remains available if that's a concern.
       The rule-based path (7.1 + 7.4) stands alone.
 - [x] **7.4 RIPPER interpretable fallback.** `train_ripper_rules()`: trains `wittgenstein`
       RIPPER on labeled tasks, emits auditable if-then rules.
-- [ ] **7.5 Report formats.** PARTIAL — stdout text + JSON output work. Markdown file
-      output, CLI table view, and HTML dashboard not yet implemented. The output-format
-      open question is partially resolved (stdout + JSON), fully resolved when file
-      output is added. → folded into Phase 9 parallel track P5.
+- [x] **7.5 Report formats.** Built in Phase 9.7 — `render_markdown()` + `--output`,
+      `render_table()` + `--format table`, `render_html()` (self-contained HTML with inline
+      CSS + SVG chart). All five formats work: stdout text, JSON, Markdown, table, HTML.
 
 ---
 
