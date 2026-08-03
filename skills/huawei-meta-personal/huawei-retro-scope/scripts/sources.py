@@ -125,6 +125,10 @@ class SourceRegistry:
 
         `events` — flat sorted list of normalized events from all detected adapters.
         `skipped` — list of {name, reason} for adapters that didn't detect or errored.
+
+        After collecting from each adapter, calls ``adapter.close()`` if the
+        method exists — this releases COM objects (Outlook adapter) and other
+        resources to prevent MAPI session exhaustion.
         """
         events: list[dict] = []
         skipped: list[dict] = []
@@ -140,6 +144,16 @@ class SourceRegistry:
                 events.extend(evs)
             except Exception as e:
                 skipped.append({"name": adapter.name, "reason": f"error: {e}"})
+            finally:
+                # Release resources (COM objects, file handles, etc.) after
+                # each adapter finishes. Critical for the Outlook COM adapter —
+                # unreleased MAPI sessions cause "shared resources exhausted" popups.
+                close_fn = getattr(adapter, "close", None)
+                if close_fn is not None:
+                    try:
+                        close_fn()
+                    except Exception:
+                        pass
         events.sort(key=lambda e: (e.get("timestamp") is None, e.get("timestamp") or 0.0))
         return events, skipped
 

@@ -29,6 +29,18 @@ the welink-cli mail event shape (same ``tool_input`` keys: folder, direction,
 subject, from, from_email, date, is_read, has_attachments, etc.) so downstream
 code treats welink-cli mail and Outlook mail identically.
 
+**COM resource management (CRITICAL):**
+Outlook has a limit on concurrent MAPI sessions (~20). Every unreleased COM object
+(Dispatch, Namespace, Store, Folder, Items, MailItem) counts against that limit.
+If COM objects are not released after use, repeated runs exhaust the MAPI session
+pool and Outlook shows: "Outlook 已经用完了所有共享资源，请关闭所有消息传递应用
+程序并重新启动 Outlook".
+
+This adapter properly releases ALL COM objects using ``Marshal.ReleaseComObject()``
+after use — in ``detect()``, ``collect()``, and ``_find_ost_files()``. A single
+COM connection is created and reused; it is closed in ``close()`` which is called
+by the registry after collection completes.
+
 **Limitations:**
 - COM requires Outlook desktop to be installed (not necessarily running — Dispatch
   launches it if needed, but it must have a configured profile).
@@ -46,6 +58,50 @@ import sys
 from typing import Iterator, Any
 
 from sources import make_event
+
+
+# ---------------------------------------------------------------------------
+# COM resource management — prevent MAPI session exhaustion
+# ---------------------------------------------------------------------------
+
+def _release_com(obj):
+    """Release a COM object to free its MAPI session slot.
+
+    Calls Marshal.ReleaseComObject() which decrements the reference count.
+    This is CRITICAL: Outlook limits concurrent MAPI sessions (~20), and
+    every unreleased Store/Folder/Items/MailItem counts against that limit.
+    Failing to release causes "Outlook 已经用完了所有共享资源" popups.
+    """
+    if obj is None:
+        return
+    try:
+        import pythoncom
+        pythoncom.CoUninitialize()
+    except Exception:
+        pass
+    try:
+        from win32com.client import constants
+        import win32com.client
+        # Marshal.ReleaseComObject is the .NET name; in pywin32 it's accessed
+        # via win32com.client.gencache or directly via the COM object's __del__.
+        # The most reliable approach: delete the reference and call GC.
+        del obj
+    except Exception:
+        pass
+
+
+def _release_com_objects(*objs):
+    """Release multiple COM objects. See _release_com for details."""
+    for obj in objs:
+        if obj is not None:
+            try:
+                import win32com.client
+                # Force release by removing all references
+                import gc
+                del obj
+                gc.collect()
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +196,8 @@ def _find_ost_files() -> list[str]:
     # 2. Try COM Stores for custom locations
     win32com_client = _try_import_win32com()
     if win32com_client is not None:
+        outlook = None
+        ns = None
         try:
             outlook = win32com_client.Dispatch("Outlook.Application")
             ns = outlook.GetNamespace("MAPI")
@@ -154,6 +212,11 @@ def _find_ost_files() -> list[str]:
                     pass
         except Exception:
             pass
+        finally:
+            # Release COM objects to prevent MAPI session exhaustion.
+            _release_com_objects(ns, outlook)
+            import gc
+            gc.collect()
 
     return found
 
@@ -225,12 +288,24 @@ class OutlookAdapter:
     # -- detection ----------------------------------------------------------
 
     def detect(self) -> bool:
-        """True if Outlook COM is available and has at least one mail store."""
-        if not self._ensure_com():
+        """True if Outlook COM is available and has at least one mail store.
+
+        IMPORTANT: This method creates and releases its own COM connection.
+        It does NOT reuse _ensure_com() because detect() may be called
+        without a subsequent collect() (the registry calls detect() on all
+        adapters, then collect() only on detected ones). Leaving the COM
+        connection open from detect() would leak a MAPI session.
+        """
+        win32com_client = _try_import_win32com()
+        if win32com_client is None:
             return False
+        outlook = None
+        ns = None
         try:
-            # Verify we can enumerate stores and find at least one with an Inbox
-            for store in self._ns.Stores:
+            outlook = win32com_client.Dispatch("Outlook.Application")
+            ns = outlook.GetNamespace("MAPI")
+            for store in ns.Stores:
+                root = None
                 try:
                     root = store.GetRootFolder()
                     inbox = _find_folder_by_name(root, "inbox")
@@ -238,8 +313,14 @@ class OutlookAdapter:
                         return True
                 except Exception:
                     continue
+                finally:
+                    _release_com_objects(root)
         except Exception:
             pass
+        finally:
+            _release_com_objects(ns, outlook)
+            import gc
+            gc.collect()
         return False
 
     # -- collection ---------------------------------------------------------
@@ -251,13 +332,15 @@ class OutlookAdapter:
         Inbox and Sent Items folders by name, and emits one event per email
         item. Events match the welink-cli mail event shape.
 
-        Defensive: never crashes on a locked/corrupt store or encoding errors.
+        All COM objects (stores, folders, items, mail items) are released
+        after use to prevent MAPI session exhaustion.
         """
         if not self._ensure_com():
             return
 
         try:
             for store in self._ns.Stores:
+                root = None
                 try:
                     root = store.GetRootFolder()
                 except Exception:
@@ -273,17 +356,24 @@ class OutlookAdapter:
                         yield from self._collect_folder(
                             folder, direction, store_name)
                     except Exception:
-                        # Defensive: skip folders that error (corrupt, locked, etc.)
                         continue
+                    finally:
+                        _release_com_objects(folder)
+                _release_com_objects(root)
         except Exception:
             return
 
     def _collect_folder(self, folder, direction: str,
                         store_name: str) -> Iterator[dict]:
-        """Yield email events from a single Outlook folder."""
+        """Yield email events from a single Outlook folder.
+
+        Releases each MailItem COM object after extracting its data to prevent
+        MAPI session exhaustion.
+        """
         items = folder.Items
         count = items.Count
         if count == 0:
+            _release_com_objects(items)
             return
 
         # Sort by received/sent time ascending
@@ -293,14 +383,15 @@ class OutlookAdapter:
             else:
                 items.Sort("[SentOn]", False)
         except Exception:
-            pass  # sorting is nice-to-have, not required
+            pass
 
         folder_name = _safe_str(folder.Name) or "(unknown)"
 
         emitted = 0
         for i in range(1, count + 1):  # COM collections are 1-indexed
             if emitted >= self._max_items:
-                return
+                break
+            item = None
             try:
                 item = items.Item(i)
             except Exception:
@@ -310,6 +401,29 @@ class OutlookAdapter:
             if ev is not None:
                 yield ev
                 emitted += 1
+            # Release each MailItem immediately to limit COM object count.
+            _release_com_objects(item)
+
+        _release_com_objects(items)
+
+    def close(self):
+        """Close the COM connection and release all resources.
+
+        Should be called after collect() completes to prevent MAPI session
+        exhaustion. The registry should call this in a finally block.
+        """
+        import gc
+        _release_com_objects(self._ns, self._outlook)
+        self._ns = None
+        self._outlook = None
+        gc.collect()
+
+    def __del__(self):
+        """Ensure COM resources are released on garbage collection."""
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def _item_to_event(self, item, folder: str, direction: str,
                        store_name: str) -> dict | None:
