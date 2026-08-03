@@ -194,12 +194,17 @@ def compute_human_involvement(events: list[dict], task: dict) -> dict:
     else:
         involvement = "low"
 
+    # Genuine time sink: 5+ human actions AND 5+ minutes engaged.
+    # Tasks below this threshold are likely forgotten/abandoned, not genuine pain points.
+    is_genuine = human_action_count >= 5 and human_engaged >= 300.0
+
     return {
         "human_action_count": human_action_count,
         "human_engaged_seconds": round(human_engaged, 1),
         "machine_autonomous_seconds": round(machine_autonomous, 1),
         "human_involvement": involvement,
         "human_action_types": action_types,
+        "is_genuine_time_sink": is_genuine,
     }
 
 

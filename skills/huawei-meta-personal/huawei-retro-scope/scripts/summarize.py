@@ -282,20 +282,35 @@ def _summarize_ai_session(events: list[dict], task: dict) -> str:
         parts.append(f"Goal: {goal}.")
 
     # Struggle — merged section: what went wrong + why it was hard.
-    # Reframed as a struggle description, not a mundane error log.
-    struggle = _synthesize_struggle(n_errors, error_pairs, diagnostics, retry_targets, ctx)
-    if struggle:
-        parts.append(f"Struggle: {struggle}")
-    elif active_h > 0.5:
-        # No errors/diagnostics, but the task had significant active time —
-        # describe what was done as the "struggle" (the work itself).
-        files = ctx.get("files_touched") or []
-        if files:
-            parts.append(f"Struggle: 编辑了 {len(files)} 个文件（{', '.join(os.path.basename(f) for f in files[:3])}），{n_tool_calls} 次工具调用。")
-        else:
-            parts.append(f"Struggle: {n_tool_calls} 次工具调用，无明显错误。")
+    # Also detect idle sessions (agent running autonomously with little human input).
+    human_engaged_h = ((task.get("human_data") or {}).get("human_engaged_seconds", 0) or 0) / 3600
+    human_actions = (task.get("human_data") or {}).get("human_action_count", 0)
+
+    # Idle session detection (rubric 56): if human engaged < 10% of active time.
+    if active_h > 1 and human_engaged_h < 0.1 * active_h and human_actions < 10:
+        parts.append(f"Struggle: agent 自主运行 {active_h:.1f}h，人工仅参与 {human_engaged_h:.1f}h（{human_actions} 次操作）——非人工时间消耗，可能为遗忘的会话。")
     else:
-        parts.append("Struggle: 任务时间较短，无明显困难。")
+        struggle = _synthesize_struggle(n_errors, error_pairs, diagnostics, retry_targets, ctx)
+        if struggle:
+            parts.append(f"Struggle: {struggle}")
+            # Add specific error evidence (rubric 56: verifiable evidence).
+            if error_pairs:
+                cmd, err = error_pairs[0]
+                parts.append(f"证据：'{cmd}' → {err[:80]}")
+        elif active_h > 0.5:
+            files = ctx.get("files_touched") or []
+            if files:
+                parts.append(f"Struggle: 编辑了 {len(files)} 个文件（{', '.join(os.path.basename(f) for f in files[:3])}），{n_tool_calls} 次工具调用。")
+            else:
+                parts.append(f"Struggle: {n_tool_calls} 次工具调用，无明显错误。")
+        else:
+            parts.append("Struggle: 任务时间较短，无明显困难。")
+
+    # User prompt evidence (rubric 56: investigate session content).
+    user_prompts = ctx.get("user_prompts") or []
+    if user_prompts:
+        evidence = "；".join(f"'{p[:50]}'" for p in user_prompts[:2])
+        parts.append(f"用户指令证据：{evidence}")
 
     # Time explanation.
     if excised_h > 1 and excised_h > active_h:
@@ -391,6 +406,47 @@ def _synthesize_struggle(n_errors: int, error_pairs: list[tuple[str, str]],
     return "。".join(bits) + "。"
 
 
+def _infer_page_topic(title: str) -> str:
+    """Infer a page's topic from its title for content analysis (rubric 54).
+
+    Returns a Chinese description of what the page likely is, based on
+    title keywords. This provides the 'WHY' — why the user interacted
+    with this page heavily.
+    """
+    t = title.lower()
+    if "codehub" in t or "github" in t or "gitlab" in t:
+        return "代码仓库页面，用户在查看/管理代码"
+    if "稼先" in t or "jiaxian" in t:
+        return "华为稼先社区，内部知识分享平台"
+    if "3ms" in t or "知识管理" in t:
+        return "3MS知识管理社区，内部文档/博客"
+    if "agentcenter" in t or "agent" in t:
+        return "AI Agent开发/管理平台"
+    if "gemini" in t or "chatgpt" in t or "claude" in t:
+        return "AI工具页面，用户在使用AI辅助"
+    if "w3" in t or "welcome to w3" in t:
+        return "W3门户，华为内部信息入口"
+    if "clouddevops" in t or "wiki" in t:
+        return "CloudDevOps Wiki，内部开发文档"
+    if "google" in t and "search" in t:
+        return "Google搜索结果页，用户在搜索信息"
+    if "memory" in t or "mem0" in t:
+        return "AI记忆/存储相关技术页面"
+    if "graph engineering" in t or "loop engineering" in t:
+        return "AI工程方法论文章"
+    if "knowledge online" in t or "知识" in t:
+        return "知识库首页，用户在检索信息"
+    if "文件" in t or "files" in t or "设置" in t or "settings" in t:
+        return "项目设置/文件管理页面"
+    if "search" in t or "搜索" in t:
+        return "搜索结果页"
+    if "wushan" in t or "巫山" in t:
+        return "巫山平台相关页面"
+    if "linux" in t or "python" in t or "api" in t or "swagger" in t:
+        return "技术文档/API参考页面"
+    return "内容页面"
+
+
 def _summarize_browser(events: list[dict], task: dict) -> str:
     """Produce a grounded narrative for a browser/research session.
 
@@ -447,10 +503,12 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
         top_page = top_pages[0] if top_pages else ("", 0)
         top_title = top_page[0][:40]
         top_count = top_page[1]
+        # Infer page topic from title (rubric 54: explain WHY interacted).
+        topic = _infer_page_topic(top_title)
         parts.append(
             f"Struggle: 高频交互浏览——{n_visits} 次访问中 {revisit_total} 次为重复访问（点击/切换），"
-            f"说明用户在活跃地查找和对比信息。最频繁交互的页面「{top_title}」被访问 {top_count} 次，"
-            f"表明该页面内容与用户目标高度相关。"
+            f"说明用户在活跃地查找和对比信息。最频繁交互的页面「{top_title}」被访问 {top_count} 次"
+            f"（{topic}），表明用户在该页面进行了密集操作。"
         )
     elif excised_h > 0.5 and excised_h > active_h:
         parts.append(f"Struggle: Wall {wall_h:.1f}h 中仅 {active_h:.1f}h 活跃浏览——{excised_h:.1f}h 空闲/隔夜标签页未关闭。")
@@ -543,6 +601,54 @@ def _summarize_meeting(events: list[dict], task: dict) -> str:
     return " ".join(parts) if parts else ""
 
 
+def _synthesize_chat_topic(messages: list[str]) -> str:
+    """Synthesize a 1-sentence topic description from chat message texts.
+
+    Extracts keywords from the messages to describe WHAT was discussed,
+    not just how many messages. Returns a Chinese topic description.
+    """
+    if not messages:
+        return ""
+    # Collect all message texts.
+    all_text = " ".join(messages)
+
+    # Detect common topics from keywords.
+    keywords_map = {
+        "报销": "费用报销流程",
+        "学位": "学位证明相关事宜",
+        "专利": "专利申请/评审",
+        "会议": "会议安排/讨论",
+        "项目": "项目进度/规划",
+        "代码": "代码审查/开发",
+        "部署": "部署/上线",
+        "测试": "测试/验证",
+        "文档": "文档编写/修改",
+        "agent": "AI Agent开发",
+        "模型": "AI模型相关",
+        "git": "git/版本控制",
+        "环境": "环境配置",
+        "权限": "权限申请",
+        "招聘": "招聘/面试",
+        "绩效": "绩效评估",
+        "obp": "OBP目标规划",
+        "huawei": "华为内部事务",
+    }
+    detected: list[str] = []
+    t_lower = all_text.lower()
+    for kw, desc in keywords_map.items():
+        if kw in t_lower:
+            if desc not in detected:
+                detected.append(desc)
+
+    if detected:
+        return f"讨论主题：{', '.join(detected[:2])}。"
+    # Fallback: use the first message as topic hint.
+    first = messages[0][:40] if messages else ""
+    if first:
+        return f"讨论内容：{first}。"
+    return ""
+
+
 def _summarize_comm(events: list[dict], task: dict) -> str:
     """Produce a grounded narrative for an email/communication task."""
     ctx = task.get("context") or {}
@@ -570,23 +676,26 @@ def _summarize_comm(events: list[dict], task: dict) -> str:
         active_h = (task.get("active_seconds") or 0) / 3600
         conv = im_conversations[0][:40] if im_conversations else "一段对话"
         parts.append(f"Goal: 参与 WeLink 聊天（{conv}）。")
-        # Extract sample message texts from events for content context.
+        # Extract sample message texts and synthesize a topic (rubric 58).
         sample_msgs: list[str] = []
         for ev in events:
             if ev.get("kind") == "chat_message":
                 text = (ev.get("text") or "").strip()
                 if text and len(text) > 5 and not text.startswith("("):
                     sample_msgs.append(text[:60])
-                    if len(sample_msgs) >= 2:
+                    if len(sample_msgs) >= 5:
                         break
+        # Synthesize chat topic from message keywords.
+        topic = _synthesize_chat_topic(sample_msgs)
         if im_count > 50:
-            parts.append(f"Struggle: 大量消息（{im_count} 条，{len(im_senders)} 位参与者）——长时间讨论，需要大量人工参与。")
+            parts.append(f"Struggle: 大量消息（{im_count} 条，{len(im_senders)} 位参与者）——长时间讨论，需要大量人工参与。{topic}")
         elif im_count > 10:
-            parts.append(f"Struggle: 中等量消息（{im_count} 条）——来回讨论。")
+            parts.append(f"Struggle: 中等量消息（{im_count} 条）——来回讨论。{topic}")
         else:
-            parts.append(f"Struggle: {im_count} 条消息交换。")
+            parts.append(f"Struggle: {im_count} 条消息交换。{topic}")
+        # Show content evidence (rubric 58: verifiable evidence).
         if sample_msgs:
-            parts.append(f"内容示例：{'；'.join(sample_msgs)}。")
+            parts.append(f"内容证据：{'；'.join(sample_msgs[:2])}。")
         if active_h > 0.1:
             parts.append(f"{active_h:.1f}h 消息交流。")
 
@@ -613,20 +722,65 @@ def _summarize_vcs(events: list[dict], task: dict) -> str:
 
 
 def _summarize_filesystem(events: list[dict], task: dict) -> str:
-    """Produce a grounded narrative for a filesystem task."""
+    """Produce a grounded narrative for a filesystem task.
+
+    Detects genuine editing (multiple edit events per file = versions) vs
+    a file simply opened and forgotten (rubric 60).
+    """
     ctx = task.get("context") or {}
     files = ctx.get("files") or []
-    if files:
-        active_h = (task.get("active_seconds") or 0) / 3600
-        names = [os.path.basename(f) for f in files[:3]]
-        parts = [f"Goal: 编辑文件。触碰了 {len(files)} 个文件：{', '.join(names)}。"]
-        if active_h > 0.1:
-            parts.append(f"Struggle: 文件编辑 {active_h:.1f}h，涉及 {len(files)} 个文件。")
-            parts.append(f"{active_h:.1f}h。")
-        else:
-            parts.append("Struggle: 文件编辑活动较少。")
-        return " ".join(parts)
-    return ""
+    if not files:
+        return ""
+
+    active_h = (task.get("active_seconds") or 0) / 3600
+
+    # Count edit events per file (rubric 60: detect genuine editing).
+    from collections import Counter
+    file_edit_counts: Counter = Counter()
+    for ev in events:
+        if ev.get("source_kind") != "filesystem":
+            continue
+        text = (ev.get("text") or "").strip()
+        if text:
+            file_edit_counts[text] += 1
+
+    # File type inference (rubric 60: what kind of file).
+    def _file_type(filename: str) -> str:
+        ext = os.path.splitext(filename)[1].lower()
+        types = {
+            ".py": "Python代码", ".js": "JavaScript代码", ".ts": "TypeScript代码",
+            ".md": "Markdown文档", ".txt": "文本文件",
+            ".pptx": "PowerPoint演示文稿", ".ppt": "PowerPoint演示文稿",
+            ".xlsx": "Excel表格", ".xls": "Excel表格",
+            ".docx": "Word文档", ".doc": "Word文档",
+            ".json": "JSON配置", ".yaml": "YAML配置", ".yml": "YAML配置",
+            ".html": "HTML页面", ".css": "CSS样式", ".sql": "SQL脚本",
+            ".sh": "Shell脚本", ".bat": "批处理脚本",
+            ".svg": "SVG图形", ".png": "PNG图片", ".jpg": "JPG图片",
+        }
+        return types.get(ext, f"{ext}文件" if ext else "文件")
+
+    names = [os.path.basename(f) for f in files[:3]]
+    file_types = [_file_type(f) for f in names]
+    parts = [f"Goal: 编辑文件。触碰了 {len(files)} 个文件：{', '.join(names)}。"]
+
+    # Genuine editing detection: files with multiple edit events = real editing.
+    genuinely_edited = [(f, c) for f, c in file_edit_counts.most_common(5) if c >= 2]
+    if genuinely_edited and active_h > 0.1:
+        edit_descs = []
+        for fname, count in genuinely_edited[:3]:
+            short = os.path.basename(fname)[:30]
+            ftype = _file_type(fname)
+            edit_descs.append(f"「{short}」{count}个版本（{ftype}）")
+        parts.append(f"Struggle: 频繁编辑 {len(genuinely_edited)} 个文件——{', '.join(edit_descs)}，表明用户在反复修改内容。")
+        parts.append(f"{active_h:.1f}h。")
+    elif active_h > 0.1:
+        parts.append(f"Struggle: 文件编辑 {active_h:.1f}h，涉及 {len(files)} 个文件（{', '.join(file_types[:2])}）。")
+        parts.append(f"{active_h:.1f}h。")
+    else:
+        parts.append("Struggle: 文件编辑活动较少，可能仅打开未编辑。")
+
+    return " ".join(parts) if parts else ""
 
 
 def _dedupe(items: list[str]) -> list[str]:

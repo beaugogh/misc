@@ -205,7 +205,9 @@ class TestSummarizeAISession(unittest.TestCase):
             _ev("tool_result", text="Exit code 128\nfatal: unable to access 'url': CONNECT tunnel failed, response 407",
                 tool_is_error=True, tool_use_id="tu_1"),
         ]
-        task = _task(active=10 * 3600, wall=20 * 3600, excised=34 * 3600, errors=1)
+        task = _task(active=10 * 3600, wall=20 * 3600, excised=34 * 3600, errors=1,
+                     human_data={"human_engaged_seconds": 3600, "human_action_count": 20,
+                                 "is_genuine_time_sink": True})
         narrative = _summarize_ai_session(events, task)
         self.assertIn("Goal:", narrative)
         self.assertIn("sync local", narrative)

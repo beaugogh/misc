@@ -751,7 +751,8 @@ class TestContextRendering(unittest.TestCase):
                          "files_touched": ["run.py"]},
              "human_data": {"human_engaged_seconds": 2400, "human_involvement": "high",
                             "human_action_count": 50, "machine_autonomous_seconds": 0,
-                            "human_action_types": ["50 prompt(s)"]}},
+                            "human_action_types": ["50 prompt(s)"],
+                            "is_genuine_time_sink": True}},
         ]
         agg = aggregate(tasks, "day")
         html = render_html(agg, "day", tasks=tasks)

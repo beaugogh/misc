@@ -756,7 +756,11 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
         def _human_engaged_h(t: dict) -> float:
             return (t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0
         ranked = sorted(tasks, key=_human_engaged_h, reverse=True)
-        top10 = [t for t in ranked[:10] if _human_engaged_h(t) > 0]
+        # Filter to genuine time sinks only (rubric 54-60: forgotten/abandoned
+        # sessions are NOT time sinks). Tasks without human_data are excluded.
+        top10 = [t for t in ranked[:10]
+                 if _human_engaged_h(t) > 0
+                 and (t.get("human_data") or {}).get("is_genuine_time_sink", False)]
         if top10:
             # Compute per-type totals for percentage denominators (rubric 36):
             # h/H, a/A, w/W — each type's percentage is relative to its own total.
@@ -806,6 +810,30 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 {chr(10).join(rows)}
   </tbody>
 </table>"""
+
+        # Low-engagement tasks: active time but NOT genuine time sinks.
+        # These are likely forgotten tabs / abandoned sessions (rubric 54-60).
+        low_eng = [t for t in tasks
+                   if (t.get("human_data") or {}).get("is_genuine_time_sink") is False
+                   and (t.get("active_seconds") or 0) > 3600]
+        if low_eng:
+            low_eng.sort(key=lambda t: t.get("active_seconds", 0), reverse=True)
+            low_items = []
+            for t in low_eng[:10]:
+                act_h = (t.get("active_seconds") or 0) / 3600
+                eng_h = _human_engaged_h(t) / 3600
+                subj = html_mod.escape((t.get("subject") or "(no subject)")[:40])
+                kind = html_mod.escape(classify_task(t))
+                low_items.append(
+                    f"<li><span class='num'>{act_h:.1f}h active</span> "
+                    f"（Human {eng_h:.1f}h）{subj} [{kind}]</li>"
+                )
+            top_tasks_html += f"""
+<h2>低参与度任务（非人工时间消耗）</h2>
+<p class="hint">以下任务 active 时间较长但人工参与度低（<5次操作或<5分钟），可能为遗忘的标签页/会话，不属于真正的人工时间消耗。</p>
+<ul class="kind-section ul">
+{chr(10).join(low_items)}
+</ul>"""
 
     # --- Per-kind subject breakdown (WHAT was the work, not just hours) ---
     kind_subjects_html = ""

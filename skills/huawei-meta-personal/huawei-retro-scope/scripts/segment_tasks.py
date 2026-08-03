@@ -469,6 +469,17 @@ def _extract_context(events: list[dict], source_kind: str) -> dict:
         ctx["dominant_tools"] = [t for t, _ in sorted(tool_counter.items(),
                                                       key=lambda x: -x[1])[:5]]
         ctx["files_touched"] = sorted(files_touched)[:5]
+        # User prompts: top 3 distinct user messages (evidence of what the user was instructing).
+        user_prompts = []
+        for ev in events:
+            if ev.get("kind") == "user_message" and ev.get("text"):
+                text = ev["text"].strip().replace("\n", " ")
+                # Skip system-reminders and command wrappers.
+                if text and not text.startswith("<") and not text.startswith("[Request"):
+                    prompt = text[:80]
+                    if prompt not in user_prompts:
+                        user_prompts.append(prompt)
+        ctx["user_prompts"] = user_prompts[:3]
         return ctx
 
     if source_kind == "vcs":
