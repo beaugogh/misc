@@ -116,7 +116,10 @@ class ICalendarAdapter:
         if self._ics_paths is not None:
             return [p for p in self._ics_paths if os.path.isfile(p)]
         paths = []
-        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "output")
+        _scripts_dir = os.path.dirname(os.path.abspath(__file__))
+        _retro_dir = os.path.dirname(_scripts_dir)
+        _default_out = os.path.join(os.path.dirname(_retro_dir), "output")
+        output_dir = os.environ.get("RETRO_SCOPE_OUTPUT_DIR", _default_out)
         bases = [
             output_dir,
             os.path.expanduser("~/Calendar"),

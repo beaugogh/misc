@@ -19,7 +19,7 @@ output, never block the core workflow.
 | retro-scope findings | `huawei-auto-buddy/output/` exists with report data | None — user must run retro-scope first | Core input missing; skill-forge can still analyze sessions directly but loses pipeline context |
 | Python 3 | `python --version` | None | Fatal — cannot run |
 | skill-creator | `{SKILLS_DIR}/skill-creator/SKILL.md` exists with `init_skill.py` | None (collision risk with Anthropic's skill-creator submodule — see below) | Degrade to direct file-writing mode |
-| agentcenter CLI | `agentcenter --version` | Auto-reinstall (see below) | Skip skill recommendation + version-check (Tasks 4-5) |
+| agentcenter CLI | `agentcenter --version` | Auto-reinstall (see below) | Skip skill recommendation + version-check (Steps 8-9) |
 | welink-cli | `welink-cli` in PATH; `auth status` | Auto-install + auto-refresh (see below) | Skip WeLink data collection |
 | git | `git --version` | None | Skip git commit analysis |
 
@@ -72,7 +72,6 @@ The skills directory varies by AI client. Detect automatically:
 | claudecode | `%USERPROFILE%\.claude\skills` | Path contains `.claude` |
 | codeagent (new) | `%USERPROFILE%\.cac\skills` | Path contains `.cac` |
 | codeagent (legacy) | `%USERPROFILE%\.config\opencode\skills` | Path contains `.config\opencode` |
-| cac | `%USERPROFILE%\.cac\skills` | Path contains `.cac` |
 
 Primary detection: infer from this skill's own path. `huawei-auto-buddy/skill-forge/SKILL.md`
 lives under `{SKILLS_DIR}/huawei-auto-buddy/skill-forge/`, so SKILLS_DIR is two levels up
@@ -86,9 +85,11 @@ Default: `huawei-auto-buddy/output/` (shared with retro-scope). Override via
 
 ### Watermark
 
-`huawei-auto-buddy/output/last_analysis.txt` — stores the millisecond timestamp of the
+`huawei-auto-buddy/output/last_run.txt` — stores the millisecond timestamp of the
 last analysis. Used for two-axis incremental analysis (new sessions + new messages in
 old sessions). If the file is missing or zero, treat as first run.
+This file is shared with retro-scope — both components read and write the same
+watermark.
 
 ## Codeagent dual instances
 
@@ -127,7 +128,7 @@ Legacy uses milliseconds (INTEGER). New uses ISO 8601 (string). Claude Code uses
 
 ### Step 1: Determine analysis scope
 
-Read `huawei-auto-buddy/output/last_analysis.txt` (millis timestamp).
+Read `huawei-auto-buddy/output/last_run.txt` (millis timestamp).
 
 - **First run** (file missing or 0): analyze all sessions. If data is large, batch:
   max 20 sessions per run, record the watermark, tell the user to run again.
@@ -308,11 +309,15 @@ Yes → methodology; No → personal preference.
 
 ### Step 6: Record watermark
 
-Write the current timestamp to `huawei-auto-buddy/output/last_analysis.txt`:
+Write the current timestamp to `huawei-auto-buddy/output/last_run.txt`:
 
 ```python
-import time
-with open("huawei-auto-buddy/output/last_analysis.txt", 'w') as f:
+import os, time
+# Derive output dir from this skill's location, not a hardcoded path.
+# skill-forge/SKILL.md → skill-forge/ → huawei-auto-buddy/ → output/
+output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))), "output")
+with open(os.path.join(output_dir, "last_run.txt"), 'w') as f:
     f.write(str(int(time.time() * 1000)))
 ```
 
@@ -329,7 +334,7 @@ Report to the user:
 ### Step 8: Recommend market skills (optional, requires agentcenter)
 
 Based on analysis + retro-scope findings:
-1. Generate 3-5 search keywords from work scenarios, tool frequency, pain points
+1. Generate 3-5 search keywords from work scenarios, tool frequency, recurring time consumption patterns
 2. Search: `agentcenter search skill --keyword <term> --json`
 3. Filter: exclude already-installed, exclude overlapping with auto-buddy-created skills
 4. Show top 5 (name, version, description, recommendation reason)
@@ -358,8 +363,8 @@ to install to the local directory. Built-in clients ignore `--path` and install 
 | retro-scope not run, no output/ dir | Proceed with direct session analysis; warn that pipeline context is missing |
 | Both codeagent stores empty | Tell user to use an AI coding tool first |
 | Sessions exist but no incremental data | Tell user no new sessions since last analysis |
-| agentcenter unavailable | Auto-reinstall; if reinstall fails, skip Tasks 8-9 |
-| agentcenter auth expired | Try `agentcenter auth`; if fails, skip Tasks 8-9 |
+| agentcenter unavailable | Auto-reinstall; if reinstall fails, skip Steps 8-9 |
+| agentcenter auth expired | Try `agentcenter auth`; if fails, skip Steps 8-9 |
 | welink-cli not installed | Auto-install; if fails, skip WeLink data |
 | welink-cli token expired | Auto-refresh via `welink-cli auth login`; if fails, skip WeLink data |
 | skill-creator not found | Degrade to direct file-writing mode; warn about lower quality |
