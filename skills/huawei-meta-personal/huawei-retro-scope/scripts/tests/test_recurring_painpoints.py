@@ -1,4 +1,4 @@
-"""Tests for recurring-painpoint detection across time windows.
+"""Tests for recurring time-consumption detection across time windows.
 
 Run with:
     cd D:\\workspace\\misc\\skills\\huawei-meta-personal\\huawei-retro-scope\\scripts
@@ -110,8 +110,9 @@ class TestWindowSummary(unittest.TestCase):
         self.assertEqual(summ["top_sinks"][0]["human_h"], 10)
 
     def test_top_sinks_exclude_low_human_engagement(self):
-        """Tasks with <10min human engagement are NOT painpoints (rubrics 5, 54-60).
-        A 10h autonomous agent run with 2 prompts is NOT a painpoint."""
+        """Tasks with <10min human engagement are NOT time-consumption candidates
+        (rubrics 5, 54-60). A 10h autonomous agent run with 2 prompts did NOT
+        meaningfully consume the user's time."""
         tasks = [
             _make_task("autonomous", NOW, human_h=0.05, active_h=10),  # 3 min human, 10h active
             _make_task("genuine", NOW, human_h=2, active_h=3),          # 2h human
@@ -142,7 +143,7 @@ class TestWindowSummary(unittest.TestCase):
 class TestGenerateRecurringPainpoints(unittest.TestCase):
 
     def test_chronic_time_sink(self):
-        """Same subject in top-5 of 3 weekly windows → chronic insight."""
+        """Same subject in top-5 of 3 weekly windows → persistent insight."""
         tasks = []
         # week 0 = oldest (NOW - 21d), week 3 = newest (NOW - 0d)
         for week in range(4):
@@ -154,11 +155,11 @@ class TestGenerateRecurringPainpoints(unittest.TestCase):
             tasks.append(_make_task(f"other-{week}", ts, human_h=1))
             tasks.append(_make_task(f"misc-{week}", ts, human_h=0.5))
         insights = generate_recurring_painpoints(tasks, NOW, 30)
-        self.assertTrue(any("持续性痛点" in i for i in insights),
-                        f"expected chronic insight, got: {insights}")
+        self.assertTrue(any("持续性时间消耗" in i for i in insights),
+                        f"expected persistent insight, got: {insights}")
 
     def test_resolving_painpoint(self):
-        """Top sink in earlier windows, absent from latest → resolved insight."""
+        """Top sink in earlier windows, absent from latest → declining insight."""
         tasks = []
         # week 0 = oldest (NOW - 21d), week 3 = newest (NOW - 0d)
         for week in range(4):
@@ -171,11 +172,11 @@ class TestGenerateRecurringPainpoints(unittest.TestCase):
                                     human_h=15 if week == 3 else 1))
             tasks.append(_make_task(f"filler-{week}", ts, human_h=0.5))
         insights = generate_recurring_painpoints(tasks, NOW, 30)
-        self.assertTrue(any("已缓解" in i for i in insights),
-                        f"expected resolving insight, got: {insights}")
+        self.assertTrue(any("已下降" in i for i in insights),
+                        f"expected declining insight, got: {insights}")
 
     def test_worsening_painpoint(self):
-        """Human hours on a kind increase ≥50% → worsening insight."""
+        """Human hours on a kind increase ≥50% → increasing insight."""
         tasks = []
         # week 0 = oldest (NOW - 21d), week 3 = newest (NOW - 0d)
         for week in range(4):
@@ -187,8 +188,8 @@ class TestGenerateRecurringPainpoints(unittest.TestCase):
             tasks.append(_make_task(f"fill-{week}", ts,
                                     human_h=0.5, kind="browser"))
         insights = generate_recurring_painpoints(tasks, NOW, 30)
-        self.assertTrue(any("加剧" in i for i in insights),
-                        f"expected worsening insight, got: {insights}")
+        self.assertTrue(any("上升" in i for i in insights),
+                        f"expected increasing insight, got: {insights}")
 
     def test_worsening_label_correct_when_kind_has_gaps(self):
         """Worsening insight labels must reference the windows where the kind
@@ -203,7 +204,7 @@ class TestGenerateRecurringPainpoints(unittest.TestCase):
         # Window 3 (newest): ai_session 10h
         tasks.append(_make_task("code-3", NOW, human_h=10, kind="ai_session"))
         insights = generate_recurring_painpoints(tasks, NOW, 30)
-        worsening = [i for i in insights if "加剧" in i and "ai_session" in i]
+        worsening = [i for i in insights if "上升" in i and "ai_session" in i]
         self.assertTrue(worsening, f"expected ai_session worsening, got: {insights}")
         # The label must NOT reference window 0's date (where ai_session
         # didn't appear). Window 0 starts at NOW - 30*86400.
@@ -240,8 +241,8 @@ class TestGenerateRecurringPainpoints(unittest.TestCase):
             tasks.append(_make_task(f"unique-{week}", ts, human_h=10))
             tasks.append(_make_task(f"other-{week}", ts, human_h=1))
         insights = generate_recurring_painpoints(tasks, NOW, 30)
-        # Should have no chronic insights (all subjects are unique per window).
-        self.assertFalse(any("持续性痛点" in i for i in insights))
+        # Should have no persistent insights (all subjects are unique per window).
+        self.assertFalse(any("持续性时间消耗" in i for i in insights))
 
     def test_1d_horizon_returns_empty(self):
         """1d horizon can't be split → no insights."""
@@ -270,7 +271,8 @@ class TestGenerateRecurringPainpoints(unittest.TestCase):
 
     def test_all_autonomous_window_excluded(self):
         """A window where ALL tasks have <10min human engagement contributes
-        no top_sinks — autonomous agent runs are NOT painpoints (rubrics 5, 54-60)."""
+        no top_sinks — autonomous agent runs did NOT consume real human time
+        (rubrics 5, 54-60)."""
         tasks = []
         for week in range(4):
             ts = NOW - (3 - week) * 7 * 86400
@@ -279,21 +281,21 @@ class TestGenerateRecurringPainpoints(unittest.TestCase):
                 tasks.append(_make_task("agent-run-1", ts, human_h=0.02, active_h=10))
                 tasks.append(_make_task("agent-run-2", ts, human_h=0.03, active_h=8))
             else:
-                # Weeks 1-3: genuine human painpoints
+                # Weeks 1-3: genuine human time consumption
                 tasks.append(_make_task("git sync", ts, human_h=10, errors=3))
                 tasks.append(_make_task(f"other-{week}", ts, human_h=1))
         insights = generate_recurring_painpoints(tasks, NOW, 30)
-        # Chronic insight should count 3 windows (weeks 1-3), NOT 4.
-        chronic = [i for i in insights if "持续性痛点" in i]
-        self.assertTrue(chronic, "expected chronic insight")
+        # Persistent insight should count 3 windows (weeks 1-3), NOT 4.
+        chronic = [i for i in insights if "持续性时间消耗" in i]
+        self.assertTrue(chronic, "expected persistent insight")
         self.assertIn("3 个时间窗口", chronic[0],
-                      f"chronic should count 3 windows (week 0 excluded), got: {chronic[0]}")
+                      f"persistent should count 3 windows (week 0 excluded), got: {chronic[0]}")
 
 
 class TestHtmlIntegration(unittest.TestCase):
 
     def test_recurring_painpoints_section_in_html(self):
-        """Recurring painpoints render as a section in the HTML report."""
+        """Recurring time consumption renders as a section in the HTML report."""
         from aggregate import render_html
         tasks = []
         for week in range(4):
@@ -308,10 +310,10 @@ class TestHtmlIntegration(unittest.TestCase):
                              "gap_count": 0, "by_kind": {}}}
         html = render_html(agg, "week", tasks=tasks,
                            since_ts=NOW - 30 * 86400, until_ts=NOW)
-        self.assertIn("反复出现的痛点", html)
+        self.assertIn("反复出现的时间消耗", html)
 
     def test_recurring_painpoints_section_absent_for_1d(self):
-        """1d horizon → no recurring-painpoints section."""
+        """1d horizon → no recurring time-consumption section."""
         from aggregate import render_html
         tasks = [_make_task("t", NOW - 3600, human_h=1)]
         agg = {"2026-08-04": {"total_seconds": 3600, "active_seconds": 3600,
@@ -321,10 +323,10 @@ class TestHtmlIntegration(unittest.TestCase):
                                 "gap_count": 0, "by_kind": {}}}
         html = render_html(agg, "day", tasks=tasks,
                            since_ts=NOW - 86400, until_ts=NOW)
-        self.assertNotIn("反复出现的痛点", html)
+        self.assertNotIn("反复出现的时间消耗", html)
 
     def test_recurring_painpoints_section_absent_when_no_data(self):
-        """No recurring painpoints → section absent, not empty."""
+        """No recurring time consumption → section absent, not empty."""
         from aggregate import render_html
         tasks = []
         for week in range(4):
@@ -338,12 +340,12 @@ class TestHtmlIntegration(unittest.TestCase):
                              "gap_count": 0, "by_kind": {}}}
         html = render_html(agg, "week", tasks=tasks,
                            since_ts=NOW - 30 * 86400, until_ts=NOW)
-        # Section header should not appear when no recurring painpoints found.
+        # Section header should not appear when no recurring time consumption found.
         # (The section div might be empty but the <h2> header should be absent.)
-        self.assertNotIn("<h2>反复出现的痛点</h2>", html)
+        self.assertNotIn("<h2>反复出现的时间消耗</h2>", html)
 
     def test_no_duplicate_insights_in_html(self):
-        """Recurring-painpoint insights must not appear in both the dedicated
+        """Recurring time-consumption insights must not appear in both the dedicated
         section AND the insights cards (duplicate rendering bug)."""
         from aggregate import render_html
         tasks = []
@@ -358,11 +360,11 @@ class TestHtmlIntegration(unittest.TestCase):
                              "gap_count": 0, "by_kind": {}}}
         html = render_html(agg, "week", tasks=tasks,
                            since_ts=NOW - 30 * 86400, until_ts=NOW)
-        # Each recurring-painpoint insight should appear exactly once —
+        # Each recurring time-consumption insight should appear exactly once —
         # in the dedicated section, NOT also in the insights cards.
-        chronic_count = html.count("持续性痛点")
+        chronic_count = html.count("持续性时间消耗")
         self.assertEqual(chronic_count, 1,
-                         f"chronic insight should appear once, found {chronic_count}")
+                         f"persistent insight should appear once, found {chronic_count}")
 
 
 if __name__ == "__main__":

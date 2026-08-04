@@ -1,9 +1,15 @@
-"""Recurring-painpoint detection across time windows within a single horizon.
+"""Recurring time-consumption detection across time windows within a single horizon.
 
-The second thing huawei-retro-scope reports (after absolute time sinks): things that
-keep coming back across time windows. A 30d report is split into 4 weekly windows; if
-the same task subject is a top-5 time sink in 3 of those 4 weeks, that's a recurring
-painpoint — a chronic problem worth automating, not just a one-off bad week.
+The second thing huawei-retro-scope reports (after absolute time sinks): time
+consumption patterns that keep coming back across time windows. A 30d report is split
+into 4 weekly windows; if the same task subject is a top-5 time sink in 3 of those 4
+weeks, that's a recurring time consumption — worth examining, not necessarily painful.
+
+IMPORTANT: high or recurring human time investment does NOT imply the user was
+suffering. A 3h deep coding session might be flow state; a weekly code review might
+be valuable routine. This module surfaces observable time-consumption patterns and
+lets the user decide what to do about them. The "automation candidate" label is a
+suggestion based on recurrence + errors, not a conclusion that the work was painful.
 
 This module is a pure function of the already-collected task list. No persistence, no
 state across runs — every ``python run.py`` recomputes from current data. (Retro-scope's
@@ -17,9 +23,9 @@ Window splitting by horizon:
     1d  → single window       (no comparison possible — returns [])
 
 Insight types:
-    1. Chronic: same subject in top 5 of ≥2 windows (not necessarily consecutive)
-    2. Resolving: top sink in earlier windows, gone from the latest
-    3. Worsening: human hours on a kind increased ≥50% earliest→latest
+    1. Persistent: same subject in top 5 of ≥2 windows (not necessarily consecutive)
+    2. Declining: top sink in earlier windows, gone from the latest
+    3. Increasing: human hours on a kind increased ≥50% earliest→latest
     4. Automation candidate: recurrent (≥2 windows) + high error count (≥3 avg)
 """
 
@@ -32,7 +38,7 @@ from collections import defaultdict
 
 def split_into_windows(tasks: list[dict], end_ts: float,
                        horizon_days: int) -> list[tuple[str, list[dict]]]:
-    """Split tasks into time windows for recurring-painpoint comparison.
+    """Split tasks into time windows for recurring time-consumption comparison.
 
     Returns a list of (window_label, window_tasks) pairs, oldest first.
     Returns [] if the horizon is too short to split (1d) or if there are
@@ -112,9 +118,9 @@ def _normalize_subject(subject: str | None) -> str:
 def _window_summary(tasks: list[dict]) -> dict:
     """Compute top-5 sinks + totals for one window.
 
-    Only tasks with genuine HUMAN engagement qualify as painpoint
-    candidates — a 10h autonomous agent run with 2 prompts is NOT a
-    painpoint (rubrics 5, 54-60). The minimum threshold is 10 minutes
+    Only tasks with genuine HUMAN engagement qualify as time-consumption
+    candidates — a 10h autonomous agent run with 2 prompts did NOT meaningfully
+    consume the user's time (rubrics 5, 54-60). The minimum threshold is 10 minutes
     of human engaged time; below that the task didn't meaningfully
     cost the user effort.
 
@@ -123,7 +129,7 @@ def _window_summary(tasks: list[dict]) -> dict:
         total_human_h: float
     """
     # Rank by human engaged time (consistent with the main report's ranking).
-    # Exclude tasks below the human-engagement minimum — they are not painpoints.
+    # Exclude tasks below the human-engagement minimum — they didn't consume real human time.
     MIN_HUMAN_H = 10 / 60  # 10 minutes
     ranked = sorted(tasks, key=_human_engaged_h, reverse=True)
     top_sinks = []
@@ -153,7 +159,7 @@ def generate_recurring_painpoints(tasks: list[dict], end_ts: float,
     """Compare time windows within the current horizon.
 
     Returns a list of insight strings (Chinese per rubric 38).
-    Empty list if <2 windows, too few tasks, or no recurring painpoints found.
+    Empty list if <2 windows, too few tasks, or no recurring time consumption found.
     """
     windows = split_into_windows(tasks, end_ts, horizon_days)
     if not windows:
@@ -167,7 +173,7 @@ def generate_recurring_painpoints(tasks: list[dict], end_ts: float,
     window_labels = [label for label, _ in summaries]
     insights: list[str] = []
 
-    # --- 1. Chronic time sinks ---
+    # --- 1. Persistent time consumption ---
     # A normalized subject appearing in top-5 of ≥2 windows.
     subject_windows: dict[str, list[int]] = defaultdict(list)
     subject_info: dict[str, dict] = {}  # latest display info per norm_subject
@@ -180,7 +186,7 @@ def generate_recurring_painpoints(tasks: list[dict], end_ts: float,
             subject_windows[ns].append(i)
             subject_info[ns] = sink
 
-    chronic_sinks = []
+    persistent_sinks = []
     for ns, w_indices in subject_windows.items():
         if len(w_indices) >= 2:
             # Sum human hours and errors across all windows where this subject appeared.
@@ -191,7 +197,7 @@ def generate_recurring_painpoints(tasks: list[dict], end_ts: float,
                     if sink["norm_subject"] == ns:
                         total_human += sink["human_h"]
                         total_errors += sink["errors"]
-            chronic_sinks.append({
+            persistent_sinks.append({
                 "subject": subject_info[ns]["subject"],
                 "kind": subject_info[ns]["kind"],
                 "windows_count": len(w_indices),
@@ -200,17 +206,17 @@ def generate_recurring_painpoints(tasks: list[dict], end_ts: float,
                 "window_labels": [window_labels[idx] for idx in w_indices],
             })
 
-    chronic_sinks.sort(key=lambda c: c["total_human_h"], reverse=True)
-    for c in chronic_sinks[:3]:
+    persistent_sinks.sort(key=lambda c: c["total_human_h"], reverse=True)
+    for c in persistent_sinks[:3]:
         windows_str = "、".join(c["window_labels"])
-        insight = (f"⏰ 持续性痛点：'{c['subject'][:50]}' 在 {c['windows_count']} 个时间窗口"
+        insight = (f"⏰ 持续性时间消耗：'{c['subject'][:50]}' 在 {c['windows_count']} 个时间窗口"
                    f"（{windows_str}）中均位居时间消耗前列，累计 {c['total_human_h']:.1f}h 人工时间")
         if c["total_errors"] > 0:
             insight += f"，共 {c['total_errors']} 个错误"
-        insight += "——这是反复出现的痛点，建议自动化消除。"
+        insight += "——这是反复出现的时间消耗，建议审视是否可自动化。"
         insights.append(insight)
 
-    # --- 2. Resolving painpoints ---
+    # --- 2. Declining time consumption ---
     # Top sink in ≥2 earlier windows that's absent from the latest window's top 5.
     if len(summaries) >= 3:
         latest_top_norms = {s["norm_subject"]
@@ -224,13 +230,13 @@ def generate_recurring_painpoints(tasks: list[dict], end_ts: float,
             )
             if earlier_count >= 2:
                 insights.append(
-                    f"✅ 痛点已缓解：'{info['subject'][:50]}' 在前 {earlier_count} 个窗口中排名靠前，"
-                    f"最近一个窗口（{summaries[-1][0]}）未进入前 5——问题可能已解决。"
+                    f"✅ 时间消耗已下降：'{info['subject'][:50]}' 在前 {earlier_count} 个窗口中排名靠前，"
+                    f"最近一个窗口（{summaries[-1][0]}）未进入前 5——该工作的时间投入可能已减少。"
                 )
                 if len(insights) > 6:  # cap total insights
                     break
 
-    # --- 3. Worsening painpoints ---
+    # --- 3. Increasing time consumption ---
     # Human hours on a kind increased ≥50% from earliest to latest window
     # where that kind appeared. Track labels alongside hours so the insight
     # references the correct first/last window for each kind — a kind may
@@ -251,18 +257,21 @@ def generate_recurring_painpoints(tasks: list[dict], end_ts: float,
             pct_change = (latest - earliest) / earliest * 100
             if pct_change >= 50:
                 insights.append(
-                    f"📈 痛点加剧：{kind} 人工时间从 {earliest_label} 的 {earliest:.1f}h "
+                    f"📈 时间消耗上升：{kind} 人工时间从 {earliest_label} 的 {earliest:.1f}h "
                     f"增至 {latest_label} 的 {latest:.1f}h（+{pct_change:.0f}%）。"
                 )
 
     # --- 4. Automation candidates ---
-    # Chronic sinks (≥2 windows) with high error count (≥3 total).
-    for c in chronic_sinks:
+    # Persistent sinks (≥2 windows) with high error count (≥3 total).
+    # Recurrence + errors is the strongest signal for "worth examining for
+    # elimination" — but it's a suggestion, not a conclusion that the work
+    # was painful.
+    for c in persistent_sinks:
         if c["windows_count"] >= 2 and c["total_errors"] >= 3:
             avg_errors = c["total_errors"] / c["windows_count"]
             insights.append(
                 f"🔧 自动化候选：'{c['subject'][:50]}' 在 {c['windows_count']} 个窗口中反复出现，"
-                f"每次平均 {avg_errors:.1f} 个错误——适合自动化消除。"
+                f"每次平均 {avg_errors:.1f} 个错误——适合审视是否可自动化。"
             )
 
     return insights
