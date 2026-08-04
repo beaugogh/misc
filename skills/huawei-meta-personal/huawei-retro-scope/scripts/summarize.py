@@ -296,7 +296,7 @@ def _summarize_ai_session(events: list[dict], task: dict) -> str:
             # Add specific error evidence (rubric 56: verifiable evidence).
             if error_pairs:
                 cmd, err = error_pairs[0]
-                parts.append(f"证据：'{cmd}' → {err[:80]}")
+                parts.append(f"Evidence: '{cmd}' → {err[:80]}")
         elif active_h > 0.5:
             files = ctx.get("files_touched") or []
             if files:
@@ -310,7 +310,7 @@ def _summarize_ai_session(events: list[dict], task: dict) -> str:
     user_prompts = ctx.get("user_prompts") or []
     if user_prompts:
         evidence = "；".join(f"'{p[:50]}'" for p in user_prompts[:2])
-        parts.append(f"用户指令证据：{evidence}")
+        parts.append(f"Evidence: 用户指令——{evidence}")
 
     # Time explanation.
     if excised_h > 1 and excised_h > active_h:
@@ -526,15 +526,27 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
     parts: list[str] = []
 
     # Goal: what was the user researching?
+    # Use the MOST-INTERACTED page (top_pages[0]), not titles[0] (chronologically
+    # first), so the goal matches the detail/pages sections that follow (rubric 72).
+    top_page_title = top_pages[0][0] if top_pages else (titles[0] if titles else "")
     if queries:
         parts.append(f"Goal: 搜索 '{queries[0][:50]}'。")
-    elif titles:
-        parts.append(f"Goal: 浏览 {titles[0][:40]}。")
+    elif top_page_title:
+        # When multiple distinct pages were heavily interacted with, broaden
+        # the goal to reflect the session's overall scope rather than naming
+        # just one page (rubric 72: 目标 must match the content that follows).
+        n_top = len(top_pages)
+        if n_top >= 3 and top_pages[2][1] >= 10:
+            parts.append(
+                f"Goal: 浏览多个页面（以「{top_page_title[:30]}」为主，共 {n_visits} 次访问）。"
+            )
+        else:
+            parts.append(f"Goal: 浏览 {top_page_title[:40]}。")
 
     # Struggle: distinguish genuine interaction from forgotten tabs.
     if active_h < 0.05 and wall_h > 1:
         # No measurable activity — forgotten tab, NOT a time sink.
-        first_page = titles[0][:40] if titles else "browsing"
+        first_page = top_page_title[:40] if top_page_title else (titles[0][:40] if titles else "browsing")
         parts.append(f"Struggle: 标签页在 {first_page} 上停留 {wall_h:.1f}h 但无可测量活动——被遗忘，非活跃使用，不属于人工时间消耗。")
     elif revisit_total > 20 and active_h > 0.5:
         # Genuine heavy interaction — many revisits = clicks.
@@ -564,21 +576,19 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
             action = _infer_page_topic(title)
             page_descs.append(f"「{short_title}」{count}次——{action}")
         if page_descs:
-            parts.append(f"主要浏览内容：{'；'.join(page_descs)}。")
+            parts.append(f"Detail: 主要浏览内容：{'；'.join(page_descs)}。")
 
     # What was visited — show more pages for longer sessions.
     if titles:
         max_pages = 5 if active_h > 2 else 3
         key_pages = _dedupe(titles)[:max_pages]
-        parts.append(f"访问：{', '.join(key_pages)}。")
+        parts.append(f"Pages: {', '.join(key_pages)}。")
     if downloads:
-        parts.append(f"下载了 {downloads} 个文件。")
+        parts.append(f"Downloads: 下载了 {downloads} 个文件。")
 
     # Time.
     if active_h > 0.1 and excised_h <= 0.5:
         parts.append(f"{active_h:.1f}h 活跃浏览。")
-
-    return " ".join(parts) if parts else ""
 
     return " ".join(parts) if parts else ""
 
@@ -729,7 +739,7 @@ def _summarize_comm(events: list[dict], task: dict) -> str:
             parts.append(f"Struggle: {im_count} 条消息交换。{topic}")
         # Show content evidence (rubric 58: verifiable evidence).
         if sample_msgs:
-            parts.append(f"内容证据：{'；'.join(sample_msgs[:2])}。")
+            parts.append(f"Evidence: {'；'.join(sample_msgs[:2])}。")
         if active_h > 0.1:
             parts.append(f"{active_h:.1f}h 消息交流。")
 

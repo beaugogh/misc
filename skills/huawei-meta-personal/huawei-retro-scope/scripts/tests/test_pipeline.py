@@ -239,16 +239,16 @@ class TestSegmentation(unittest.TestCase):
 
 
 class TestAggregation(unittest.TestCase):
-    def test_classify_coding_vs_discussion(self):
+    def test_classify_coding_vs_other(self):
         coding = {"tool_names": ["Edit", "Bash"], "cwd": "/workspace/proj",
                   "subject": "fix bug", "event_count": 10}
-        discussion = {"tool_names": [], "cwd": "/tmp", "subject": "hi",
+        catchall = {"tool_names": [], "cwd": "/tmp", "subject": "hi",
                     "event_count": 2}
         self.assertEqual(classify_task(coding), "coding")
-        self.assertEqual(classify_task(discussion), "discussion")
+        self.assertEqual(classify_task(catchall), "other")
 
-    def test_classify_planning_vs_discussion(self):
-        """EnterPlanMode → planning; task-management-only → discussion."""
+    def test_classify_planning_vs_other(self):
+        """EnterPlanMode → planning; task-management-only → other."""
         planning = {"tool_names": ["EnterPlanMode"], "cwd": "/p",
                     "subject": "plan the migration", "event_count": 5}
         task_mgmt = {"tool_names": ["TaskCreate", "TaskUpdate"], "cwd": "/p",
@@ -256,17 +256,39 @@ class TestAggregation(unittest.TestCase):
         chat = {"tool_names": [], "cwd": "/p", "subject": "ok go ahead",
                 "event_count": 1}
         self.assertEqual(classify_task(planning), "planning")
-        self.assertEqual(classify_task(task_mgmt), "discussion")
-        self.assertEqual(classify_task(chat), "discussion")
+        self.assertEqual(classify_task(task_mgmt), "other")
+        self.assertEqual(classify_task(chat), "other")
 
-    def test_classify_doc_authoring_not_discussion(self):
-        """doc_authoring/auxiliary source kinds must NOT fall into AI-session buckets."""
+    def test_classify_doc_authoring_not_other(self):
+        """doc_authoring source kind must NOT fall into AI-session buckets."""
         doc = {"tool_names": [], "cwd": "/p", "subject": "wiki page",
                "event_count": 3, "source_kind": "doc_authoring"}
         aux = {"tool_names": [], "cwd": "/p", "subject": "daemon",
                "event_count": 1, "source_kind": "auxiliary"}
         self.assertEqual(classify_task(doc), "doc-edit")
         self.assertEqual(classify_task(aux), "other")
+
+    def test_classify_case_insensitive_tool_names(self):
+        """Legacy codeagent adapter yields lowercase tool names (edit/bash/read);
+        Claude Code yields capitalized (Edit/Bash/Read). Both must classify as
+        coding, not leak into other."""
+        legacy = {"tool_names": ["bash", "edit", "read", "question", "skill"],
+                  "cwd": "/p", "subject": "Hi", "event_count": 75}
+        modern = {"tool_names": ["Bash", "Edit", "Read"],
+                  "cwd": "/p", "subject": "fix bug", "event_count": 10}
+        mixed = {"tool_names": ["AskUserQuestion", "Bash", "update_goal"],
+                 "cwd": "/p", "subject": "check", "event_count": 5}
+        self.assertEqual(classify_task(legacy), "coding")
+        self.assertEqual(classify_task(modern), "coding")
+        self.assertEqual(classify_task(mixed), "coding")
+        # Lowercase plan mode should also be recognized.
+        legacy_plan = {"tool_names": ["enterplanmode"], "cwd": "/p",
+                       "subject": "plan it", "event_count": 3}
+        self.assertEqual(classify_task(legacy_plan), "planning")
+        # Lowercase web search → research.
+        legacy_search = {"tool_names": ["websearch"], "cwd": "/p",
+                         "subject": "look it up", "event_count": 2}
+        self.assertEqual(classify_task(legacy_search), "research")
 
     def test_aggregate_by_day(self):
         tasks = [
@@ -280,10 +302,10 @@ class TestAggregation(unittest.TestCase):
         period = list(agg.values())[0]
         self.assertAlmostEqual(period["total_seconds"], 5400)
         self.assertEqual(period["task_count"], 2)
-        # coding (Edit) and discussion (no tools) present
+        # coding (Edit) and other (no tools) present
         kinds = set(period["by_kind"].keys())
         self.assertIn("coding", kinds)
-        self.assertIn("discussion", kinds)
+        self.assertIn("other", kinds)
 
     def test_aggregate_week_iso(self):
         """Weekly aggregation uses ISO week keys like 2026-W27."""
