@@ -23,7 +23,7 @@ Flags:
                                           Each report includes a data-availability section
                                           showing per-source coverage. Sources with no data
                                           in a horizon are listed as "No data in range".
-    --output-dir <dir>                    directory for multi-horizon reports (default: output/)
+    --output-dir <dir>                    directory for multi-horizon reports (default: ../../output/ i.e. huawei-auto-buddy/output/)
     --granularity {day,week,month,year}   aggregation period (single-range mode; default: week)
     --format {text,table,markdown,html,json}  output format (single-range; default: text)
     --json                                emit raw JSON (equivalent to --format json; takes precedence)
@@ -746,7 +746,11 @@ def main():
 
     # --- Export detailed session records as evidence (rubric 66) ---
     # Extracts detailed session records for later inspection.
-    _output_dir = args.output_dir or "output"
+    # Default: skills/huawei-auto-buddy/output/ (shared with skill-forge).
+    _default_out = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "output")
+    _output_dir = args.output_dir or os.environ.get("RETRO_SCOPE_OUTPUT_DIR", _default_out)
     try:
         _export_session_records(tasks, events, _output_dir)
     except Exception as e:
@@ -781,7 +785,8 @@ def main():
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(2)
         output_dir = args.output_dir or os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "..", "output")
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "output")
         output_dir = os.path.normpath(output_dir)
         print("# Multi-horizon analysis", file=sys.stderr)
         print(f"  horizons: {args.horizons}", file=sys.stderr)

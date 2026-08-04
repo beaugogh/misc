@@ -18,7 +18,14 @@ import os
 import json
 import time
 
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output")
+# Default output directory: skills/huawei-auto-buddy/output/ (two levels up
+# from scripts/ — retro-scope is a component of huawei-auto-buddy, so its
+# output lives at the parent skill level, shared with skill-forge).
+# Can be overridden via RETRO_SCOPE_OUTPUT_DIR env var or --output-dir flag.
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_RETRO_SCOPE_DIR = os.path.dirname(_SCRIPTS_DIR)
+_DEFAULT_OUTPUT_DIR = os.path.join(os.path.dirname(_RETRO_SCOPE_DIR), "output")
+OUTPUT_DIR = os.environ.get("RETRO_SCOPE_OUTPUT_DIR", _DEFAULT_OUTPUT_DIR)
 TASKS_LOG = os.path.join(OUTPUT_DIR, "tasks.jsonl")
 WATERMARK_FILE = os.path.join(OUTPUT_DIR, "last_run.txt")
 

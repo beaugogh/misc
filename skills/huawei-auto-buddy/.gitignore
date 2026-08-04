@@ -1,0 +1,11 @@
+# Personal output — sensitive time-log/skill data, must never be committed.
+# Both retro-scope (time analysis) and skill-forge (memory/skill generation)
+# write here. Each colleague's output/ is their own, not for the shared repo.
+output/
+
+# Python bytecode caches
+__pycache__/
+*.py[cod]
+
+# Credentials
+.env

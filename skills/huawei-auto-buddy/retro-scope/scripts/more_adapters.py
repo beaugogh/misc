@@ -116,7 +116,7 @@ class ICalendarAdapter:
         if self._ics_paths is not None:
             return [p for p in self._ics_paths if os.path.isfile(p)]
         paths = []
-        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output")
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "output")
         bases = [
             output_dir,
             os.path.expanduser("~/Calendar"),
