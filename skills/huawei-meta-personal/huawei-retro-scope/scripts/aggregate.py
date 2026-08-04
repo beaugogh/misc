@@ -299,8 +299,8 @@ def generate_insights(tasks: list[dict], agg: dict) -> list[str]:
         if recurring:
             parts = [f"'{k}' 在 {n} 个任务中失败" for k, n in recurring]
             insights.append(
-                f"反复出现的痛点：{', '.join(parts)}——这些重复相同的错误模式，"
-                f"是自动化候选对象。"
+                f"反复出现的时间消耗：{', '.join(parts)}——这些重复相同的错误模式，"
+                f"值得审视是否可自动化。"
             )
         else:
             insights.append(
@@ -528,11 +528,11 @@ def render_table(agg: dict, granularity: str) -> str:
 
 def render_recurring_painpoints_section(tasks: list[dict], since_ts: float | None,
                                         until_ts: float | None, html_mod) -> str:
-    """Render the recurring-painpoints section for the HTML report.
+    """Render the recurring time-consumption section for the HTML report.
 
     Splits the current horizon into time windows and compares them to surface
-    pain points that keep coming back. Returns "" if no recurring painpoints
-    found or the horizon is too short to split.
+    time consumption patterns that keep coming back. Returns "" if no recurring
+    time consumption found or the horizon is too short to split.
     """
     if not tasks or since_ts is None or until_ts is None:
         return ""
@@ -550,8 +550,8 @@ def render_recurring_painpoints_section(tasks: list[dict], since_ts: float | Non
         f'  <div class="painpoint-card">{html_mod.escape(ins)}</div>'
         for ins in insights
     )
-    return f"""<h2>反复出现的痛点</h2>
-<p class="hint">将本周期按时间窗口划分后对比，识别反复出现的时间消耗与问题。90d→月度对比，30d→周度对比，7d→日度对比。</p>
+    return f"""<h2>反复出现的时间消耗</h2>
+<p class="hint">将本周期按时间窗口划分后对比，识别反复出现的时间消耗模式。90d→月度对比，30d→周度对比，7d→日度对比。高时间投入不等于痛点——由用户判断是否需要优化。</p>
 <div class="painpoints-grid">
 {cards}
 </div>"""
@@ -794,7 +794,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                 f'  <div class="insight-card">{html_mod.escape(ins)}</div>'
                 for ins in insights
             )
-            insights_html = f"""<h2>洞察与痛点</h2>
+            insights_html = f"""<h2>洞察</h2>
 <div class="insights-grid">
 {cards}
 </div>"""
