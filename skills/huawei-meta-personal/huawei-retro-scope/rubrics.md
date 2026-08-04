@@ -1,75 +1,136 @@
-* the time sink subject descriptions look weird, such as "what do you mean by install skill-creator"， “<system-reminder> The user named this session "wushan".”, etc. Those are not problem descriptions, people wouldn't understand them.
+# Rubrics — huawei-retro-scope
 
-* problem descriptions like " Key failure: 'edit README.md' → File has not been read yet. Read it first before writing to it.. Retried Edit README.md (21×)" are still poorly described, after reading them, i still do not know why that problem was hard to solve. 
+Design principles and quality bars that govern the skill's output. Each rubric
+is a durable rule, not a one-off bug report. Bug reports that have been fixed
+are folded into the rule they inspired, not kept as separate entries.
 
-* A key remark you need to remember: we are looking for time sinks that costs HUMAN time! if a long coding session is mainly a coding agent that automatically programs solutions, barely with any human involvement, i would not call that a time sink. If a web page is open for a long time simply because the user forgot to close it, i wouldn't call that a time sink either. If a meeting takes a long time simply because the user did not close the meeting window, and no one is speaking or even participating in that meeting, that is not a time sink! REMARK: We are looking for traces of HUMAN interactions/interruptions/involvement/operations/actions in trying to solve certain problems, e.g. the user may type lots of instructions or prompts in a coding session, or the user is typing a lot in a document, or he/she is clicking, scrolling, drag & dropping stuff on the screen, that is a clearly sign of human involvement.
+## Driving Principles
 
+1. **Human time is the metric, not machine time.** The skill tracks where the
+   *user's* time goes, not where the agent's time goes. A 10h autonomous agent
+   run with 2 prompts is not a time sink. A forgotten browser tab is not a time
+   sink. A meeting nobody spoke in is not a time sink. The skill must detect
+   genuine human interaction — typing, clicking, instructing, editing — and
+   rank time sinks by human engaged time, not raw active or wall time.
 
-* Actually look into the content of the coding sessions, meetings, research activitiies, etc. and make meaningful summaries on the root causes on the long (or short for that matter) tasks
+2. **Surface what happened, let the user judge.** High or recurring time
+   investment does not imply suffering. A 3h deep coding session might be flow
+   state; a weekly code review might be valuable routine. The skill reports
+   observable time-consumption patterns; the user decides what to do about
+   them. Use neutral language ("时间消耗"), not loaded language ("痛点").
 
+3. **Three-way time accounting.** Every task and every summary must report all
+   three time types: **Wall** (total clock span) → **Active** (work detected)
+   → **Human** (user engaged). The invariant is: wall ≥ active ≥ human.
+   Percentages are per-type: h/H, a/A, w/W.
 
-* the huawei-retro-scope output should be human-interpretable analysis on the root causes of tasks being run, when people read it, they should have a concrete understanding on why exactly that a certain task takes certain time, what exactly he/she did in said tasks, and what exactly he/she strugled with, or was idle with.
+4. **Content-driven root causes.** The skill must read the actual content of
+   tasks — user prompts, error texts, page titles, chat messages, commit
+   subjects, file names — and explain *why* a task took the time it did. Generic
+   labels like "blocker: command timeout (21 of 46 errors)" are not acceptable;
+   the narrative must say what was attempted, what failed, and what the user
+   struggled with.
 
-* maybe assuming a 8h working day is problematic, it is better to use actual working hours of that day/week/month to calculate time lapse percentages.
+5. **Retrospective, opt-in, portable.** No live tracking. No always-on watchers.
+   No manager-analyzing-team. No closed-source dependencies. Runs on whatever
+   sources a colleague has, detects them, and reports gaps honestly.
 
+6. **Working hours derived from real data.** Do not assume a flat 8h/day. Derive
+   the working-hour denominator from actual human activity in the period.
 
-* i notice that there is missing welink message sessions analysis
+## Report Structure
 
-* Root cause section text can be more structured and easier to read, right now each section is a lump of text.
+7. **Logical flow.** Summary header → recurring time consumption → top 10 time
+   sinks → per-kind work content → per-period breakdown table + chart →
+   insights → data availability. Each section has a clear boundary and purpose.
 
+8. **All activity categories shown.** The report must cover AI agent use (Claude
+   Code, codeagent, openclaw, codex, hermes), WeLink chats, WeLink meetings,
+   web browser use, local file editing — even if some don't reach the top 10.
+   Use specific program names (say "git" not "vcs", "WeLink" not "IM").
 
-* there are three types of hours tracking for a task: 1. wall time, the total amount of wall clock time lapsed; 2. active time, the amount of time actively spent on that task; 3. human involvement time, the amount of human involved time spent on that task. in the oputput, make that distinction clear, and give accounts on all three, including total absolute hours and relative percentage spent on all three, per task and overall.
+9. **Top 10 time sinks.** Ranked by human engaged time. Filtered to genuine
+   time sinks only (≥5 human actions, ≥5 min engaged). Low-engagement tasks
+   listed separately as "低参与度任务" (likely forgotten tabs / abandoned sessions).
 
-* phrases like "Goal: install skill-creator Let me wait for it" does not make sense, because the sentence "install skill-creator Let me wait for it" does not read like a goal.
+10. **Structured root-cause cells.** Each 根因 cell must contain 目标 (goal) and
+    困难 (struggle) at minimum. The goal must match the content that follows —
+    if the goal says "浏览 AgentCenter", the detail section must be about
+    AgentCenter, not unrelated pages. Break narratives into labeled parts
+    (🎯目标, ⚠️困难, 📝详情, 🌐页面, 🔍证据, 📥下载, ⏱️时间) instead of a single
+    lump of text.
 
-* categories like ⚠️ Struggle and 🔥 Difficulty seem duplicative
+11. **Per-period table includes all three time columns.** Wall, Active, Human —
+    not just Wall and Active.
 
-* root cause sections must have struggle/difficulty descriptions, not just summary
+12. **Session records exported as evidence.** Detailed JSON records per genuine
+    time sink task, with event timeline, user prompts, messages, page titles,
+    commit subjects, and file names. Stored in `output/session_records/`.
 
-* sentences like "'edit README.md' → File has not been read yet Read it first before writing to it" do not sound like a description of a struggle or a difficult situation, they are just mundane task descriptions, not exposing problems.
+## Language and Readability
 
-* Breakdown by period table does not have the human time column, but it should have.
+13. **Chinese for analysis, English where clear.** Long descriptive and
+    analytical texts in Chinese. Program names, technical terms, and short
+    labels in English where it's clearer.
 
-* the output report should contain trackings and analysis of ai agent use (claude code, codeagent, openclaw, codex, hermes etc.), welink chats, welink meetings, web browser use, local file editing, even if some of these activities do not reach top 5.
+14. **Descriptions must be meaningful, not mechanical.** Avoid descriptions that
+    list counts without explaining what the user was actually doing. "593 次访问
+    中 378 次为重复访问" is useless without saying what the user was looking for
+    and why. Avoid awkward phrasing like "命令超时（网络慢或进程挂起）；用户拒绝
+    工具调用——agent 反复提出不需要的操作". Rewrite as plain, specific statements.
 
+15. **Goal text must read like a goal.** "install skill-creator Let me wait for
+    it" is not a goal. Strip conversational filler and system-reminder wrappers
+    from goal text.
 
-* percentage should be calculated per type, for example, for the 7day report, the total amount of human hours is H, the toal amount of active hours is A, and the total amount of wall hours is W, for a specific task, the human hours is h, the active hours is a, and the wall hours is w, then the human hour perfcentage of that task is h/H, the active hour percentage of that task is a/A and the wall hour percentage of that task is w/W.
+16. **No duplicative categories.** ⚠️ Struggle and 🔥 Difficulty were merged.
+    Each labeled part in the root-cause cell must serve a distinct purpose.
 
-* output the report in Chinese, but when english is appropriate or clear, use english. long, descriptive, analytical texts should be in chinese. the "洞察与痛点" section should be in chinese.
+## Genuine Interaction Detection
 
-* review the overall structure / layout of a report, make sure its divisons are logical, have clear boundaries, and follow a clear, logical flow. make sure the reports are easy to read and understand, but still contain critical, and detailed (if necessary) information.
+17. **Forgotten sessions are not time sinks.** For each activity type, detect
+    whether the user genuinely interacted:
+    - **Coding sessions:** user typed instructions/prompts frequently.
+    - **Browser pages:** user clicked, scrolled, or navigated actively.
+    - **Chat sessions:** user typed messages to others.
+    - **File editing:** user made repeated edits across multiple versions.
+    - **Meetings:** user participated (spoke, reacted, followed up).
 
-* Give top 10 time sinks.
+18. **Distinguish human edits from agent edits.** Files edited by an autonomous
+    agent (e.g. VSCode Local History records agent edits) must not appear as
+    "frequently edited by the user." Tag agent-edited files and exclude them
+    from human file-editing time sinks.
 
-* if vcs means git, just say git. if IM means welink chats, just say welink. Use specific program names when you can.
+19. **Investigate content for each activity type.** When an activity is a
+    genuine time sink, investigate its content and explain *why* it took time:
+    - **Web browsing:** what pages, what topic, what was the user looking for.
+    - **Chat:** what was discussed, how many participants, message volume.
+    - **Coding:** what was the goal, what errors occurred, what was retried.
+    - **File editing:** what file, what type, what was added/removed/modified.
+    - **Meetings:** subject, organizer, whether decisions were followed up.
 
-* all 根因 cells should contain 目标 and 困难,  i notice some cells only contain 目标 but miss 困难.
+## Recurring Time Consumption
 
-* if it is web-browsing that takes much human time, you need to investigate the web page contents that were being browsed, and analyze the root causes on why that browsing took that much time. give concrete/detailed examples if necessary.
+20. **Cross-window comparison.** Split the horizon into time windows (90d→monthly,
+    30d→weekly, 7d→daily, 1d→no comparison) and surface patterns across windows:
+    - ⏰ Persistent: same task in top-5 across ≥2 windows.
+    - ✅ Declining: was a top sink, now gone from the latest window.
+    - 📈 Increasing: human hours on a kind rose ≥50% earliest→latest.
+    - 🔧 Automation candidate: recurrent + high error count — a suggestion
+      to examine, not a conclusion that the work was painful.
 
-* if it is welink chat or other IM chatting that took much human time, you need to invertigate the chat contents being communicated, analyse and summarize them to reveal the root causes on why those communications took long. give concrete/detailed examples if necessary.
+21. **Recurring patterns must be based on human time.** Only tasks with genuine
+    human engagement (≥10 min) qualify as recurring time-consumption candidates.
+    Autonomous agent runs that cost no human time are excluded from all four
+    insight types.
 
-* it is not entirely clear to me on the differences between research and planning, and what planning is exactly. 
+## Computation Rules
 
-* we are looking for genuine time sinks and painpoints, if a web page is simply forgotten to be closed, it does not count as a painpoint. you need to detect if within a web page, the user frequently clicks, scrolled or drag/dropped, or performed any other actions on the web page, if that is the case, and it took a long time, then it genuinely can be considered a time sink and a painpoint. and you need to be very insightful and specific about the painpoint webpage contents that the user interacted with, demonstrating why do you think that the user interacted so much with the said web pages. provide verifiable evidences/sources/references if necessary. provide examples if necessary.
+22. **Wall ≥ Active ≥ Human.** This invariant must hold for every task and every
+    aggregate. If it doesn't, the computation has a bug.
 
-* we are looking for genuine time sinks and painpoints for coding session, if a coding session/terminal tab is simply forgotten to be closed, it does not count as a painpoint. you need to detect if within a coding session, the user frequently types or gives instructions, if that is the case, and it took a relatively long time, then it genuinely can be considered a time sink and a painpoint. and you need to be very insightful and specific about the painful coding session that the user interacted with, investigating its content, demonstrating why do you think that the user interacted so much within the coding session, be it claude code, codeAgent, openclaw, opencode, hermes or codex. provide verifiable evidences/sources/references if necessary. provide examples if necessary.
+23. **Percentages are per-type.** For a 7-day report with totals H/A/W and a
+    task with h/a/w: human% = h/H, active% = a/A, wall% = w/W. Not h/W or a/W.
 
-* we are looking for genuine time sinks and painpoints for chat sessions, typically welink chat sessions, but could also be other IM services, if a chat session is simply forgotten to be closed, it does not count as a painpoint. you need to detect if within a chat session, the user frequently types or interacts with others, if that is the case, and it took a relatively long time, then it genuinely can be considered a time sink and a painpoint. and you need to be very insightful and specific about the lengthy chat session, investigating its content, demonstrating why do you think that the user interacted so much within the chat session. provide verifiable evidences/sources/references if necessary. provide examples if necessary.
-
-* we are looking for genuine time sinks and painpoints for file editing, typically microsoft word/excel/powerpoint file editing, but could also be other files, e.g. a simple text file. if a file is simply forgotten to be closed, it does not count as a painpoint. you need to detect if for a specific opened file, if the user frequently types or interacts with it, if that is the case, and it took a relatively long time, then it genuinely can be considered a time sink and a painpoint. and you need to be very insightful and specific about the lengthy file editing session, investigating its content, what did the user add, remove or modify, demonstrating why do you think that the user spent that much time editing that file. provide verifiable evidences/sources/references if necessary. provide examples if necessary.
-
-* avoid description like, for this is useless, because the user still does not know what exactly is the content on the websites AgentCentor or beaugogh/misc that the user interacted with: 593 次访问中 378 次为重复访问（点击/切换），说明用户在活跃地查找和对比信息。最频繁交互的页面「AgentCenter」被访问 86 次（AI Agent开发/管理平台），表明用户在该页面进行了密集操作 高频交互页面：「AgentCenter」86次访问（Chrome记录10次），「beaugogh/misc」39次访问（Chrome记录46次），「所有-W3搜索」34次，「Welcome to W3 Workplace」27次访问（Chrome记录62次）. 
-
-* avoid description like this, for it is useless, as it is awkwardly phrased, the user does not understand what it means: 命令超时（网络慢或进程挂起）；用户拒绝工具调用——agent 反复提出不需要的操作，尽管重试 99 次仍反复出现——根本原因未被解决
-
-* besides the report outputs in different timescales, detailed and comprehensive session records should be extracted for later inspection and as evidence. session records include chat sessions, coding sessions, browser sessions, meeting sessions, file editing sessions, etc. anything that give a clear trace of content / actions for clear understanding.
-
-* be careful with the distinction between the file editing by machine/agent and by human, e.g. for me, i did not touch the fix-ccr-code.ps1 file at all, but it was still categorised as the file that I frequently edited.
-
-* wall time >= active time >= human time
-
-* in the 根因 column, 目标 often doesn't match the contents followed. e.g. for  目标: 浏览 AgentCenter, the content that followed includes "「beaugogh/misc」39次——用户在管理自己的代码仓库；「所有-W3搜索」34次——用户在W3门户浏览华为内部信息；「Welcome to W3 Workplace」27次——用户在W3门户首页浏览内部信息", which has nothing to do with the 目标。
-
-* the chronic, worsening, and resolving painpoints need to be based on actual human involvement, actual human time spent on those tasks. If the user did not spend much time or repeatedly spend time on some tasks, then those tasks are not painpoints. This is important.
-
+24. **Working-day basis from real human activity.** Use
+    `compute_actual_working_hours()` to derive the denominator, not a flat 8h/day.
