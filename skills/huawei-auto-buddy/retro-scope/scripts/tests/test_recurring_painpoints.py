@@ -1,7 +1,7 @@
 """Tests for recurring time-consumption detection across time windows.
 
 Run with:
-    cd D:\\workspace\\misc\\skills\\huawei-meta-personal\\huawei-retro-scope\\scripts
+    cd D:\\workspace\\misc\\skills\\huawei-auto-buddy\\retro-scope\\scripts
     python -m unittest tests.test_recurring_painpoints -v
 """
 

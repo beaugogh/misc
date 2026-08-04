@@ -57,7 +57,7 @@ To serve that mission, the skill must be:
 ## Implemented capabilities (Phase 10)
 
 The three frontiers below were the main growth areas for the skill. All three are now
-implemented (Phase 10, see `PLAN.md`). They are documented here so users understand what the
+implemented (Phase 10). They are documented here so users understand what the
 skill does, not what it aspires to do.
 
 ### Parallel tasks
@@ -212,7 +212,7 @@ dropping it.
 
 ### Backup-route status (Phase 9 — built)
 
-These routes are built and working (see `PLAN.md` Phase 9 for the design and the parallelism
+These routes are built and working (see the parallelism
 table):
 
 - **`.ics` parser** — works. `ICalendarAdapter` in `more_adapters.py` parses VEVENT entries
@@ -527,7 +527,7 @@ not commitments.
 - **Storage shape (schema):** OCEL 2.0 (`pm4py`) vs flat SQLite (Plaso-style) — see
   "Storage shape" above. Decide before implementation.
 - **Incremental processing / watermark:** how to avoid reprocessing full history each run?
-  The source auto-evolve skill used `last_analysis.txt` with two-axis incremental analysis
+  The skill-forge component uses `last_analysis.txt` with two-axis incremental analysis
   (new sessions + new messages in old sessions). huawei-retro-scope needs an equivalent — especially
   for Claude Code's growing store (39,925 lines). Affects adapter design. Not yet specified.
 - **Output / report format:** ✅ RESOLVED (Phase 9.7) — stdout text, JSON, Markdown file,

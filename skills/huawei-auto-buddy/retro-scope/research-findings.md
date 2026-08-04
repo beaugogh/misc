@@ -721,6 +721,6 @@ list; see the citation caveat above.)*
 
 Recorded as assessment only — no design committed. The three high-leverage finds (especially
 OCEL 2.0 as storage schema) are real architectural choices that deserve a deliberate decision
-before being folded into SKILL.md. The `PLAN.md` phases 4 and 5 are where these methods enter
+before being folded into SKILL.md. Phases 4 and 5 are where these methods enter
 implementation. Next step: verify the core libraries, then commit to a chosen stack per sub-
 problem as each phase is reached.
