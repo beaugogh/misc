@@ -70,3 +70,6 @@
 * wall time >= active time >= human time
 
 * in the 根因 column, 目标 often doesn't match the contents followed. e.g. for  目标: 浏览 AgentCenter, the content that followed includes "「beaugogh/misc」39次——用户在管理自己的代码仓库；「所有-W3搜索」34次——用户在W3门户浏览华为内部信息；「Welcome to W3 Workplace」27次——用户在W3门户首页浏览内部信息", which has nothing to do with the 目标。
+
+* the chronic, worsening, and resolving painpoints need to be based on actual human involvement, actual human time spent on those tasks. If the user did not spend much time or repeatedly spend time on some tasks, then those tasks are not painpoints. This is important.
+
