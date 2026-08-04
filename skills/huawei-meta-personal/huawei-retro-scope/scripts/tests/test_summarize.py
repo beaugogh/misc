@@ -273,7 +273,7 @@ class TestSummarizeBrowser(unittest.TestCase):
                      context={"top_titles": ["mem0 - Google Search", "mem0ai/mem0"],
                               "top_urls": [], "queries": [], "downloads": 2, "n_visits": 185})
         narrative = _summarize_browser([], task)
-        self.assertIn("访问", narrative)
+        self.assertIn("Pages:", narrative)
         self.assertIn("mem0", narrative)
         self.assertIn("下载了 2", narrative)
 
@@ -292,6 +292,46 @@ class TestSummarizeBrowser(unittest.TestCase):
         narrative = _summarize_browser([], task)
         self.assertIn("Goal:", narrative)
         self.assertIn("asyncio", narrative)
+
+    def test_goal_uses_most_interacted_page(self):
+        """Goal should use the most-interacted page (top_pages[0]), not the
+        chronologically-first title (titles[0]) — so it matches the Detail
+        section that follows (rubric 72: 目标 must match the content)."""
+        events = [
+            _ev("visit", tool_input={"title": "First Page Visited", "visit_count": 1}),
+            _ev("visit", tool_input={"title": "Most Clicked Page", "visit_count": 3}),
+            _ev("visit", tool_input={"title": "Most Clicked Page", "visit_count": 3}),
+            _ev("visit", tool_input={"title": "Most Clicked Page", "visit_count": 3}),
+        ]
+        task = _task(source_kind="browser", active=2 * 3600, wall=2 * 3600,
+                     context={"top_titles": ["First Page Visited", "Most Clicked Page"],
+                              "top_urls": [], "queries": [], "downloads": 0, "n_visits": 4})
+        narrative = _summarize_browser(events, task)
+        self.assertIn("Most Clicked Page", narrative)
+        # Goal should contain the most-clicked page, NOT the first-visited page.
+        goal_start = narrative.index("Goal:")
+        goal_end = narrative.index("Struggle:", goal_start)
+        goal_section = narrative[goal_start:goal_end]
+        self.assertIn("Most Clicked Page", goal_section)
+        self.assertNotIn("First Page Visited", goal_section)
+
+    def test_goal_broadened_for_multi_page_sessions(self):
+        """When 3+ pages each have ≥10 visits, the goal should be broadened
+        to reflect the multi-page scope, not name just one page (rubric 72)."""
+        events = []
+        for title, count in [("Page A", 15), ("Page B", 12), ("Page C", 10), ("Page D", 5)]:
+            for _ in range(count):
+                events.append(_ev("visit", tool_input={"title": title, "visit_count": count}))
+        task = _task(source_kind="browser", active=3 * 3600, wall=3 * 3600,
+                     context={"top_titles": ["Page A", "Page B", "Page C", "Page D"],
+                              "top_urls": [], "queries": [], "downloads": 0, "n_visits": 42})
+        narrative = _summarize_browser(events, task)
+        goal_start = narrative.index("Goal:")
+        goal_end = narrative.index("Struggle:", goal_start)
+        goal_section = narrative[goal_start:goal_end]
+        # Broadened goal should mention "多个页面" and the primary page.
+        self.assertIn("多个页面", goal_section)
+        self.assertIn("Page A", goal_section)
 
 
 class TestSummarizeMeeting(unittest.TestCase):

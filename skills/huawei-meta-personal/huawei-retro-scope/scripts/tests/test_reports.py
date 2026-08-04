@@ -21,7 +21,7 @@ from aggregate import aggregate, render_report, render_markdown, render_table, r
 def _synthetic_agg():
     """Build a small synthetic agg dict via aggregate() with hand-crafted tasks.
 
-    Two tasks on the same day: one coding (Edit tool), one discussion (no tools).
+    Two tasks on the same day: one coding (Edit tool), one other (no tools).
     This gives us two kinds in one period for realistic table/chart output.
     """
     # 1782967200 = 2026-07-02T04:40:00Z (UTC)
@@ -77,13 +77,13 @@ class TestRenderMarkdown(unittest.TestCase):
         self.assertIn("# Time report (by day)", self.output)
 
     def test_contains_kind_names(self):
-        """Output contains the kind names (coding, discussion, research)."""
+        """Output contains the kind names (coding, other, research)."""
         self.assertIn("coding", self.output)
-        self.assertIn("discussion", self.output)
+        self.assertIn("other", self.output)
 
     def test_contains_success_rate(self):
         """Output contains success percentage values."""
-        # The coding task succeeded, discussion failed
+        # The coding task succeeded, other failed
         self.assertIn("%", self.output)
 
 
@@ -122,7 +122,7 @@ class TestRenderTable(unittest.TestCase):
         """Each data row has aligned columns (same positions as header)."""
         lines = self.output.split("\n")
         # Find a data row (contains a number and a kind)
-        data_lines = [l for l in lines if "coding" in l or "discussion" in l or "research" in l]
+        data_lines = [l for l in lines if "coding" in l or "other" in l or "research" in l]
         self.assertGreater(len(data_lines), 0)
         # Each data line should have multiple spaces (column separation)
         for line in data_lines:
@@ -980,6 +980,93 @@ class TestRootCauseRendering(unittest.TestCase):
         }
         line = render_context_inline(task)
         self.assertIn("2 commit(s)", line)
+
+
+class TestStructuredRootCause(unittest.TestCase):
+    """render_structured_root_cause breaks the narrative into separate HTML divs.
+
+    Each labeled section (Goal, Struggle, Detail, Pages, Evidence, Time) should
+    produce its own <div class="rc-part"> so the 根因 cell is readable, not a
+    single lumped blob.
+    """
+
+    class _FakeHtmlMod:
+        """Minimal stand-in for the html module — escapes for display."""
+        def escape(self, s):
+            import html as _html
+            return _html.escape(s)
+
+    def test_browser_narrative_produces_separate_divs(self):
+        """A browser narrative with Goal/Struggle/Detail/Pages/Downloads should
+        render as separate divs, not one lumped section."""
+        from aggregate import render_structured_root_cause
+        task = {
+            "source_kind": "browser",
+            "context": {
+                "narrative": " ".join([
+                    "Goal: 浏览 AgentCenter。",
+                    "Struggle: 用户在 8.2h 内进行了 593 次页面访问（382 次重复点击），属于活跃交互。",
+                    "Detail: 主要浏览内容：「AgentCenter」86次——配置或管理AI Agent。",
+                    "Pages: AgentCenter, Google Gemini, mem0ai/mem0。",
+                    "Downloads: 下载了 1 个文件。",
+                    "8.2h 活跃浏览。",
+                ]),
+            },
+        }
+        html_out = render_structured_root_cause(task, self._FakeHtmlMod())
+        # Each label should produce its own div.
+        self.assertIn("rc-goal", html_out)
+        self.assertIn("rc-struggle", html_out)
+        self.assertIn("rc-detail", html_out)
+        self.assertIn("rc-pages", html_out)
+        self.assertIn("rc-downloads", html_out)
+        # Detail should appear once (per-page breakdown only).
+        self.assertEqual(html_out.count('rc-detail'), 1)
+        # Downloads should be its own div, not merged into Detail.
+        self.assertEqual(html_out.count('rc-downloads'), 1)
+        # Time line should render as rc-time.
+        self.assertIn("rc-time", html_out)
+        # Verify structure: each div has label + content spans.
+        self.assertIn("rc-label", html_out)
+        self.assertIn("rc-content", html_out)
+
+    def test_ai_session_narrative_evidence_is_separate(self):
+        """AI session narrative: Evidence should be a separate div, not merged
+        into Struggle."""
+        from aggregate import render_structured_root_cause
+        task = {
+            "source_kind": "ai_session",
+            "context": {
+                "narrative": " ".join([
+                    "Goal: sync local main branch with remote.",
+                    "Struggle: repeatedly hit proxy auth errors.",
+                    "Evidence: 'git fetch origin' → 407 proxy auth.",
+                    "1.0h active.",
+                ]),
+            },
+        }
+        html_out = render_structured_root_cause(task, self._FakeHtmlMod())
+        self.assertIn("rc-goal", html_out)
+        self.assertIn("rc-struggle", html_out)
+        self.assertIn("rc-evidence", html_out)
+        self.assertIn("rc-time", html_out)
+        # Evidence content should NOT appear inside rc-struggle div.
+        # Count divs: struggle should appear once, evidence once.
+        self.assertEqual(html_out.count('rc-struggle'), 1)
+        self.assertEqual(html_out.count('rc-evidence'), 1)
+
+    def test_no_narrative_falls_back_to_inline(self):
+        """When no narrative in context, falls back to render_context_inline."""
+        from aggregate import render_structured_root_cause
+        task = {
+            "source_kind": "ai_session",
+            "errors": 5,
+            "context": {"blocker": "timeout (5 errors)"},
+        }
+        html_out = render_structured_root_cause(task, self._FakeHtmlMod())
+        # Should contain the escaped inline text, not rc-part divs.
+        self.assertNotIn("rc-part", html_out)
+        self.assertIn("blocker", html_out.lower())
 
 
 if __name__ == "__main__":

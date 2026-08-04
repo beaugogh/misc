@@ -60,24 +60,29 @@ def classify_task(task: dict) -> str:
     """Classify a task into a kind for aggregation.
 
     Rules use source_kind (the originating adapter) first, then tool names and
-    subject. Categories are chosen so each is self-explanatory and the opaque
+    subject. Tool-name matching is case-insensitive (Claude Code yields
+    "Edit"/"Read"/"Bash"; the legacy codeagent adapter yields "edit"/"read"/
+    "bash"). Categories are chosen so each is self-explanatory and the opaque
     "other" bucket shrinks to near-zero:
       - coding       — AI-session task that edits/builds (Edit/Write/Read/Bash)
       - planning     — AI-session task that explicitly entered plan mode
                        (EnterPlanMode tool). Genuine planning phase, not chat.
-      - discussion   — AI-session task with no hands-on tools and no plan mode —
-                       chat, review, task-management (TaskCreate/TaskUpdate), or
-                       short no-tool turns. This is the honest catch-all for
-                       "AI session that didn't touch code."
       - research     — web browser visits/searches, or WebSearch/WebFetch tool use
       - git          — git commits/checkouts
       - meeting      — calendar events, meeting recordings
       - welink       — email, WeLink IM chats
       - file-edit    — manual file activity (VSCode Local History, Windows Recent)
       - doc-edit     — document authoring (3ms, CloudDevOps Wiki, W3)
-      - other        — auxiliary sources (daemon.log, shell-snapshots)
+      - other        — honest catch-all: AI sessions with no hands-on tools
+                       (chat/review/task-management), auxiliary sources
+                       (daemon.log, shell-snapshots), anything unclassified
     """
     tools = set(task.get("tool_names") or [])
+    # Adapter casing is inconsistent: Claude Code yields capitalized names
+    # (Edit, Read, Bash), the legacy codeagent adapter yields lowercase
+    # (edit, read, bash). Normalize once so every comparison below is
+    # case-insensitive.
+    tools_lc = {t.lower() for t in tools}
     cwd = (task.get("cwd") or "").lower()
     subject = (task.get("subject") or "").lower()
     source_kind = task.get("source_kind", "")
@@ -98,17 +103,16 @@ def classify_task(task: dict) -> str:
     if source_kind == "auxiliary":
         return "other"
 
-    # AI-session tasks: classify by tool usage.
-    edit_tools = tools & {"Edit", "Write", "Read", "Bash", "NotebookEdit"}
-    if edit_tools:
+    # AI-session tasks: classify by tool usage (case-insensitive — see above).
+    if tools_lc & {"edit", "write", "read", "bash", "notebookedit"}:
         return "coding"
-    if tools & {"WebSearch", "WebFetch"}:
+    if tools_lc & {"websearch", "webfetch"}:
         return "research"
     # Genuine plan mode (EnterPlanMode tool used) → planning. Everything else
-    # (TaskCreate/TaskUpdate, short chat, review with no tools) → discussion.
-    if "EnterPlanMode" in tools:
+    # (TaskCreate/TaskUpdate, short chat, review with no tools) → other.
+    if "enterplanmode" in tools_lc:
         return "planning"
-    return "discussion"
+    return "other"
 
 
 def _period_key(ts: float, granularity: str) -> str:
@@ -920,7 +924,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
             )
         if kind_sections:
             kind_subjects_html = '<h2>各类工作内容</h2>\n' + \
-                                 '<p class="hint">类型说明：coding=AI编程，planning=AI计划模式（EnterPlanMode），discussion=AI讨论/任务管理/简短对话（非动手编程），research=网页浏览/搜索，git=代码提交，meeting=会议，WeLink=邮件/聊天，file-edit=本地文件编辑，doc-edit=文档编辑（3ms/Wiki/W3）</p>\n' + \
+                                 '<p class="hint">类型说明：coding=AI编程，planning=AI计划模式（EnterPlanMode），research=网页浏览/搜索，git=代码提交，meeting=会议，WeLink=邮件/聊天，file-edit=本地文件编辑，doc-edit=文档编辑（3ms/Wiki/W3），other=其他（AI讨论/任务管理/辅助日志等未分类活动）</p>\n' + \
                                  '<div class="kind-grid">\n' + \
                                  "\n".join(kind_sections) + '\n</div>'
 
@@ -988,6 +992,10 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
   .rc-label {{ font-weight: 600; color: #555; }}
   .rc-goal .rc-label {{ color: #4e79a7; }}
   .rc-struggle .rc-label {{ color: #c62828; }}
+  .rc-detail .rc-label {{ color: #6a6a6a; }}
+  .rc-pages .rc-label {{ color: #59a14f; }}
+  .rc-evidence .rc-label {{ color: #b0791b; }}
+  .rc-downloads .rc-label {{ color: #9c755f; }}
   .rc-time .rc-label {{ color: #76b7b2; }}
   .rc-content {{ color: #666; }}
   .llm-label {{ font-size: 0.8em; color: #7b57c7; background: #f3edf9; padding: 1px 6px; border-radius: 3px; margin-left: 4px; }}
@@ -1181,6 +1189,10 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
     Breaks the narrative into:
       - Goal: what the user was trying to do
       - Struggle: what went wrong and why it was hard (merged)
+      - Detail: supporting content (per-page breakdown, downloads, etc.)
+      - Pages: list of visited pages
+      - Evidence: verbatim command/error/message evidence
+      - Downloads: files downloaded during browsing
       - Time: where the time went (active vs wall vs idle)
 
     Falls back to render_context_inline (escaped) when no structured parts
@@ -1243,11 +1255,27 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
             _flush()
             current_label = "Struggle"
             current_content = [s[len("Blocker:"):].strip().rstrip(".。")]
+        elif s.startswith("Detail:"):
+            _flush()
+            current_label = "Detail"
+            current_content = [s[len("Detail:"):].strip().rstrip(".。")]
+        elif s.startswith("Pages:"):
+            _flush()
+            current_label = "Pages"
+            current_content = [s[len("Pages:"):].strip().rstrip(".。")]
+        elif s.startswith("Evidence:"):
+            _flush()
+            current_label = "Evidence"
+            current_content = [s[len("Evidence:"):].strip().rstrip(".。")]
+        elif s.startswith("Downloads:"):
+            _flush()
+            current_label = "Downloads"
+            current_content = [s[len("Downloads:"):].strip().rstrip(".。")]
         elif s.startswith("Also:"):
             current_content.append(s[len("Also:"):].strip().rstrip(".。"))
         elif s.startswith("Retried"):
             current_content.append(s.rstrip(".。"))
-        elif re.match(r'^[\d.]+h (active|human|continuous)', s):
+        elif re.match(r'^[\d.]+h[\s，。]', s):
             _flush()
             current_label = "Time"
             current_content = [s.rstrip(".。")]
@@ -1262,6 +1290,10 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
     label_icons = {
         "Goal": "🎯",
         "Struggle": "⚠️",
+        "Detail": "📝",
+        "Pages": "🌐",
+        "Evidence": "🔍",
+        "Downloads": "📥",
         "Time": "⏱️",
         "Summary": "📋",
     }
@@ -1269,6 +1301,10 @@ def render_structured_root_cause(task: dict, html_mod) -> str:
     label_cn = {
         "Goal": "目标",
         "Struggle": "困难",
+        "Detail": "详情",
+        "Pages": "页面",
+        "Evidence": "证据",
+        "Downloads": "下载",
         "Time": "时间",
         "Summary": "概要",
     }

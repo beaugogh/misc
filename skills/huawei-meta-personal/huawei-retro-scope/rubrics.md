@@ -68,3 +68,5 @@
 * be careful with the distinction between the file editing by machine/agent and by human, e.g. for me, i did not touch the fix-ccr-code.ps1 file at all, but it was still categorised as the file that I frequently edited.
 
 * wall time >= active time >= human time
+
+* in the 根因 column, 目标 often doesn't match the contents followed. e.g. for  目标: 浏览 AgentCenter, the content that followed includes "「beaugogh/misc」39次——用户在管理自己的代码仓库；「所有-W3搜索」34次——用户在W3门户浏览华为内部信息；「Welcome to W3 Workplace」27次——用户在W3门户首页浏览内部信息", which has nothing to do with the 目标。
