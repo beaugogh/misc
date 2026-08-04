@@ -1,185 +1,384 @@
 ---
 name: huawei-skill-forge
-description: Auto-evolve the user's skill ecosystem by analyzing personal data traces (opencode/codeagent sessions, git commits, WeLink chat, token metrics, 3ms/Wiki authoring). Extracts long-term memory, creates and updates skills, recommends/installs market skills, and checks skill versions. Invoke when the user says "evolve", "分析session", "update skills", "review recent work", "自演进", "总结一下最近的工作", etc.
+description: Acts on retro-scope's findings to create/modify skills and memories that address the user's recurring time sinks and painpoints, so the user can solve those problems easily next time and avoid wasting time. Also extracts long-term memory from sessions, updates existing skills based on new experience, recommends/installs market skills, and checks skill versions. Component of huawei-auto-buddy — invoked by the parent skill, not directly by the user.
 ---
 
-# huawei-skill-forge
+# skill-forge
 
-Auto-evolves the user's skill ecosystem from personal data traces. Adapted from — but not
-identical to — the source `auto-evolve` skill studied at
-`C:\Users\b00563677\Downloads\auto-evolve\SKILL.md` (v0.0.1, 706 lines).
+The **act** phase of huawei-auto-buddy's diagnose→act pipeline. retro-scope
+identifies where time goes and what keeps recurring; skill-forge creates or
+modifies skills and memories so those problems are easier to solve next time.
 
-## What it does
-1. **Update long-term memory** — extract preferences, environment, decisions, patterns worth
-   remembering; write to the shared memory skill.
-2. **Create new skills** — for recurring patterns or complex task flows (≥5 tool rounds).
-3. **Update existing skills** — from user feedback and new experience.
-4. **Recommend & install skills** from the agentcenter market (user-confirmed).
-5. **Check skill versions** and offer updates (user-confirmed).
+## Prerequisites
 
-## Scope boundary
-Writes ONLY to: `auto-evolve-created-*` skills, this skill's own SKILL.md, and the shared
-memory skill. Must NOT modify third-party or manually-installed skills.
+All prerequisites use detect-and-skip: unavailable tools are reported in the
+output, never block the core workflow.
 
-## Data sources
+| Dependency | Check | Auto-repair | Skip impact |
+|---|---|---|---|
+| retro-scope findings | `huawei-auto-buddy/output/` exists with report data | None — user must run retro-scope first | Core input missing; skill-forge can still analyze sessions directly but loses pipeline context |
+| Python 3 | `python --version` | None | Fatal — cannot run |
+| skill-creator | `{SKILLS_DIR}/skill-creator/SKILL.md` exists with `init_skill.py` | None (collision risk with Anthropic's skill-creator submodule — see below) | Degrade to direct file-writing mode |
+| agentcenter CLI | `agentcenter --version` | Auto-reinstall (see below) | Skip skill recommendation + version-check (Tasks 4-5) |
+| welink-cli | `welink-cli` in PATH; `auth status` | Auto-install + auto-refresh (see below) | Skip WeLink data collection |
+| git | `git --version` | None | Skip git commit analysis |
 
-### Shared timestamped activity traces (the personal data traces)
-All 7 emit *occurrence* (when) and *category* (what kind). They are the input this skill
-mines for patterns, feedback, and recurring workflows.
+### agentcenter auto-repair
 
-| Source | Access | Status (2026-07-25) | What P1 extracts |
-|--------|--------|---------------------|------------------|
-| opencode/codeagent sessions | see "Codeagent dual instances" below — TWO stores | both present | corrections, tool-call sequences, feedback, recurring workflows |
-| git / CodeHub commits | `git log --author --since --until`; project dirs from session `directory`/`cwd` or memory | git present | recurring dev patterns, work verification |
-| welink-cli (WeLink chat) | `welink-cli im query-recent-conversation` / `query-history-message`; needs auth + NO_PROXY for `open.inner.welink.huawei.com` and `cmc.centralrepo.rnd.huawei.com` | **not installed** (source gives no install instructions) | decisions, TODOs, meeting conclusions |
-| nga.cmd (token metrics) | `nga.cmd session list` / `metrics <id>` | **legacy only** — see dual-instances | AI-usage stats (optional for P1) |
-| CloudDevOps Wiki | `clouddevops-wiki` skill **or** CloudDevOps REST API (**NOT MCP**) | not available (access path unknown) | professional domain, methodology |
-| 3ms | existing `huawei-3ms` plugin (search + read) — **not used by source skill, our addition** | plugin present in this repo | knowledge-sharing patterns |
-| W3 search | "MCP 工具或 API" | not available (access path unknown) | background / professional context |
+If `agentcenter --version` fails (command not found or module not found), auto-reinstall
+without prompting the user:
 
-**Local-CLI-to-remote-service ≠ local store.** welink-cli and nga.cmd hit remote services
-needing auth + proxy. Group by where data lives / what network+auth it needs, not where the
-binary sits. Only the opencode/codeagent session stores are genuinely local.
+```bash
+NO_PROXY=cmc.centralrepo.rnd.huawei.com npm install -g @aimarket/agentcenter \
+  --@aimarket:registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/ \
+  --strict-ssl=false
+```
 
-### P1-only tooling and reference (not data traces — not shared with huawei-retro-scope)
-| Source | Access | Status | Purpose |
-|--------|--------|--------|---------|
-| agentcenter CLI | npm `@aimarket/agentcenter` from `cmc.centralrepo.rnd.huawei.com`; Node ≥18 | not installed (Node v22 present) | skill marketplace: search, install, version-check |
-| agentcenter-skill-finder | `agentcenter skill add agentcenter-skill-finder -g` | not installed | bridge: installs skill-creator (3-hop chain: agentcenter → skill-finder → skill-creator) |
-| skill-creator | `agentcenter-skill-finder install skill-creator` → `{SKILLS_DIR}/skill-creator/` | not installed | scaffolds new skills (`scripts/init_skill.py`). **NOT the same as `anthropic-skills/skills/skill-creator` submodule** — that one lacks `init_skill.py` and has a different workflow. Detection-by-filename collision risk: the Anthropic version passes the `{SKILLS_DIR}/skill-creator/SKILL.md` check but lacks `init_skill.py`. |
-| project norm files | `for_ai_to_read/`, `.cursorrules`, `CLAUDE.md` (per-project, static) | varies by project | read to judge rule-violations; "rule exists ≠ rule effective". No timestamps. |
+Three critical details: must use `product_npm` registry (not `npm-all`, which 401s);
+must set `NO_PROXY` for the intranet host; must use `--strict-ssl=false` (corporate
+proxy does TLS interception). If npm reports `407 Proxy Authentication Required`, clear
+proxy env vars before installing. If `command not found` after install, add npm's global
+bin (`%APPDATA%\npm` on Windows) to PATH.
 
-The skills repertoire is **bidirectional within P1**: a write sink for new skills AND a read
-source for market version-diff / memory-dedup. It is not a data trace (emits no timestamped
-user activity).
+### welink-cli auto-install + token refresh
 
-## Codeagent dual instances (verified 2026-07-25)
+If welink-cli is not in PATH, auto-install:
 
-The user has TWO codeagent installations with completely different data stores, schemas, and
-skills dirs. The environment is mid-migration (migration flag dated 2026-07-23). The source
-auto-evolve skill only knows about the legacy store — it is incomplete for this environment.
-**Both stores must be read.**
+```bash
+npm install -g @welink/welink-cli \
+  --registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/ \
+  --strict-ssl=false --ignore-scripts
+```
+
+`--ignore-scripts` skips a broken PowerShell postinstall bug. If token is expired
+(`auth status` shows EXPIRED), auto-refresh: `welink-cli auth login` (connects to WeLink
+PC client non-interactively). Both must fail before skipping WeLink data.
+
+### skill-creator collision risk
+
+Two different `skill-creator` skills exist: the agentcenter one (has `init_skill.py`,
+preferred) and the Anthropic submodule at `skills/anthropic-skills/skills/skill-creator/`
+(lacks `init_skill.py`, different workflow). Detection by filename alone collides. Always
+check for `init_skill.py` in the same directory as `SKILL.md`.
+
+## Configuration
+
+### SKILLS_DIR auto-detection
+
+The skills directory varies by AI client. Detect automatically:
+
+| Client | SKILLS_DIR (Windows) | Detection signal |
+|---|---|---|
+| claudecode | `%USERPROFILE%\.claude\skills` | Path contains `.claude` |
+| codeagent (new) | `%USERPROFILE%\.cac\skills` | Path contains `.cac` |
+| codeagent (legacy) | `%USERPROFILE%\.config\opencode\skills` | Path contains `.config\opencode` |
+| cac | `%USERPROFILE%\.cac\skills` | Path contains `.cac` |
+
+Primary detection: infer from this skill's own path. `huawei-auto-buddy/skill-forge/SKILL.md`
+lives under `{SKILLS_DIR}/huawei-auto-buddy/skill-forge/`, so SKILLS_DIR is two levels up
+from the `skill-forge/` directory. If that fails, check each candidate directory in order.
+
+### Output directory
+
+Default: `huawei-auto-buddy/output/` (shared with retro-scope). Override via
+`SKILL_FORGE_OUTPUT_DIR` env var. Created skills go in
+`huawei-auto-buddy/output/auto-buddy-created-*/`.
+
+### Watermark
+
+`huawei-auto-buddy/output/last_analysis.txt` — stores the millisecond timestamp of the
+last analysis. Used for two-axis incremental analysis (new sessions + new messages in
+old sessions). If the file is missing or zero, treat as first run.
+
+## Codeagent dual instances
+
+The user may have TWO codeagent installations with different data stores. Both must be
+read if present.
 
 ### Legacy instance (`nga` command)
-- **Install dir:** `D:\CodingAgentCLI\` (launcher: `nga.cmd` → `ngagent.cmd` → `bin\codeagent.exe`)
-- **Version:** 1.2602.12-IN.1
-- **Data store:** opencode-style SQLite DB at `~/.local/share/opencode/db/ngagent.db`
-  (resolved via `NGA_DATA_HOME` env var → `XDG_DATA_HOME`)
-  - Verified present: 1 session, 97 messages, 313 parts
-  - Schema: `session` (id, title, time_created millis, time_updated, directory, ...),
-    `message` (id, session_id, time_created millis, data JSON with role),
-    `part` (id, message_id, session_id, time_created millis, data JSON with type)
+- Data store: SQLite DB at `~/.local/share/opencode/db/ngagent.db`
+  - Tables: `session` (id, title, time_created millis, directory), `message` (id,
+    session_id, time_created millis, data JSON with role), `part` (id, message_id,
+    session_id, time_created millis, data JSON with type)
   - Timestamps: INTEGER milliseconds
-- **Skills dir:** `~/.config/opencode/skills/` (1 skill: lingxi-miner)
-- **`nga.cmd` referenced in the source skill = THIS legacy instance.** When the source says
-  `nga.cmd session list` / `nga.cmd metrics <id>`, it's the legacy codeagent's CLI. Whether
-  the new `codeagent` command has equivalent metrics subcommands is unverified.
+  - Two-axis incremental: axis 2 = `message.time_created > last_timestamp` (efficient SQL)
+- Skills dir: `~/.config/opencode/skills/`
 
 ### New instance (`codeagent` command)
-- **Install dir:** `D:\CodingAgentCLI3\` (launcher: `codeagent.bat` → `bin\codeagentcli.exe`)
-- **Version:** 1.2605.03-IN.1
-- **Data store:** file-based under `~/.cac/`
-  - Sessions: per-project JSONL at `~/.cac/projects/<project-slug>/<session-uuid>.jsonl`
-    - Verified: 3 session files across 3 projects
-    - Schema: Claude Code-style JSONL, one JSON per line. Types: `user`, `assistant`,
-      `tool_use`, `tool_result`, `thinking`, `text`, `system`, `file-history-snapshot`,
-      `custom-title`, `agent-name`, `queue-operation`, `last-prompt`, `file_unchanged`,
-      `create`, `message`
-    - Key fields: `type`, `uuid`, `parentUuid`, `timestamp` (ISO 8601 string), `sessionId`,
-      `cwd`, `gitBranch`, `version`, `message.role`, `message.content`, `permissionMode`,
-      `isUserPrompt`
-    - Timestamps: ISO 8601 strings (e.g. `"2026-07-23T08:57:07.631Z"`) — NOT millis
-  - Session index: `~/.cac/projects/observable-cac.jsonl` (sessionId → sessionLogPath)
-  - Prompt history: `~/.cac/history.jsonl` (display text, timestamp millis, project, sessionId)
-  - **Per-project memory:** `~/.cac/projects/<slug>/memory/` — MEMORY.md + `feedback_*.md`
-    files. **The new codeagent already has its own feedback-harvesting memory system** —
-    per-project, not global. This overlaps with P1 and is a key integration point (don't
-    build a parallel system that conflicts).
-  - Settings: `~/.cac/settings.json`; migration flag: `~/.cac/.migration-flag.json`
-    (2026-07-23, migrated 0 items — fresh start, not a data migration)
-- **Skills dir:** `~/.cac/skills/` (9 skills: sdd-*) ← **primary going forward**
+- Data store: JSONL files at `~/.cac/projects/<project-slug>/<session-uuid>.jsonl`
+  - Schema: Claude Code-style, one JSON per line. Types: user, assistant, tool_use,
+    tool_result, thinking, text. Fields: type, timestamp (ISO 8601 string), sessionId,
+    cwd, gitBranch, message.role, message.content
+  - Timestamps: ISO 8601 strings (NOT millis — convert before comparing to watermark)
+  - Two-axis incremental: axis 2 = scan JSONL lines for `timestamp > last_timestamp`
+    (more expensive than SQL — must read files, not just query)
+- Per-project memory: `~/.cac/projects/<slug>/memory/` — MEMORY.md + feedback_*.md.
+  The new codeagent already has its own feedback-harvesting system. Do NOT build a
+  parallel system that conflicts — read from it, don't overwrite it.
+- Skills dir: `~/.cac/skills/` (primary going forward)
 
-### Three skills dirs, not one
-- `~/.config/opencode/skills/` — legacy (1 skill)
-- `~/.cac/skills/` — new codeagent (9 skills) ← primary going forward
-- `~/.claude/skills/` — claude code (1 skill)
-Decide which to scan/write; `~/.cac/skills/` is primary, but legacy skills may still be
-referenced.
+### Timestamp normalization
 
-## Methodology (key insights from the source skill)
+Legacy uses milliseconds (INTEGER). New uses ISO 8601 (string). Claude Code uses seconds
+(INTEGER). Normalize all to milliseconds before comparison: `iso8601 → parse → epoch millis`;
+`claude_seconds → * 1000`.
 
-1. **Two-axis incremental analysis.** "New since last watermark" has two independent
-   dimensions, both must be queried:
-   - Axis 1: new sessions — `session.time_created > last_timestamp`
-   - Axis 2: new messages in OLD sessions — `session.time_created <= last_timestamp` AND
-     `message.time_created > last_timestamp`
-   Querying only `session.time_created` silently drops every message added to an ongoing
-   session after the last run. Join `message`/`part` on `time_created` and trace back via
-   `session_id`. **Differs per store** (see below).
+## Workflow
 
-2. **Historical bug retrospection is mandatory, not optional.** Every run re-scans ALL
-   history (not just incremental) for reported bugs and verifies each was fully fixed.
+### Step 1: Determine analysis scope
 
-3. **"Fix a bug = fix three (now four) things":** code/script + SKILL.md constraint rule +
-   already-broken state + project norm files. Missing any → the bug recurs.
+Read `huawei-auto-buddy/output/last_analysis.txt` (millis timestamp).
 
-4. **"Rule exists ≠ rule effective":** if the AI keeps violating a rule that's already
-   written, strengthen it (promote to step-0 gate, add ❌ counter-examples, split it) — don't
-   skip because "the rule is there." AI violating an existing rule once is enough to trigger
-   strengthening.
+- **First run** (file missing or 0): analyze all sessions. If data is large, batch:
+  max 20 sessions per run, record the watermark, tell the user to run again.
+- **Incremental run**: two-axis analysis:
+  - Axis 1: new sessions — `session.time_created > last_timestamp`
+  - Axis 2: new messages in old sessions — `session.time_created <= last_timestamp`
+    AND `message.time_created > last_timestamp`
+- Exclude the currently-running session (incomplete), but **extract user feedback
+  from it** — the current session has the freshest feedback signals.
 
-5. **Forced generalization (举一反三).** 4-dimension checklist per pattern found:
-   - same-structure different-domain
-   - same-domain different-layer
-   - same-tool different-scenario
-   - anti-pattern
-   "Over-generalize rather than under-generalize" — missed generalizations don't auto-correct.
+### Step 2: Read retro-scope findings
 
-6. **5-round tool-call threshold.** ≥5 autonomous tool rounds for a task type in one session
-   → candidate to solidify into a skill.
+Read retro-scope's output from `huawei-auto-buddy/output/`:
+- `report_*.html` — multi-horizon time analysis with top time sinks, root-cause
+  narratives, and per-kind breakdowns
+- `session_records/*.json` — detailed per-task evidence with event timelines
+- `trends` — recurring time-consumption patterns (persistent, declining, increasing,
+  automation candidates)
 
-7. **User corrections sediment immediately.** 1 occurrence is enough; don't wait for
-   repetition. User feedback (not just explicit corrections) must be sedimented — including
-   "又忘了", "不对吧", "下次记得", "你怎么没xxx", etc.
+These are the **primary input**. skill-forge does NOT re-export sessions or re-compute
+time accounting — retro-scope already did that with 14 source adapters. skill-forge
+consumes the findings and acts on them.
 
-8. **Self-update.** Distinguish universal methodology (→ this skill) from personal preference
-   (→ memory skill). Test: if you strip user identity and project context, does the lesson
-   still help any user? Yes → methodology; No → personal preference. The engine must update
-   its own SKILL.md from user corrections — it cannot be the one skill that never auto-updates.
+If retro-scope has not been run, skill-forge can still analyze sessions directly
+(Steps 3-4) but loses the pipeline context.
 
-9. **See-and-act, don't just diagnose.** Finding an unfixed bug or missing rule → fix it
-   immediately, don't just list it in a report.
+### Step 3: Collect supplementary data (optional, detect-and-skip)
 
-### Two-axis analysis differs per codeagent store
-- **Legacy:** axis 2 queries `message.time_created > last_timestamp` in SQL (efficient).
-- **New:** must scan JSONL files for lines with `timestamp > last_timestamp`. The
-  `observable-cac.jsonl` index gives session creation times but NOT last-message-time, so
-  axis 2 (new messages in old sessions) requires reading the JSONL files' last lines or
-  scanning all lines — more expensive than a SQL query.
+Data sources beyond what retro-scope already collected. Each is optional — detect,
+use if available, skip if not, report what was skipped.
 
-### Two adapters needed
-- **Legacy adapter:** SQL queries on `ngagent.db` (session/message/part tables, millis).
-- **New adapter:** JSONL parsing of `~/.cac/projects/*/<uuid>.jsonl` (Claude Code-style
-  events, ISO 8601). Timestamp format differs (millis INTEGER vs ISO 8601 string) — normalize.
+1. **git commits** — `git log --author="<name>" --since="<start>" --until="<end>" --all
+   --format="%h %ai %s" --no-merges` in project dirs (discovered from session `cwd`/`directory`
+   or memory). Cross-verify with retro-scope's git adapter findings.
+2. **welink-cli chat** — `welink-cli im query-recent-conversation --count 50`, then
+   `welink-cli im query-history-message --group-id <ID> --query-count 50`. Read max 3
+   conversations concurrently (batch-serial) to avoid context overflow. Summarize
+   immediately after each batch.
+3. **CodeHub/GitHub MCP** — self-contained scripts at `mcp-tools/huawei-codehub/codehub.py`
+   and `mcp-tools/github/github_mcp.py`. Use for MR reviews (recurring review comments =
+   recurring mistakes). Requires `CODEHUB_TOKEN`/`GITHUB_TOKEN` in `.env`. Internal hosts
+   need `NO_PROXY`; external hosts need proxy through `proxyuk.huawei.com:8080`.
+4. **W3 search** — `python3 mcp-tools/huawei-w3-search/w3_search.py "<name>" --size 10 --json`
+   (self-contained, no install needed).
+5. **CloudDevOps Wiki** — `python3 mcp-tools/huawei-wiki/wiki_mcp.py search-wiki-documents
+   --url <url> --search-range knowledge --search-key "<name>" --json` (read operations need
+   no auth).
 
-## Environment status (2026-07-25)
-- opencode/codeagent stores: both present (core input works)
-- Skills dirs present: `~/.config/opencode/skills`, `~/.cac/skills`, `~/.claude/skills`
-- Node v22: present (agentcenter install prerequisite met)
-- Absent (would skip/degrade): agentcenter CLI, skill-finder, skill-creator, welink-cli,
-  nga.cmd, W3 MCP, clouddevops-wiki
-- `.npmrc` points at `registry.npmmirror.com` with corporate proxy set; agentcenter install
-  overrides registry to cmc internal one — may need proxy cleared per source's 407 note
-  (`407 Proxy Authentication Required` → clear `HTTP_PROXY`/`HTTPS_PROXY` or set
-  `NO_PROXY=cmc.centralrepo.rnd.huawei.com`).
+### Step 4: Analyze and extract long-term memory
 
-## Open questions
-- How to install/access: W3 search MCP, CloudDevOps Wiki (skill or REST API?), welink-cli,
-  nga.cmd / new `codeagent` metrics subcommands.
-- Should legacy `ngagent.db` be read as live or treated as frozen historical data after
-  migration?
-- How to integrate with the new codeagent's existing per-project memory system
-  (`~/.cac/projects/<slug>/memory/`) without duplicating or conflicting?
-- Canonical internal starting point for the toolchain:
-  `https://3ms.huawei.com/km/blogs/details/22148443` (Node.js install blog — likely links
-  onward to the rest).
+Extract from sessions + retro-scope findings + supplementary data:
+
+**User preferences and habits:**
+- Repeatedly emphasized work methods
+- Explicit requirements on AI behavior
+- Communication style preferences
+
+**Development environment:**
+- New environment characteristics, tool config changes, new gotchas
+
+**Projects and team:**
+- New project info, team changes, collaboration patterns
+
+**Important decisions:**
+- Technical choices, approach trade-offs, process improvements
+
+**Exclusion rules:**
+- Don't extract one-time operation details (specific git commands)
+- Don't extract info already in the memory skill
+- Don't extract secrets (passwords, tokens, keys)
+- **Preserve user's exact words (一字不改)** — don't summarize, paraphrase, or rewrite
+  what the user said. Only AI behavior should be summarized.
+
+**Memory skill location:** `huawei-auto-buddy/output/auto-buddy-created-global-memory/SKILL.md`.
+If it doesn't exist (first run), create it with the categories above. If it exists,
+append new info (don't delete existing). If new info contradicts existing, replace with
+new.
+
+**First-run identity initialization:** If the memory skill doesn't exist, ask the user
+for their name and employee ID. Don't hardcode any identity.
+
+### Step 5: Discover patterns and create/update skills
+
+This is the core job — turning recurring problems into reusable skills.
+
+#### Historical bug retrospection (mandatory, not optional)
+
+Before analyzing new sessions, scan ALL history (not just incremental) for reported bugs.
+Keywords: `bug`, `问题`, `修复`, `出错`, `不对`, `遗漏`, `又出现`, `老问题`, `没修`, `没更新`.
+
+For each historical bug, verify:
+1. **Code/script fixed?** — if the bug involved a script, check the fix exists
+2. **SKILL.md constraint added?** — if the root cause was AI behavior, check a rule exists
+3. **Already-broken state fixed?** — if the bug produced wrong results, check they're corrected
+4. **Project norm files updated?** — if the project has `for_ai_to_read/`, `.cursorrules`,
+   `CLAUDE.md`, check the rule is documented there too
+
+If any is missing, fix it immediately. Don't just list it in a report.
+
+#### Pattern identification criteria (any one triggers)
+
+1. **Cross-session recurrence:** same task type in ≥2 sessions
+2. **Single-session complexity:** ≥5 autonomous tool-call rounds for one task type
+3. **Fixed workflow:** task has ≥3 fixed steps
+4. **Error-prone:** AI made mistakes that rules can prevent
+5. **Low human-decision needed:** flow is mostly mechanical
+
+#### Forced generalization (举一反三)
+
+When identifying a pattern, check all 4 dimensions:
+
+| Dimension | Question | Action |
+|---|---|---|
+| Same-structure, different-domain | Does this pattern exist in other domains? | Extend skill scope or create universal skill |
+| Same-domain, different-layer | Does this apply at coarser/finer granularity? | Add to skill or create companion |
+| Same-tool, different-scenario | Does the tool need fixed flow in other scenarios? | Extend skill description + triggers |
+| Anti-pattern generalization | Could the same error occur in similar scenarios? | Add prevention rule to all related skills |
+
+**Over-generalize rather than under-generalize.** Missed generalizations don't auto-correct;
+over-generalizations can be narrowed by user feedback.
+
+Good: `auto-buddy-created-stats-collector` (triggers: token stats, code line stats, MR stats, Wiki stats)
+Bad: `auto-buddy-created-token-stats` (only token stats)
+
+#### User feedback sedimentation
+
+Any user feedback must be sedimented into a skill — 1 occurrence is enough, don't wait
+for repetition. Feedback includes (not just explicit corrections):
+
+| Expression | Meaning |
+|---|---|
+| "又忘了xxx" | Rule exists but ineffective — needs strengthening |
+| "不对吧" / "你没有xxx" | AI behavior doesn't match expectation |
+| "下次记得xxx" / "以后要xxx" | Explicit new rule request |
+| "这个skill应该xxx" | Direct skill improvement suggestion |
+| "你怎么没xxx" / "你这次没xxx" | Points out an omission |
+| "是不是应该xxx" | Implies current behavior is wrong |
+
+**3-correction threshold:** if the user corrects the same skill's behavior ≥3 times in one
+session, the skill has a systemic deficiency — must update its SKILL.md with prevention
+rules immediately.
+
+**Rule exists ≠ rule effective.** If the AI violates an existing rule, the rule needs
+strengthening, not just existence:
+
+1. **Promote rule position** — move from list middle to step-0 gate
+2. **Add gating mechanism** — change "should do" to "must confirm before continuing"
+3. **Add counter-example** — write the AI's specific violation as a ❌ forbidden case
+4. **Split the rule** — if too broad, split into specific sub-rules
+
+#### Creating new skills
+
+- Name prefix: `auto-buddy-created-`
+- Location: `huawei-auto-buddy/output/auto-buddy-created-<name>/`
+- **Must use skill-creator** if available (6-step flow: understand → plan resources →
+  init_skill.py → edit SKILL.md → validate → iterate). If skill-creator unavailable,
+  degrade to direct directory + SKILL.md creation.
+- SKILL.md frontmatter: `description` must list function + trigger words + scenarios
+  (this is the only field AI uses to decide when to activate the skill)
+- Body: imperative form, <500 lines, progressive disclosure (details in references/)
+
+#### Updating existing skills
+
+- Only modify `auto-buddy-created-*` skills and this skill's own SKILL.md
+- **Must NOT modify** third-party or manually-installed skills (skill-creator, mr-reviewer, etc.)
+- When updating a skill's script files, **sync the install directory** — skills typically
+  have two copies (repo + installed). Edit one, sync to the other.
+
+#### Self-update
+
+skill-forge must update its own SKILL.md from methodology learnings. Distinguish:
+- **Universal methodology → this SKILL.md:** lessons that help any user (bug retrospection,
+  generalization, rule strengthening)
+- **Personal preference → memory skill:** user-specific habits (build commands, project deps)
+
+Test: if you strip user identity and project context, does the lesson still help any user?
+Yes → methodology; No → personal preference.
+
+### Step 6: Record watermark
+
+Write the current timestamp to `huawei-auto-buddy/output/last_analysis.txt`:
+
+```python
+import time
+with open("huawei-auto-buddy/output/last_analysis.txt", 'w') as f:
+    f.write(str(int(time.time() * 1000)))
+```
+
+### Step 7: Report
+
+Report to the user:
+1. How many sessions analyzed (incremental count)
+2. Which data sources collected, which skipped and why
+3. What memory was updated (new entries, replaced entries)
+4. Which new skills created (name + purpose)
+5. Which existing skills updated (what changed)
+6. Which retro-scope findings were acted upon (automation candidates → skills created)
+
+### Step 8: Recommend market skills (optional, requires agentcenter)
+
+Based on analysis + retro-scope findings:
+1. Generate 3-5 search keywords from work scenarios, tool frequency, pain points
+2. Search: `agentcenter search skill --keyword <term> --json`
+3. Filter: exclude already-installed, exclude overlapping with auto-buddy-created skills
+4. Show top 5 (name, version, description, recommendation reason)
+5. **User confirms** before installing — never auto-install
+
+Install with the `--client` trick to keep skills local:
+```bash
+agentcenter skill add <name> --client huawei-auto-buddy --path skills/huawei-auto-buddy -f
+```
+Must use non-built-in `--client` value (not `claudecode`/`opencode`/`cac`) + `--path`
+to install to the local directory. Built-in clients ignore `--path` and install globally.
+
+### Step 9: Check skill versions (optional, requires agentcenter)
+
+1. Scan `huawei-auto-buddy/` for installed skills with SKILL.md
+2. For non-`auto-buddy-created-*` skills, search agentcenter for latest version
+3. Compare versions; mark outdated skills
+4. **User confirms** before updating
+5. Before updating, check for local modifications (diff against market version) — warn if
+   local changes will be overwritten
+
+## Error handling
+
+| Scenario | Handling |
+|---|---|
+| retro-scope not run, no output/ dir | Proceed with direct session analysis; warn that pipeline context is missing |
+| Both codeagent stores empty | Tell user to use an AI coding tool first |
+| Sessions exist but no incremental data | Tell user no new sessions since last analysis |
+| agentcenter unavailable | Auto-reinstall; if reinstall fails, skip Tasks 8-9 |
+| agentcenter auth expired | Try `agentcenter auth`; if fails, skip Tasks 8-9 |
+| welink-cli not installed | Auto-install; if fails, skip WeLink data |
+| welink-cli token expired | Auto-refresh via `welink-cli auth login`; if fails, skip WeLink data |
+| skill-creator not found | Degrade to direct file-writing mode; warn about lower quality |
+| skill install/update fails | Report failure reason; don't block other tasks |
+| First-run data too large | Batch: max 20 sessions per run; record watermark; tell user to run again |
+| Memory skill creation fails | Check directory permissions, retry once; if still fails, tell user to create manually |
+
+## Constraints
+
+- **See-and-act, don't just diagnose.** Finding an unfixed bug or missing rule → fix it
+  immediately. Don't list problems in a report and wait for the user to say "fix it."
+- **Iterative analysis — don't do too much in one run.** Complete incremental analysis and
+  report first. Deeper retrospection can happen on the next run. Don't try to do
+  incremental + full retrospection + create 5 skills + update 10 files in one pass.
+- **No hardcoded user paths or identity.** All paths auto-detected. Identity initialized
+  from user input on first run, not baked in.
+- **Open-source only.** No paywalled or closed-source dependencies.
+- **User confirms all installs/updates.** Never install or update skills without explicit
+  user confirmation.
+- **Don't duplicate retro-scope's work.** retro-scope does session analysis, time accounting,
+  and source collection with 14 adapters. skill-forge consumes those findings, doesn't
+  re-export sessions or re-compute time.

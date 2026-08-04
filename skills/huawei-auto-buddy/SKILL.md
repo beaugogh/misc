@@ -42,10 +42,12 @@ See `retro-scope/SKILL.md` for full details.
 
 ### skill-forge (`skill-forge/`)
 
-Acts on the diagnosis. Creates and updates skills that address recurring problems,
-extracts long-term memory from sessions, recommends/installs market skills, and
-checks skill versions. Analyzes personal data traces (opencode/codeagent sessions,
-git commits, WeLink chat, token metrics, 3ms/Wiki authoring).
+Acts on the diagnosis. 9-step operational workflow: reads retro-scope findings,
+collects supplementary data (git, WeLink, CodeHub), extracts long-term memory,
+creates/updates skills for recurring problems, recommends market skills, and
+checks versions. Includes auto-repair for agentcenter and welink-cli, watermark
+for incremental analysis, and detailed methodology rules (forced generalization,
+user feedback sedimentation, rule strengthening).
 
 See `skill-forge/SKILL.md` for full details.
 
