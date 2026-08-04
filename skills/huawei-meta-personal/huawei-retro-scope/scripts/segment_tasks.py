@@ -426,6 +426,7 @@ def _extract_context(events: list[dict], source_kind: str) -> dict:
                     im_senders.append(str(sender)[:60])
         ctx["senders"] = _dedupe(senders)[:5]
         ctx["subjects"] = _dedupe(subjects)[:5]
+        ctx["comm_directions"] = sorted(directions)
         ctx["has_reply"] = "sent" in directions and "received" in directions
         if im_message_count:
             ctx["im_message_count"] = im_message_count
@@ -496,13 +497,27 @@ def _extract_context(events: list[dict], source_kind: str) -> dict:
 
     if source_kind == "filesystem":
         files = set()
+        edited_files = set()
+        opened_files = set()
         for ev in events:
             ti = ev.get("tool_input") or {}
             f = ti.get("path") or ti.get("file_path") or ev.get("text")
             if f:
-                files.add(str(f)[:120])
+                f_raw = str(f).lstrip("#")
+                # Jump list UTF-16LE scanning appends a stray trailing 'L' —
+                # remove at most one (rstrip would corrupt paths like HTML.tmL).
+                f_clean = f_raw[:-1] if f_raw.endswith("L") else f_raw
+                files.add(f_clean[:120])
+                if ev.get("kind") == "file_edit":
+                    edited_files.add(f_clean[:120])
+                else:
+                    opened_files.add(f_clean[:120])
         if files:
             ctx["files"] = sorted(files)[:5]
+        if edited_files:
+            ctx["edited_files"] = sorted(edited_files)[:5]
+        if opened_files:
+            ctx["opened_files"] = sorted(opened_files)[:5]
         return ctx
 
     return ctx

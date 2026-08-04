@@ -562,37 +562,33 @@ class TestCollectWithMockCOM(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Integration test (only runs if Outlook is live on this machine)
+# Integration test (only runs if Outlook is installed on this machine)
 # ---------------------------------------------------------------------------
 
 class TestLiveOutlookIntegration(unittest.TestCase):
-    """Integration test against the real Outlook COM instance.
+    """Integration test against the real Outlook instance.
 
-    These tests are skipped automatically if Outlook COM is not available
-    (e.g. on CI, Mac/Linux, or a machine without Outlook installed).
+    detect() uses filesystem/registry checks (no COM) — so these tests run
+    whenever Outlook is installed, even if the Outlook application isn't open.
+    collect() lazily connects via COM (Dispatch starts Outlook if needed).
     """
 
     @classmethod
     def setUpClass(cls):
         cls.adapter = OutlookAdapter()
-        cls.com_available = cls.adapter._ensure_com()
-        if cls.com_available:
-            cls.detected = cls.adapter.detect()
-        else:
-            cls.detected = False
+        # detect() is filesystem-based — doesn't require Outlook to be running.
+        cls.detected = cls.adapter.detect()
 
     def setUp(self):
-        if not self.com_available:
-            self.skipTest("Outlook COM not available on this machine")
+        if not self.detected:
+            self.skipTest("Outlook not installed (no OST/PST files found)")
 
     def test_detect_finds_outlook(self):
-        """detect() returns True when Outlook is live."""
+        """detect() returns True when Outlook data files exist."""
         self.assertTrue(self.detected)
 
     def test_collect_yields_events(self):
-        """collect() yields at least some email events from live Outlook."""
-        if not self.detected:
-            self.skipTest("Outlook not detected")
+        """collect() yields at least some email events from Outlook."""
         events = list(self.adapter.collect())
         self.assertGreater(len(events), 0, "Expected at least some email events")
 
@@ -610,8 +606,6 @@ class TestLiveOutlookIntegration(unittest.TestCase):
 
     def test_collect_since_filters(self):
         """collect_since() with a recent watermark returns fewer events."""
-        if not self.detected:
-            self.skipTest("Outlook not detected")
         all_events = list(self.adapter.collect())
         if len(all_events) < 2:
             self.skipTest("Not enough events to test watermark filtering")

@@ -239,13 +239,34 @@ class TestSegmentation(unittest.TestCase):
 
 
 class TestAggregation(unittest.TestCase):
-    def test_classify_coding_vs_planning(self):
+    def test_classify_coding_vs_discussion(self):
         coding = {"tool_names": ["Edit", "Bash"], "cwd": "/workspace/proj",
                   "subject": "fix bug", "event_count": 10}
-        planning = {"tool_names": [], "cwd": "/tmp", "subject": "hi",
+        discussion = {"tool_names": [], "cwd": "/tmp", "subject": "hi",
                     "event_count": 2}
         self.assertEqual(classify_task(coding), "coding")
+        self.assertEqual(classify_task(discussion), "discussion")
+
+    def test_classify_planning_vs_discussion(self):
+        """EnterPlanMode → planning; task-management-only → discussion."""
+        planning = {"tool_names": ["EnterPlanMode"], "cwd": "/p",
+                    "subject": "plan the migration", "event_count": 5}
+        task_mgmt = {"tool_names": ["TaskCreate", "TaskUpdate"], "cwd": "/p",
+                     "subject": "organize tasks", "event_count": 4}
+        chat = {"tool_names": [], "cwd": "/p", "subject": "ok go ahead",
+                "event_count": 1}
         self.assertEqual(classify_task(planning), "planning")
+        self.assertEqual(classify_task(task_mgmt), "discussion")
+        self.assertEqual(classify_task(chat), "discussion")
+
+    def test_classify_doc_authoring_not_discussion(self):
+        """doc_authoring/auxiliary source kinds must NOT fall into AI-session buckets."""
+        doc = {"tool_names": [], "cwd": "/p", "subject": "wiki page",
+               "event_count": 3, "source_kind": "doc_authoring"}
+        aux = {"tool_names": [], "cwd": "/p", "subject": "daemon",
+               "event_count": 1, "source_kind": "auxiliary"}
+        self.assertEqual(classify_task(doc), "doc-edit")
+        self.assertEqual(classify_task(aux), "other")
 
     def test_aggregate_by_day(self):
         tasks = [
@@ -259,9 +280,10 @@ class TestAggregation(unittest.TestCase):
         period = list(agg.values())[0]
         self.assertAlmostEqual(period["total_seconds"], 5400)
         self.assertEqual(period["task_count"], 2)
-        # both coding (Edit) and planning present
+        # coding (Edit) and discussion (no tools) present
         kinds = set(period["by_kind"].keys())
         self.assertIn("coding", kinds)
+        self.assertIn("discussion", kinds)
 
     def test_aggregate_week_iso(self):
         """Weekly aggregation uses ISO week keys like 2026-W27."""

@@ -657,6 +657,16 @@ def main():
             print("      Outlook OST provide partial-to-full coverage of those domains.")
         sys.exit(0)
 
+    # Tag filesystem file_edit events that were likely agent-edited (rubric 68):
+    # VSCode Local History records agent edits too — without tagging, files the
+    # user never touched appear as "frequently edited by the user." Must run
+    # BEFORE segmentation so the summarizer sees the tags during _make_task().
+    try:
+        from cross_source import tag_agent_file_edits
+        events = tag_agent_file_edits(events)
+    except Exception as e:
+        print(f"[cross_source] agent-edit tagging failed: {e}", file=sys.stderr)
+
     # Segment into tasks.
     try:
         tasks = segment(events)

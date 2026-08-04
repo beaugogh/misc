@@ -65,3 +65,6 @@
 
 * besides the report outputs in different timescales, detailed and comprehensive session records should be extracted for later inspection and as evidence. session records include chat sessions, coding sessions, browser sessions, meeting sessions, file editing sessions, etc. anything that give a clear trace of content / actions for clear understanding.
 
+* be careful with the distinction between the file editing by machine/agent and by human, e.g. for me, i did not touch the fix-ccr-code.ps1 file at all, but it was still categorised as the file that I frequently edited.
+
+* wall time >= active time >= human time

@@ -341,20 +341,38 @@ class OutlookAdapter:
     # -- COM connection -----------------------------------------------------
 
     def _ensure_com(self) -> bool:
-        """Lazily connect to Outlook COM. Returns True if connected."""
+        """Lazily connect to Outlook COM. Returns True if connected.
+
+        Dispatch("Outlook.Application") starts Outlook if it isn't running.
+        Calls CoInitialize() for the current thread — required when COM is
+        used from a non-main thread (e.g. test runners). Retries up to 3
+        times with a short delay for cold-start reliability.
+        """
         if self._ns is not None:
             return True
         win32com_client = _try_import_win32com()
         if win32com_client is None:
             return False
+        # CoInitialize the current thread (required for COM in non-main threads).
         try:
-            self._outlook = win32com_client.Dispatch("Outlook.Application")
-            self._ns = self._outlook.GetNamespace("MAPI")
-            return True
-        except Exception:
-            self._outlook = None
-            self._ns = None
-            return False
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass  # pythoncom not available — main thread is already initialized
+        import time
+        for attempt in range(3):
+            try:
+                self._outlook = win32com_client.Dispatch("Outlook.Application")
+                self._ns = self._outlook.GetNamespace("MAPI")
+                return True
+            except Exception as e:
+                self._outlook = None
+                self._ns = None
+                if attempt < 2:
+                    import sys
+                    print(f"[outlook] COM Dispatch attempt {attempt+1} failed: {e}, retrying...", file=sys.stderr)
+                    time.sleep(3)
+        return False
 
     # -- detection ----------------------------------------------------------
 
@@ -389,6 +407,9 @@ class OutlookAdapter:
         after use to prevent MAPI session exhaustion.
         """
         if not self._ensure_com():
+            import sys
+            print("[outlook] COM connection failed — Outlook may not be installed or not started. "
+                  "Email data unavailable for this run.", file=sys.stderr)
             return
 
         try:
@@ -413,7 +434,9 @@ class OutlookAdapter:
                     finally:
                         _release_com_object(folder)
                 _release_com_object(root)
-        except Exception:
+        except Exception as e:
+            import sys
+            print(f"[outlook] collect() error iterating stores: {e}", file=sys.stderr)
             return
 
     def _collect_folder(self, folder, direction: str,

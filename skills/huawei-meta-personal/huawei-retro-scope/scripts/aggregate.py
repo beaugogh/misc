@@ -63,14 +63,19 @@ def classify_task(task: dict) -> str:
     subject. Categories are chosen so each is self-explanatory and the opaque
     "other" bucket shrinks to near-zero:
       - coding       — AI-session task that edits/builds (Edit/Write/Read/Bash)
-      - planning     — AI-session task with task-management tools only (TaskCreate,
-                       TaskUpdate, EnterPlanMode) or short no-tool turns (chat/review).
-                       These are planning/discussion sessions, not hands-on coding.
+      - planning     — AI-session task that explicitly entered plan mode
+                       (EnterPlanMode tool). Genuine planning phase, not chat.
+      - discussion   — AI-session task with no hands-on tools and no plan mode —
+                       chat, review, task-management (TaskCreate/TaskUpdate), or
+                       short no-tool turns. This is the honest catch-all for
+                       "AI session that didn't touch code."
       - research     — web browser visits/searches, or WebSearch/WebFetch tool use
       - git          — git commits/checkouts
       - meeting      — calendar events, meeting recordings
       - welink       — email, WeLink IM chats
       - file-edit    — manual file activity (VSCode Local History, Windows Recent)
+      - doc-edit     — document authoring (3ms, CloudDevOps Wiki, W3)
+      - other        — auxiliary sources (daemon.log, shell-snapshots)
     """
     tools = set(task.get("tool_names") or [])
     cwd = (task.get("cwd") or "").lower()
@@ -86,10 +91,12 @@ def classify_task(task: dict) -> str:
         return "meeting"
     if source_kind == "comm":
         return "WeLink"
-
-    # Filesystem-sourced tasks (VSCode history, Windows Recent, Jump Lists).
     if source_kind == "filesystem":
         return "file-edit"
+    if source_kind == "doc_authoring":
+        return "doc-edit"
+    if source_kind == "auxiliary":
+        return "other"
 
     # AI-session tasks: classify by tool usage.
     edit_tools = tools & {"Edit", "Write", "Read", "Bash", "NotebookEdit"}
@@ -97,10 +104,11 @@ def classify_task(task: dict) -> str:
         return "coding"
     if tools & {"WebSearch", "WebFetch"}:
         return "research"
-    # Task-management tools only (TaskCreate/TaskUpdate/EnterPlanMode) or no tools
-    # at all (short chat turns) → planning. This replaces the old "conversation" +
-    # "other" buckets that were opaque and overlapped with "communication".
-    return "planning"
+    # Genuine plan mode (EnterPlanMode tool used) → planning. Everything else
+    # (TaskCreate/TaskUpdate, short chat, review with no tools) → discussion.
+    if "EnterPlanMode" in tools:
+        return "planning"
+    return "discussion"
 
 
 def _period_key(ts: float, granularity: str) -> str:
@@ -867,6 +875,39 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                     f"<li><span class='num'>{eng_h:.1f}h Human</span> / "
                     f"<span class='num-act'>{act_h:.1f}h Active</span> {subj}{label_html}{why_div}</li>"
                 )
+            # For WeLink kind: append email items (0-duration but still work).
+            # Emails are instantaneous events — they have no active time so they
+            # never appear in the top-3-by-active list. Show them by count here
+            # so the user sees their email activity in context.
+            if kind == "WeLink":
+                # Emails are 0-duration instantaneous events — show by count.
+                # Include both Outlook and welink-cli emails (both source_kind=comm).
+                email_tasks = [t for t in by_kind_tasks[kind]
+                               if (t.get("context") or {}).get("comm_directions")
+                               and not (t.get("context") or {}).get("im_message_count")]
+                if email_tasks:
+                    sent_count = 0
+                    recv_count = 0
+                    email_items = []
+                    for t in email_tasks:
+                        ctx = t.get("context") or {}
+                        dirs = ctx.get("comm_directions", [])
+                        subj = (t.get("subject") or "(no subject)")[:60]
+                        if "sent" in dirs:
+                            sent_count += 1
+                            email_items.append(f"<li>📤 {html_mod.escape(subj)}</li>")
+                        else:
+                            recv_count += 1
+                            email_items.append(f"<li>📥 {html_mod.escape(subj)}</li>")
+                    more = (f'<li class="hint">…共 {len(email_tasks)} 封邮件</li>'
+                            if len(email_items) > 15 else "")
+                    items.append(
+                        f'<li class="hint">邮件往来：收件 {recv_count} 封，'
+                        f'发件 {sent_count} 封（瞬时事件，无持续时间）</li>'
+                    )
+                    items.extend(email_items[:15])
+                    if more:
+                        items.append(more)
             kind_total_str = f"Human {kind_human:.1f}h / Active {kind_active:.1f}h"
             if kind_wd:
                 kind_total_str += f" · {kind_wd}"
@@ -879,7 +920,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
             )
         if kind_sections:
             kind_subjects_html = '<h2>各类工作内容</h2>\n' + \
-                                 '<p class="hint">类型说明：coding=AI编程，planning=AI讨论/任务管理（非动手编程），research=网页浏览/搜索，git=代码提交，meeting=会议，WeLink=邮件/聊天，file-edit=本地文件编辑</p>\n' + \
+                                 '<p class="hint">类型说明：coding=AI编程，planning=AI计划模式（EnterPlanMode），discussion=AI讨论/任务管理/简短对话（非动手编程），research=网页浏览/搜索，git=代码提交，meeting=会议，WeLink=邮件/聊天，file-edit=本地文件编辑，doc-edit=文档编辑（3ms/Wiki/W3）</p>\n' + \
                                  '<div class="kind-grid">\n' + \
                                  "\n".join(kind_sections) + '\n</div>'
 

@@ -769,14 +769,29 @@ def _summarize_filesystem(events: list[dict], task: dict) -> str:
     active_h = (task.get("active_seconds") or 0) / 3600
 
     # Count edit events per file (rubric 60: detect genuine editing).
+    # Only count kind="file_edit" (VSCode History save events) as real edits —
+    # kind="file_open" (Windows Recent, Jump List) just means the file was
+    # opened/accessed, not edited. Exclude events tagged as agent-edited
+    # (rubric 68: VSCode History records agent edits too — those are NOT human edits).
     from collections import Counter
     file_edit_counts: Counter = Counter()
+    agent_edit_counts: Counter = Counter()
+    file_open_names: set = set()
     for ev in events:
         if ev.get("source_kind") != "filesystem":
             continue
         text = (ev.get("text") or "").strip()
-        if text:
-            file_edit_counts[text] += 1
+        if not text:
+            continue
+        kind = ev.get("kind", "")
+        if kind == "file_edit":
+            if ev.get("agent_edited"):
+                agent_edit_counts[text] += 1
+            else:
+                file_edit_counts[text] += 1
+        else:
+            # file_open or other — track as opened, not edited.
+            file_open_names.add(text)
 
     # File type inference (rubric 60: what kind of file).
     def _file_type(filename: str) -> str:
@@ -796,6 +811,30 @@ def _summarize_filesystem(events: list[dict], task: dict) -> str:
 
     names = [os.path.basename(f) for f in files[:3]]
     file_types = [_file_type(f) for f in names]
+    # Distinguish human-edited from agent-edited files (rubric 68).
+    agent_files = list(agent_edit_counts.keys())
+    human_edited_count = len(file_edit_counts)
+    opened_only = file_open_names - set(file_edit_counts.keys()) - set(agent_files)
+
+    # All edits were agent-edited (no human file_edit events).
+    if agent_files and not human_edited_count:
+        agent_names = [os.path.basename(f)[:30] for f in agent_files[:3]]
+        parts = [f"Goal: 文件变更由AI代理执行（非用户手动编辑）。"
+                 f"代理编辑了 {len(agent_files)} 个文件：{', '.join(agent_names)}。"]
+        parts.append(f"Struggle: 这些编辑由AI代理（Edit/Write工具）完成，用户可能仅下达指令，未直接编辑文件。")
+        if opened_only:
+            open_names = sorted(opened_only)[:2]
+            parts.append(f"另有 {len(opened_only)} 个文件仅被打开（无编辑记录）：{', '.join(open_names)}。")
+        parts.append(f"{active_h:.1f}h。")
+        return " ".join(parts)
+
+    # No genuine edits at all — only file_open events.
+    if not human_edited_count and not agent_files:
+        parts = [f"Goal: 打开/访问文件。涉及 {len(files)} 个文件：{', '.join(names)}。"]
+        parts.append(f"Struggle: 仅检测到文件打开记录（Windows最近使用/跳转列表），未检测到实际编辑保存。无法确认用户是否手动编辑了这些文件。")
+        parts.append(f"{active_h:.1f}h。")
+        return " ".join(parts)
+
     parts = [f"Goal: 编辑文件。触碰了 {len(files)} 个文件：{', '.join(names)}。"]
 
     # Genuine editing detection: files with multiple edit events = real editing.
@@ -807,6 +846,12 @@ def _summarize_filesystem(events: list[dict], task: dict) -> str:
             ftype = _file_type(fname)
             edit_descs.append(f"「{short}」{count}个版本（{ftype}）")
         parts.append(f"Struggle: 频繁编辑 {len(genuinely_edited)} 个文件——{', '.join(edit_descs)}，表明用户在反复修改内容。")
+        # If some files were agent-edited, note them so the report is honest.
+        if agent_files:
+            agent_names = [os.path.basename(f)[:30] for f in agent_files[:2]]
+            parts.append(f"另有 {len(agent_files)} 个文件由AI代理编辑（非用户手动操作）：{', '.join(agent_names)}。")
+        if opened_only:
+            parts.append(f"另有 {len(opened_only)} 个文件仅被打开（无编辑记录）。")
         parts.append(f"{active_h:.1f}h。")
     elif active_h > 0.1:
         parts.append(f"Struggle: 文件编辑 {active_h:.1f}h，涉及 {len(files)} 个文件（{', '.join(file_types[:2])}）。")
