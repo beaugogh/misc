@@ -268,6 +268,17 @@ class TestAggregation(unittest.TestCase):
         self.assertEqual(classify_task(doc), "doc-edit")
         self.assertEqual(classify_task(aux), "other")
 
+    def test_classify_email_vs_welink_split(self):
+        """source_kind=comm must split into 'email' vs 'WeLink' based on
+        whether the task has IM messages. Email and IM are different activities
+        and must not be lumped under one category."""
+        email_task = {"source_kind": "comm",
+                      "context": {"comm_directions": ["received"]}}
+        im_task = {"source_kind": "comm",
+                   "context": {"im_message_count": 42}}
+        self.assertEqual(classify_task(email_task), "email")
+        self.assertEqual(classify_task(im_task), "WeLink")
+
     def test_classify_case_insensitive_tool_names(self):
         """Legacy codeagent adapter yields lowercase tool names (edit/bash/read);
         Claude Code yields capitalized (Edit/Bash/Read). Both must classify as
