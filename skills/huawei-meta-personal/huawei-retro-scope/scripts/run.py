@@ -314,14 +314,13 @@ def _export_session_records(tasks: list[dict], events: list[dict], output_dir: s
             continue
 
         tid = t.get("id", f"task-{exported}")
-        # Human-readable filename: source_kind + subject + date.
+        # Filename: source_kind + date + full task_id (matches the report's
+        # Task ID column so users can locate the source file directly).
         sk = t.get("source_kind", "unknown")
-        subj = (t.get("subject") or "no-subject")[:40]
         start_dt = _dt.fromtimestamp(t.get("start") or 0, tz=_tz.utc)
         date_str = start_dt.strftime("%Y%m%d")
-        safe_subj = re.sub(r'[^\w\-]', '_', subj)[:40]
-        safe_tid = re.sub(r'[^\w\-]', '_', tid)[:30]
-        filename = f"{sk}_{date_str}_{safe_subj}_{safe_tid}.json"
+        safe_tid = re.sub(r'[^\w\-]', '_', tid)
+        filename = f"{sk}_{date_str}_{safe_tid}.json"
         record = {
             "id": tid,
             "subject": t.get("subject"),
