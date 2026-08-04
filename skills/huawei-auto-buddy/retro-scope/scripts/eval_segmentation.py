@@ -14,7 +14,7 @@ temporal task-boundary evaluation:
     boundaries — being off by 30 seconds is not the same as being off by 30 minutes.
 
 These metrics let us tune PELT penalty beta and GMM thresholds against a labeled
-benchmark instead of by eyeballing. See PLAN.md section 9.8 and research-findings.md
+benchmark instead of by eyeballing. See research-findings.md
 section 7.1 for the research grounding.
 
 No external dependencies (no `segeval` needed). The `segeval` library implements

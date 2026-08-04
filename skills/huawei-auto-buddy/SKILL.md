@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-buddy
-description: Huawei employee's personal AI work companion. Two-phase pipeline: (1) retro-scope identifies time sinks, recurring efforts, and painpoints from activity traces (AI sessions, git, browser, WeLink, email, meetings, file edits); (2) skill-forge creates or modifies skills and memories that deal with those problems, so the user can solve them easily next time and avoid wasting time. Invoke when the user says "time log", "how did I spend my time", "evolve", "分析session", "update skills", "review recent work", "时间日志", "工时统计", "自演进", "总结一下最近的工作", etc.
+description: Huawei employee's personal AI work companion. Two-phase pipeline: (1) retro-scope identifies time sinks and recurring time consumption from activity traces (AI sessions, git, browser, WeLink, email, meetings, file edits); (2) skill-forge creates or modifies skills and memories that deal with those problems, so the user can solve them easily next time and avoid wasting time. Invoke when the user says "time log", "how did I spend my time", "evolve", "分析session", "update skills", "review recent work", "时间日志", "工时统计", "自演进", "总结一下最近的工作", etc.
 ---
 
 # huawei-auto-buddy
@@ -16,8 +16,8 @@ activity traces → retro-scope (diagnose) → skill-forge (act) → skills/memo
 
 1. **retro-scope** reconstructs where the user's time and effort went — which tasks
    consumed the most human time, which problems kept recurring across weeks, what
-   the user struggled with. It surfaces time sinks, recurring efforts, and
-   painpoints from the activity traces a person already leaves behind (AI sessions,
+   the user struggled with. It surfaces time sinks and recurring time consumption
+   from the activity traces a person already leaves behind (AI sessions,
    git, browser, WeLink, email, meetings, file edits). No manual logging.
 
 2. **skill-forge** takes those findings and creates or modifies skills and memories

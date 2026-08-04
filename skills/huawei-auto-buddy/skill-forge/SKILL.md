@@ -1,6 +1,6 @@
 ---
 name: huawei-skill-forge
-description: Acts on retro-scope's findings to create/modify skills and memories that address the user's recurring time sinks and painpoints, so the user can solve those problems easily next time and avoid wasting time. Also extracts long-term memory from sessions, updates existing skills based on new experience, recommends/installs market skills, and checks skill versions. Component of huawei-auto-buddy — invoked by the parent skill, not directly by the user.
+description: Acts on retro-scope's findings to create/modify skills and memories that address the user's recurring time sinks, so the user can solve those problems easily next time and avoid wasting time. Also extracts long-term memory from sessions, updates existing skills based on new experience, recommends/installs market skills, and checks skill versions. Component of huawei-auto-buddy — invoked by the parent skill, not directly by the user.
 ---
 
 # skill-forge
