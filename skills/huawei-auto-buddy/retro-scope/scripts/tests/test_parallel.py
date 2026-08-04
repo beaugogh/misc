@@ -1,7 +1,7 @@
 """Tests for parallel-task detection and exclusive-time computation.
 
 Run with:
-    cd D:\\workspace\\misc\\skills\\huawei-auto-buddy\\huawei-retro-scope\\scripts
+    cd D:\\workspace\\misc\\skills\\huawei-auto-buddy\\retro-scope\\scripts
     python -m unittest tests.test_parallel -v
 """
 
