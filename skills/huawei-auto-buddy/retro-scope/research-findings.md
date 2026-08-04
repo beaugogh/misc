@@ -78,7 +78,7 @@ does the auto-derivation well.
 
 ### No agent-ecosystem artifact exists for this
 The search covered Claude skills, sub-agents, and MCP servers and found nothing — all four
-results are standalone OSS projects. huawei-retro-scope fills a genuine gap in the skill ecosystem,
+results are standalone OSS projects. retro-scope fills a genuine gap in the skill ecosystem,
 not just internally.
 
 ## Why "compose single-source MCP servers" is the wrong architecture for us

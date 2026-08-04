@@ -1,4 +1,4 @@
-# Rubrics — huawei-retro-scope
+# Rubrics — retro-scope
 
 Design principles and quality bars that govern the skill's output. Each rubric
 is a durable rule, not a one-off bug report. Bug reports that have been fixed
