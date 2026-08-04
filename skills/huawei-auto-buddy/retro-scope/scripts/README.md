@@ -151,7 +151,7 @@ task objects (with boundaries, duration, effort, I/O, three-valued success)
 - `persistence.py` — JSONL task log + watermark (Phase 2)
 - `ocel_store.py` — OCEL 2.0 storage via pm4py (Phase 5)
 - `platform_paths.py` — per-OS path abstraction (Phase 8)
-- `tests/` — 272 tests across multiple test modules
+- `tests/` — 567 tests across multiple test modules
 - `requirements.txt` — optional deps for advanced features
 
 ## Platform support
