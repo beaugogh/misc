@@ -526,6 +526,37 @@ def render_table(agg: dict, granularity: str) -> str:
     return "\n".join(lines)
 
 
+def render_recurring_painpoints_section(tasks: list[dict], since_ts: float | None,
+                                        until_ts: float | None, html_mod) -> str:
+    """Render the recurring-painpoints section for the HTML report.
+
+    Splits the current horizon into time windows and compares them to surface
+    pain points that keep coming back. Returns "" if no recurring painpoints
+    found or the horizon is too short to split.
+    """
+    if not tasks or since_ts is None or until_ts is None:
+        return ""
+    horizon_days = int((until_ts - since_ts) / 86400)
+    if horizon_days <= 1:
+        return ""
+    try:
+        from recurring_painpoints import generate_recurring_painpoints
+        insights = generate_recurring_painpoints(tasks, until_ts, horizon_days)
+    except Exception:
+        return ""
+    if not insights:
+        return ""
+    cards = "\n".join(
+        f'  <div class="painpoint-card">{html_mod.escape(ins)}</div>'
+        for ins in insights
+    )
+    return f"""<h2>反复出现的痛点</h2>
+<p class="hint">将本周期按时间窗口划分后对比，识别反复出现的时间消耗与问题。90d→月度对比，30d→周度对比，7d→日度对比。</p>
+<div class="painpoints-grid">
+{cards}
+</div>"""
+
+
 def render_data_availability_html(tasks: list[dict], since_ts: float | None,
                                   until_ts: float | None) -> str:
     """Render a per-source data-availability table for the requested time range.
@@ -747,6 +778,12 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
     data_avail_html = ""
     if tasks is not None and (since_ts is not None or until_ts is not None):
         data_avail_html = render_data_availability_html(tasks, since_ts, until_ts)
+
+    # --- Recurring painpoints section (cross-window comparison) ---
+    recurring_painpoints_html = ""
+    if tasks is not None and since_ts is not None and until_ts is not None:
+        recurring_painpoints_html = render_recurring_painpoints_section(
+            tasks, since_ts, until_ts, html_mod)
 
     # --- Insights cards ---
     insights_html = ""
@@ -1008,6 +1045,8 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
   .data-avail .no-data {{ background: #fff8f8; }}
   .data-avail .no-data-msg {{ color: #c62828; font-style: italic; }}
   .section-divider {{ border: none; border-top: 2px solid #e0e0e0; margin: 2em 0; }}
+  .painpoints-grid {{ display: grid; grid-template-columns: 1fr; gap: 10px; margin: 1em 0; }}
+  .painpoint-card {{ background: #fff3e0; border-left: 4px solid #e15759; padding: 10px 14px; border-radius: 4px; font-size: 0.92em; line-height: 1.5; }}
 </style>
 </head>
 <body>
@@ -1022,6 +1061,8 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 <p class="hint">三类时间：<strong>Wall</strong>（总时钟跨度）→ <strong>Active</strong>（检测到的工作，占 Wall {active_pct_of_wall:.0f}%）→ <strong>Human</strong>（用户参与，占 Active {human_pct_of_active:.0f}%）。工作日基准：{working_basis}。时间消耗按 Human 时间排序。</p>
 
 <hr class="section-divider">
+
+{recurring_painpoints_html}
 
 {top_tasks_html}
 
