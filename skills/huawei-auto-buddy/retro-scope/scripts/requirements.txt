@@ -1,4 +1,4 @@
-# huawei-retro-scope dependencies
+# retro-scope dependencies
 #
 # Core (no external deps required): the MVP pipeline runs on Python stdlib only.
 # These optional packages enable the advanced features (Phase 4+):

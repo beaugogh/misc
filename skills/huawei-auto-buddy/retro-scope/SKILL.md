@@ -1,9 +1,9 @@
 ---
-name: huawei-retro-scope
-description: Record the time/effort the user spends on different tasks, aggregatable by day/week/month/year, so the user can see how time/effort is distributed across task kinds and identify the most time-consuming work. Invoke when the user says "time log", "how did I spend my time", "time tracker", "what did I work on", "时间日志", "工时统计", "这周都在忙什么", etc.
+name: retro-scope
+description: Record the time/effort the user spends on different tasks, aggregatable by day/week/month/year, so the user can see how time/effort is distributed across task kinds and identify the most time-consuming work. Component of huawei-auto-buddy — invoked by the parent skill, not directly by the user.
 ---
 
-# huawei-retro-scope
+# retro-scope
 
 Records the user's time/effort across task kinds, aggregatable by day / week / month / year,
 to reveal which kinds of work consume the most time/effort. Beyond time, it reconstructs a
@@ -527,8 +527,8 @@ not commitments.
 - **Storage shape (schema):** OCEL 2.0 (`pm4py`) vs flat SQLite (Plaso-style) — see
   "Storage shape" above. Decide before implementation.
 - **Incremental processing / watermark:** how to avoid reprocessing full history each run?
-  The skill-forge component uses `last_analysis.txt` with two-axis incremental analysis
-  (new sessions + new messages in old sessions). huawei-retro-scope needs an equivalent — especially
+  The skill-forge component uses `last_run.txt` with two-axis incremental analysis
+  (new sessions + new messages in old sessions). retro-scope needs an equivalent — especially
   for Claude Code's growing store (39,925 lines). Affects adapter design. Not yet specified.
 - **Output / report format:** ✅ RESOLVED (Phase 9.7) — stdout text, JSON, Markdown file,
   CLI table, and self-contained HTML (with inline CSS + SVG bar chart) all built. `--format`

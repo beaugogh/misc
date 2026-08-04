@@ -1,6 +1,6 @@
 """Recurring time-consumption detection across time windows within a single horizon.
 
-The second thing huawei-retro-scope reports (after absolute time sinks): time
+The second thing retro-scope reports (after absolute time sinks): time
 consumption patterns that keep coming back across time windows. A 30d report is split
 into 4 weekly windows; if the same task subject is a top-5 time sink in 3 of those 4
 weeks, that's a recurring time consumption — worth examining, not necessarily painful.

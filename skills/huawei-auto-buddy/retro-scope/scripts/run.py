@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""huawei-retro-scope — single CLI entrypoint for the full pipeline.
+"""retro-scope — single CLI entrypoint for the full pipeline.
 
 Runs: collect (via registry) → segment → aggregate → report.
 
@@ -513,7 +513,7 @@ def _run_multi_horizon(tasks: list[dict], events: list[dict],
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>huawei-retro-scope — multi-horizon dashboard</title>
+<title>retro-scope — multi-horizon dashboard</title>
 <style>
   body {{ font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 2em; color: #2c2c2c; max-width: 1000px; }}
   h1 {{ font-size: 1.6em; border-bottom: 3px solid #4e79a7; padding-bottom: 0.3em; }}
@@ -548,7 +548,7 @@ Click any horizon for the full report.</p>
 def main():
     ap = argparse.ArgumentParser(
         prog="run.py",
-        description="huawei-retro-scope: retrospective task & time reconstruction.",
+        description="retro-scope: retrospective task & time reconstruction.",
     )
     ap.add_argument("--horizons", default=DEFAULT_HORIZONS,
                     help=f"multi-horizon mode (DEFAULT): comma-separated horizon specs "
@@ -610,7 +610,7 @@ def main():
 
     # --check: verify adapters detect, report status, exit.
     if args.check:
-        print("# huawei-retro-scope environment check")
+        print("# retro-scope environment check")
         for adapter in reg._adapters:
             try:
                 ok = adapter.detect()

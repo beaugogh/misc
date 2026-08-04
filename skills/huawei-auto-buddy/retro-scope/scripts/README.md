@@ -1,4 +1,4 @@
-# huawei-retro-scope scripts
+# retro-scope scripts
 
 Retrospective task & time reconstruction from multiple activity-trace sources.
 Reads historical records (no live tracking), fuses them into tasks with
