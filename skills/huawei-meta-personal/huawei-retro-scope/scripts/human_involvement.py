@@ -111,6 +111,10 @@ def is_human_action(event: dict) -> bool:
         return True
     if event.get("source_kind") == "filesystem":
         # Filesystem events (VSCode history, Windows Recent) = user opened files.
+        # But exclude agent-edited files (rubric 68): VSCode Local History records
+        # edits made by AI agents too — those are NOT human actions.
+        if event.get("agent_edited"):
+            return False
         return True
     return False
 
