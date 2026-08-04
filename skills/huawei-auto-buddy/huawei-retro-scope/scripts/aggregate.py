@@ -70,7 +70,8 @@ def classify_task(task: dict) -> str:
       - research     — web browser visits/searches, or WebSearch/WebFetch tool use
       - git          — git commits/checkouts
       - meeting      — calendar events, meeting recordings
-      - welink       — email, WeLink IM chats
+      - email        — email (Outlook OST, welink-cli mail)
+      - WeLink       — WeLink IM chats (welink-cli im)
       - file-edit    — manual file activity (VSCode Local History, Windows Recent)
       - doc-edit     — document authoring (3ms, CloudDevOps Wiki, W3)
       - other        — honest catch-all: AI sessions with no hands-on tools
@@ -95,7 +96,13 @@ def classify_task(task: dict) -> str:
     if source_kind == "meeting":
         return "meeting"
     if source_kind == "comm":
-        return "WeLink"
+        # Split comm into email vs WeLink IM — they are different activities
+        # and should not be lumped under one category. Email tasks have
+        # comm_directions but no IM messages; WeLink tasks have im_message_count.
+        ctx = task.get("context") or {}
+        if ctx.get("im_message_count"):
+            return "WeLink"
+        return "email"
     if source_kind == "filesystem":
         return "file-edit"
     if source_kind == "doc_authoring":
@@ -916,16 +923,14 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                     f"<li><span class='num'>{eng_h:.1f}h Human</span> / "
                     f"<span class='num-act'>{act_h:.1f}h Active</span> {subj}{label_html}{why_div}</li>"
                 )
-            # For WeLink kind: append email items (0-duration but still work).
+            # For email kind: append email items (0-duration but still work).
             # Emails are instantaneous events — they have no active time so they
             # never appear in the top-3-by-active list. Show them by count here
             # so the user sees their email activity in context.
-            if kind == "WeLink":
+            if kind == "email":
                 # Emails are 0-duration instantaneous events — show by count.
                 # Include both Outlook and welink-cli emails (both source_kind=comm).
-                email_tasks = [t for t in by_kind_tasks[kind]
-                               if (t.get("context") or {}).get("comm_directions")
-                               and not (t.get("context") or {}).get("im_message_count")]
+                email_tasks = by_kind_tasks[kind]
                 if email_tasks:
                     sent_count = 0
                     recv_count = 0
@@ -961,7 +966,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
             )
         if kind_sections:
             kind_subjects_html = '<h2>各类工作内容</h2>\n' + \
-                                 '<p class="hint">类型说明：coding=AI编程，planning=AI计划模式（EnterPlanMode），research=网页浏览/搜索，git=代码提交，meeting=会议，WeLink=邮件/聊天，file-edit=本地文件编辑，doc-edit=文档编辑（3ms/Wiki/W3），other=其他（AI讨论/任务管理/辅助日志等未分类活动）</p>\n' + \
+                                 '<p class="hint">类型说明：coding=AI编程，planning=AI计划模式（EnterPlanMode），research=网页浏览/搜索，git=代码提交，meeting=会议，email=邮件，WeLink=即时通讯，file-edit=本地文件编辑，doc-edit=文档编辑（3ms/Wiki/W3），other=其他（AI讨论/任务管理/辅助日志等未分类活动）</p>\n' + \
                                  '<div class="kind-grid">\n' + \
                                  "\n".join(kind_sections) + '\n</div>'
 
