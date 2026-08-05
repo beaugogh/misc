@@ -119,14 +119,27 @@ class TestDiscoverAgents(unittest.TestCase):
         ids = [a.agent_id for a in agents]
         self.assertIn("codex", ids)
         codex = [a for a in agents if a.agent_id == "codex"][0]
-        self.assertIsNone(codex.skills_dir)  # no skills dir
-        self.assertEqual(codex.memory_format, "instructions_md")
+        self.assertIsNotNone(codex.skills_dir)  # Codex DOES support skills
+        self.assertTrue(codex.skills_dir.replace("\\", "/").endswith(".codex/skills"))
+        self.assertEqual(codex.memory_format, "agents_md")
 
     def test_detects_openclaw(self):
         self._mkdir(".openclaw")
         agents = agent_targets.discover_agents()
         ids = [a.agent_id for a in agents]
         self.assertIn("openclaw", ids)
+        claw = [a for a in agents if a.agent_id == "openclaw"][0]
+        self.assertIsNotNone(claw.skills_dir)
+
+    def test_detects_openclaw_with_workspace(self):
+        self._mkdir(".openclaw", "workspace", "skills")
+        agents = agent_targets.discover_agents()
+        claw = [a for a in agents if a.agent_id == "openclaw"][0]
+        self.assertIn("workspace", claw.skills_dir)
+        self.assertEqual(claw.memory_format, "user_md")
+
+    def test_detects_openclaw_alt_dir(self):
+        self._mkdir(".open-claw")
 
     def test_detects_openclaw_alt_dir(self):
         self._mkdir(".open-claw")

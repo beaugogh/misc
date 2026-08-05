@@ -385,15 +385,17 @@ Supported agents and their targets:
 |---|---|---|
 | Claude Code | `~/.claude/skills/` | `~/.claude/projects/<slug>/memory/` (MEMORY.md + per-fact .md) |
 | CodeAgent | `~/.cac/skills/` | `~/.cac/projects/<slug>/memory/` (same as Claude Code) |
-| OpenCode | `~/.config/opencode/skills/` | none |
-| Codex | none (not supported) | `~/.codex/instructions.md` |
-| OpenClaw / Hermes | best-effort `skills/` | none |
+| OpenCode | `~/.config/opencode/skills/` | none (modern OpenCode uses MCP/LSP, not static memory) |
+| Codex | `~/.codex/skills/` | `AGENTS.md` in project root (emerging standard) |
+| OpenClaw | `~/.openclaw/workspace/skills/` or `~/.openclaw/skills/` | `~/.openclaw/workspace/USER.md` |
+| Hermes | `~/.hermes/skills/` | native persistent memory (exact file layout unconfirmed) |
 
 For **personal-context memory** (not a skill — it holds declarative facts):
 `register.py --install-memory` routes facts to the agent's memory system
 automatically. Claude Code/CodeAgent get per-fact `.md` files + `MEMORY.md`
-index. Codex gets a `## Personal Context` section in `instructions.md`.
-Agents without a memory mechanism are reported as unsupported.
+index. Codex gets a `## Personal Context` section in `AGENTS.md`. OpenClaw
+gets a `USER.md` file. Hermes and OpenCode are reported as unsupported for
+memory until their layouts are confirmed.
 
 Use `dry_run=True` to preview what would be installed without writing. Always
 show the user the target paths and fact list before asking for approval.

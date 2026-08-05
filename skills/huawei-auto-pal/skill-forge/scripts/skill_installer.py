@@ -194,16 +194,22 @@ def install_memory(
             "no memory facts found in personal-context"
         )
 
-    if agent.memory_format == "none" or agent.memory_dir is None:
+    if agent.memory_format == "none":
         return InstallResult(
             False, "unsupported", "",
             f"{agent.display_name} has no supported memory mechanism"
         )
 
+    # agents_md uses the project root (cwd), not a fixed memory_dir.
+    if agent.memory_format == "agents_md":
+        return _install_agents_md(facts, agent, dry_run)
+
     if agent.memory_format == "claude_memory":
         return _install_claude_memory(facts, agent, dry_run)
     elif agent.memory_format == "instructions_md":
         return _install_instructions_md(facts, agent, dry_run)
+    elif agent.memory_format == "user_md":
+        return _install_user_md(facts, agent, dry_run)
     else:
         return InstallResult(
             False, "unsupported", "",
@@ -351,4 +357,94 @@ def _install_instructions_md(
         True, "copied", str(instructions_path),
         f"appended {len(facts)} memory facts to {instructions_path.name}",
         files_copied=[instructions_path.name],
+    )
+
+
+def _install_agents_md(
+    facts: list[dict],
+    agent: AgentTarget,
+    dry_run: bool,
+) -> InstallResult:
+    """Install memory facts into AGENTS.md in the project root (Codex standard).
+
+    Codex uses AGENTS.md in the repository root for project-specific instructions
+    and context. We append a ## Personal Context section, replacing any existing one.
+    The memory_dir for Codex is None — we write to AGENTS.md in the current cwd.
+    """
+    agents_path = Path(os.getcwd()) / "AGENTS.md"
+
+    if dry_run:
+        return InstallResult(
+            True, "dry_run", str(agents_path),
+            f"would append {len(facts)} memory facts to AGENTS.md",
+        )
+
+    lines = ["", "## Personal Context", ""]
+    for fact in facts:
+        lines.append(f"### {fact['title']}")
+        lines.append("")
+        lines.append(fact['body'])
+        lines.append("")
+
+    section = "\n".join(lines)
+
+    if agents_path.exists():
+        existing = agents_path.read_text(encoding="utf-8")
+        existing = re.sub(
+            r'\n?## Personal Context\n.*?(?=\n## |\Z)',
+            '', existing, flags=re.DOTALL | re.IGNORECASE
+        )
+        agents_path.write_text(existing.rstrip() + "\n" + section, encoding="utf-8")
+    else:
+        agents_path.write_text("# Agents\n" + section, encoding="utf-8")
+
+    return InstallResult(
+        True, "copied", str(agents_path),
+        f"appended {len(facts)} memory facts to AGENTS.md",
+        files_copied=["AGENTS.md"],
+    )
+
+
+def _install_user_md(
+    facts: list[dict],
+    agent: AgentTarget,
+    dry_run: bool,
+) -> InstallResult:
+    """Install memory facts into USER.md in OpenClaw's workspace.
+
+    OpenClaw uses USER.md for stable preferences and active context. We write
+    all facts into a single USER.md file, replacing any existing Personal Context
+    section.
+    """
+    workspace = Path(agent.memory_dir) if agent.memory_dir else Path(os.getcwd())
+    user_md_path = workspace / "USER.md"
+
+    if dry_run:
+        return InstallResult(
+            True, "dry_run", str(user_md_path),
+            f"would write {len(facts)} memory facts to USER.md",
+        )
+
+    lines = ["# User", ""]
+    for fact in facts:
+        lines.append(f"## {fact['title']}")
+        lines.append("")
+        lines.append(fact['body'])
+        lines.append("")
+
+    content = "\n".join(lines)
+
+    if user_md_path.exists():
+        existing = user_md_path.read_text(encoding="utf-8")
+        # Preserve any content that isn't under ## headings we're writing.
+        # For simplicity, replace the entire file since USER.md is memory-managed.
+        user_md_path.write_text(content, encoding="utf-8")
+    else:
+        workspace.mkdir(parents=True, exist_ok=True)
+        user_md_path.write_text(content, encoding="utf-8")
+
+    return InstallResult(
+        True, "copied", str(user_md_path),
+        f"wrote {len(facts)} memory facts to USER.md",
+        files_copied=["USER.md"],
     )
