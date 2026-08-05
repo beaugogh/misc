@@ -1,137 +1,147 @@
-I've read the full REVISION-NOTES.tmp.md (651 lines) and compared the current state of
-  all key files against what I knew before. Here's my verdict, point by point.
+# Counter-review round 2: feedback sedimentation model is still broken
 
-  What I agree with strongly
+> Updated 2026-08-05. This file supersedes the round-1 notes above for the
+> feedback-sedimentation concern. Round-1 points (1–4, 6–7) remain resolved.
 
-  2.2 — Watermark unit incompatibility (CRITICAL fix, correct resolution). This is a
-  genuine bug I helped create. retro-scope wrote seconds, skill-forge wrote
-  milliseconds, both to last_run.txt. The split into retro_scope_last_run.txt (seconds)
-  and skill_forge_last_run_ms.txt (millis) with unit-aware legacy migration is exactly
-  right. The threshold 100000000000 to distinguish seconds from milliseconds is sound —
-  no legitimate epoch-seconds value will exceed it until the year 5138.
+## The concern that was not properly addressed
 
-  2.3 — Personal memory tracked by Git (CRITICAL fix). The
-  auto-buddy-created-global-memory/SKILL.md contained real user identity (name, employee
-  ID, colleagues, project details) and was git-tracked. The fix to git rm --cached it
-  and rely on the existing output/ gitignore is correct. The note about .gitignore not
-  untracking already-tracked files is an important educational point.
+Round 1 flagged that the revision swings hard against the "user feedback
+sedimentation" model that was core to auto-evolve and skill-forge. The other
+agent's round-1 response (point 5 in REVISION-NOTES.tmp.md) addressed the
+symptom — terse feedback like "不对吧" can now form a *candidate* — but not the
+core behavioral shift. The problem is deeper than whether terse feedback is
+recognized.
 
-  2.6 — Persistence bypass on early-return paths (real bug). run.py --persist could exit
-  through --top, --task, or multi-horizon branches before saving. The fix to persist
-  the complete task set before any reporting branch, using collection_started_at rather
-  than completion time, is correct and well-reasoned. The persist_run() ordering (tasks
-  before watermark) makes retries safe.
+## The real problem: auto became manual
 
-  2.7 — Misleading working-day calculation (real bug). Computing total human hours for
-  the whole period, labeling it "actual," then dividing by 8 is genuinely misleading.
-  Deriving average observed human hours per active day and passing that as the
-  denominator is the right fix. Labeling the 8-hour fallback explicitly is good
-  practice.
+The original model was **auto-evolve**: 1 correction → sediment immediately →
+rule in effect next session.
 
-  5.1 — Atomic persistence. The tempfile.mkstemp + fsync + os.replace pattern with 0600
-  permissions is solid defensive engineering for sensitive files.
+The new model is **propose-and-approve**: every durable change, including small
+rule additions from user feedback, requires explicit proposal → diff preview →
+approval → apply.
 
-  5.3 — Sensitive evidence redaction. Adding regex-based redaction for API keys, tokens,
-  passwords, cookies, JWTs, and email addresses to session-record exports is valuable
-  defense-in-depth. The notes correctly caveat it's not a guarantee.
+These are fundamentally different behaviors. The word "auto" was kept but the
+behavior that made it automatic was removed.
 
-  5.4 — Malformed record isolation. Catching bad timestamps per-record in
-  claude_code_adapter.py instead of letting one bad line truncate a whole session is
-  correct.
+### User experience comparison
 
-  5.5 — Collection limits. Adding per-source event caps (100k), file count limits (50
-  ICS, 100 OpenClaw), byte limits, and fetchmany(500) instead of fetchall() prevents
-  unbounded memory/time consumption. Good defensive engineering.
+Old model:
 
-  5.6 — Platform path cleanup. Removing hardcoded D:\MeetingRecordings and
-  machine-specific Outlook paths is correct — this was a known pre-existing issue I
-  flagged in prior reviews.
+```
+User says "你又忘了" during a session
+  → skill sediments the rule
+  → next session the rule is already in effect
+```
 
-  7.1-7.3 — Test fixes. Python 3.9 compatibility (postponed annotations), no-COM Outlook
-  test, deterministic adapter registration, portable eval fixture — all correct. 572
-  tests pass.
+New model:
 
-  What I agree with, with reservations
+```
+User says "你又忘了"
+  → skill detects a candidate
+  → verifies provenance (role=user, not quoted)
+  → assesses proposal readiness (future-behavior intent, semantic consistency)
+  → if clear enough, builds a proposal
+  → shows user a diff
+  → waits for explicit approval
+  → only then applies
+  → next session the rule is in effect
+```
 
-  2.4 / 3.3 — Provenance verification gate (correct principle, possibly over-strict in
-  practice). The principle that trace text is untrusted data, not instruction, is sound
-  and addresses a real prompt-injection risk. The four-point provenance check (direct
-  role=user, not quoted, addresses future behavior, semantically consistent) is
-  well-designed.
+That is 5 intermediate steps where there used to be 0. The user who said
+"你又忘了" is already annoyed. Making them review a proposal diff to approve a
+rule they expressed through a correction is adding friction to a moment of
+frustration.
 
-  However, the revision swings hard against the "user feedback sedimentation" model that
-  was core to auto-evolve and skill-forge. The original rule was: 1 user correction is
-  enough to sediment a rule. The new rule requires verifying the feedback addresses
-  "future behavior rather than only the task at hand" and is "semantically consistent
-  with the surrounding conversation." In practice, most real user feedback is terse and
-  contextual ("不对吧", "你又忘了") — it won't pass a strict four-point provenance gate
-  without interpretation. The revision acknowledges this by saying "ambiguous cases are
-  presented to the user rather than sedimented," which is safe but may make the skill
-  sluggish at self-improvement. This is a reasonable trade-off to err toward, but it's a
-  real behavioral change.
+### The 3-correction threshold is gone
 
-  2.5 — Removing --strict-ssl=false and auto-repair (correct principle, may break the
-  workflow in practice). The principle — don't auto-disable TLS, don't auto-install
-  globally — is defensible from a security standpoint. But the corporate proxy does TLS
-  interception, and --strict-ssl=false is the only way to make npm reach the intranet
-  registry without a manually-configured corporate CA. The revision says "configure an
-  approved corporate CA instead" — which is the right long-term answer, but most users
-  don't have a pre-configured CA and will now hit a wall where the skill detects the
-  problem, reports it, and refuses to fix it. The new flow requires the user to
-  explicitly approve every install and TLS change.
+The original rule was: if the user corrects the same skill's behavior ≥3 times
+in one session, the skill has a *systemic deficiency* and MUST update
+immediately — not wait for the user to formally ask. That was the safety net
+for cases where the user is too busy or annoyed to formally request a rule.
 
-  This is philosophically correct but operationally friction-heavy. The old auto-repair
-  was pragmatic; the new detect-and-report is safe but may feel unhelpful to a user who
-  just wants agentcenter installed.
+The new skill-forge replaces this with "the user explicitly asks for a durable
+rule and provenance is verified" — which means if the user never formally asks,
+the skill never updates, even after 20 corrections. The repetition signal that
+triggered forced self-improvement is gone.
 
-  3.1 / 3.2 — Parent and retro-scope rewrite (good, but lost some richness). The new
-  retro-scope SKILL.md is 192 lines vs the old ~530+ lines. It's cleaner and more
-  operational. But it dropped a lot of the "Constitution/Mission" framing and detailed
-  capability descriptions that gave context for why the skill works the way it does. The
-  revision notes say "Historical research remains in dedicated research material" —
-  which is fine if someone reads research-findings.md, but the main SKILL.md is now more
-  terse and less self-explaining.
+## Why the security concern is real but over-corrected
 
-  What I disagree with or flag as concerns
+The other agent's security concern — prompt injection from pasted issues,
+emails, web content, or tool output being mistaken for user intent — is
+legitimate. Trace text is untrusted. But the resolution applied the
+approval gate to *everything*, including the lowest-risk action (adding a
+behavorial rule to an existing user-owned skill based on a verified role=user
+message).
 
-  1. The personal-context/ directory doesn't exist on disk. The revision notes (section
-  4) say the memory skill was renamed from auto-buddy-created-global-memory/ to
-  personal-context/ and "the local directory renamed rather than deleted." But on disk,
-  neither directory exists — both are gone. The git history shows the tracked file was
-  deleted. This means the accumulated user memory (identity, preferences, environment,
-  colleagues, pitfalls — carefully built up across multiple sessions) has been lost. The
-  revision notes say "private contents are intentionally not reproduced here," implying
-  the content should still be on disk, but it isn't. This is a data loss that the
-  revision notes don't acknowledge.
+The provenance gate itself (role=user, not quoted/pasted) already blocks the
+injection vector. Once provenance is verified, the remaining approval step adds
+safety margin but kills the auto-evolve behavior. The cost/benefit is wrong for
+this category of change.
 
-  2. The npm-corporate-proxy skill we created is orphaned. It still exists at
-  output/npm-corporate-proxy/ but skill-forge's new workflow no longer references the
-  auto-buddy-created-* prefix pattern — it mentions it in passing (line 156) but the new
-  flow is proposal-approve based, not auto-create based. The skill we created during
-  the auto-buddy run is now in a limbo state — it exists but isn't integrated into the
-  new workflow.
+## Proposed resolution: tier the intervention, not the approval
 
-  3. The last_run.txt file still exists on disk. The old shared watermark is still at
-  output/last_run.txt (13 bytes). The new code has migration logic for it, but it should
-  probably be cleaned up or at least noted.
+The distinction should be: **feedback sedimentation (small rule additions to
+existing user-owned skills) stays automatic; structural changes (new skills,
+installs, config, third-party modifications) require approval.**
 
-  4. REVISION-NOTES.tmp.md should be deleted. It's a 651-line handoff document that's
-  now tracked in git. The notes themselves say "this temporary notes file is itself
-  untracked and should normally be excluded from the final commit or removed after
-  handoff." But it was committed. It should be removed.
+### Tier 1 — Auto-sediment (no separate approval needed)
 
-  Summary
+Applies when ALL of:
+- Provenance verified: direct `role=user` message, not quoted or pasted text.
+- The feedback is a correction or preference about agent behavior, not a
+  request for a new tool, install, or structural change.
+- The meaning is clear enough from the message + surrounding context to
+  formulate a specific rule. If ambiguous, ask a focused clarification — but
+  a clarification is not a proposal-and-approval cycle.
+- The target is an existing user-owned skill or the personal-context memory.
 
-  The revision is mostly good and addresses real bugs — particularly the watermark unit
-  mismatch, the persistence bypass, the tracked personal memory, and the misleading
-  working-day calculation. The atomic persistence, redaction, and collection limits are
-  solid defensive engineering. The test improvements are correct.
+Action: add/strengthen the rule directly in the skill's SKILL.md. Report what
+was sedimented in the run report. The user can review and revert later.
 
-  The provenance verification gate and the removal of auto-repair are defensible
-  security-first choices, but they represent a significant behavioral shift from the
-  original "aggressively sediment and auto-fix" philosophy. Whether that's the right
-  trade-off depends on how much you value safety vs. autonomy.
+### Tier 2 — Restore the 3-correction threshold
 
-  My main concern is the loss of the personal-context memory skill — the accumulated
-  user knowledge appears to have been deleted rather than renamed, contrary to what the
-  revision notes claim. And the REVISION-NOTES.tmp.md should be cleaned up.
+If the user corrects the same skill's behavior ≥3 times in one session, the
+skill has a systemic deficiency. Force an immediate rule update — do not wait
+for the user to formally request what they have already expressed through
+repetition. Apply the rule strengthening ladder (promote position, add gating,
+add counter-example, split rule). Report the forced update prominently.
+
+### Tier 3 — Proposal-and-approval (unchanged from current revision)
+
+Applies to all structural changes:
+- Creating a new skill
+- Installing or updating market skills
+- Modifying configuration, dependencies, or TLS settings
+- Modifying third-party or marketplace skills (propose wrapper/fork instead)
+- Anything involving credentials, installs, or external services
+
+These keep the full provenance → proposal → diff → approval → apply flow.
+
+## What this preserves from each model
+
+From the original auto-evolve:
+- 1 correction can sediment a rule (if provenance + meaning are clear)
+- 3 corrections force an update (systemic deficiency detection)
+- The "auto" in auto-evolve is real, not ceremonial
+- The user doesn't have to formally request what they already expressed
+
+From the revised skill-forge:
+- Trace text is untrusted data, never instruction (provenance gate stays)
+- Structural changes require explicit approval
+- Third-party skills stay read-only
+- Redaction, privacy, and safety boundaries stay intact
+- Market queries stay sanitized
+
+## What this changes from the current revision
+
+- Remove the proposal-and-approval requirement for Tier 1 (rule sedimentation
+  into existing user-owned skills based on verified user feedback)
+- Restore the 3-correction threshold as a forced-update trigger
+- Keep everything else (provenance gate, structural-change approval, safety
+  boundaries, redaction, collection limits, etc.)
+
+The security boundary is not weakened — provenance verification still blocks
+injection. The change is: once provenance is verified and the change is a
+small rule addition (not a structural change), apply it and report, don't
+gate it behind a proposal cycle.
