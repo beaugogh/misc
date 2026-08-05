@@ -79,7 +79,7 @@ _ADAPTER_HINTS = {
     "icalendar": "calendar — set RETRO_SCOPE_ICS_PATHS to .ics file path(s); see README.md",
     "windows_recent": "recent files — works with zero setup on Windows",
     "jump_list": "app/doc history — works with zero setup on Windows",
-    "welink_recordings": "meeting recordings — set WELINK_RECORDINGS_DIR; see README.md",
+    "welink_recordings": "meeting recordings — uses default Windows folder; set WELINK_RECORDINGS_DIR to override; see README.md",
     "welink_cli": "WeLink meetings/chat/mail/calendar — install welink-cli; see README.md §welink-cli",
     "legacy_codeagent": "legacy Codeagent sessions — works with zero setup if nga.db exists",
     "outlook": "email/calendar via Outlook — requires pywin32 + Outlook; see README.md",
@@ -87,8 +87,8 @@ _ADAPTER_HINTS = {
     "codex": "Codex AI sessions — works with zero setup if Codex is installed",
     "openclaw": "OpenClaw AI sessions — works with zero setup if OpenClaw is installed",
     "hermes_agent": "Hermes AI sessions — works with zero setup if Hermes is installed",
-    "clouddevops_wiki": "CloudDevOps Wiki — requires credentials; see README.md §credentials",
-    "w3": "W3 search — requires MCP tool; see README.md §optional-tools",
+    "clouddevops_wiki": "CloudDevOps Wiki — requires OpenCLI plugin; see README.md §optional-tools",
+    "w3": "W3 portal — requires OpenCLI plugin; see README.md §optional-tools",
 }
 
 from sources import default_registry
@@ -679,21 +679,31 @@ def main():
     # --check: verify adapters detect, report status, exit.
     if args.check:
         print("# retro-scope environment check")
-        print("# Green sources work with zero setup. For missing sources, see")
-        print("# README.md in the huawei-auto-pal directory for install guidance.")
+        print("# READY = detected and collection implemented")
+        print("# DETECTOR-ONLY = tool detected, but collect() yields no events yet")
+        print("# NOT DETECTED = collection exists but source is absent; see README.md")
         print()
         for adapter in reg._adapters:
+            is_detector_only = getattr(adapter, "detector_only", False)
+            hint = _ADAPTER_HINTS.get(adapter.name, "")
             try:
                 ok = adapter.detect()
             except Exception as e:
-                ok = False
                 print(f"  {adapter.name:20s} ERROR: {e}")
                 continue
-            hint = _ADAPTER_HINTS.get(adapter.name, "")
-            status = "OK" if ok else "not detected"
-            line = f"  {adapter.name:20s} {status}"
-            if hint and not ok:
-                line += f"  ({hint})"
+            if ok and is_detector_only:
+                status = "DETECTOR-ONLY"
+                line = f"  {adapter.name:20s} {status}"
+                if hint:
+                    line += f"  ({hint})"
+            elif ok:
+                status = "READY"
+                line = f"  {adapter.name:20s} {status}"
+            else:
+                status = "NOT DETECTED"
+                line = f"  {adapter.name:20s} {status}"
+                if hint:
+                    line += f"  ({hint})"
             print(line)
         sys.exit(0)
 

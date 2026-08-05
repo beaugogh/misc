@@ -730,6 +730,7 @@ class ThreeMsAdapter:
 
     name = "3ms"
     source_kind = "doc_authoring"
+    detector_only = True  # detects opencli but collect() yields nothing yet
 
     def detect(self) -> bool:
         # Check if the huawei-3ms plugin is installed

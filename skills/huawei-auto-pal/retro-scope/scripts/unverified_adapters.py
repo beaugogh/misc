@@ -405,6 +405,7 @@ class CloudDevOpsWikiAdapter:
 
     name = "clouddevops_wiki"
     source_kind = "doc_authoring"
+    detector_only = True  # detects opencli but collect() yields nothing yet
 
     def detect(self) -> bool:
         # Check if opencli is available AND has a dedicated clouddevops-wiki command.
@@ -454,6 +455,7 @@ class W3Adapter:
 
     name = "w3"
     source_kind = "doc_authoring"
+    detector_only = True  # detects opencli but collect() yields nothing yet
 
     def detect(self) -> bool:
         if not shutil.which("opencli"):

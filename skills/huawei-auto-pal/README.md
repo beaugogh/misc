@@ -171,33 +171,22 @@ CODEHUB_HOST=https://codehub-g.huawei.com/
 (`NO_PROXY=*.huawei.com`). The wrapper is at
 [`../../mcp-tools/huawei-codehub/codehub.py`](../../mcp-tools/huawei-codehub/codehub.py).
 
-### GITHUB_TOKEN — GitHub personal access token
+### GITHUB_TOKEN — GitHub personal access token (currently disabled)
 
-**Used for / 用于**: Reading PR reviews and issues from GitHub repos.
+**Status / 状态**: ⚠️ **Disabled / 已禁用**
 
-**How to get it / 获取方式**:
-
-1. Login to GitHub (`https://github.com`)
-2. Avatar → **Settings** → **Developer settings** → **Personal access tokens**
-
-   ![GitHub 凭据页面](img/github-settings-credentials.PNG)
-
-3. Choose token type:
-   - **Fine-grained (recommended / 推荐)**: Contents Read, Pull requests Read,
-     Issues Read, Metadata Read
-   - **Classic (simpler / 更简单)**: check `repo` scope
-
-4. Copy the generated token
-
-**Add to `.env` / 填入 `.env`**:
-```
-GITHUB_TOKEN=your_github_token_here
-```
-
-**Network / 网络**: GitHub is an external host — route **through** the corporate
-proxy (`proxyuk.huawei.com:8080`), not `NO_PROXY`. Keep TLS verification enabled.
 The current GitHub wrapper (`mcp-tools/github/github_mcp.py`) uses
-`ssl.CERT_NONE` and is skipped by this skill until it is independently fixed.
+`ssl.CERT_NONE`, which disables TLS verification. Until that is independently
+fixed and validated against the corporate proxy, this skill does **not** call
+the GitHub MCP tool and does **not** ask you to create or store a
+`GITHUB_TOKEN`.
+
+当前的 GitHub 封装使用了 `ssl.CERT_NONE`（禁用 TLS 验证）。在该问题被独立修复并通过
+企业代理验证之前，本技能**不会**调用 GitHub MCP 工具，也**不会**要求你创建或保存
+`GITHUB_TOKEN`。
+
+No setup action is needed for GitHub. CodeHub covers internal repo review.
+GitHub 暂无需任何配置。内部仓库的审查由 CodeHub 覆盖。
 
 ### WIKI_X_AUTH_TOKEN — CloudDevOps Wiki token (optional)
 
