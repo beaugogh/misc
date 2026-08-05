@@ -16,13 +16,16 @@ updated: 2026-08-05
 # huawei-auto-pal
 
 Personal AI work companion for Huawei employees. Two jobs, one pipeline:
-**diagnose, then act.**
+**diagnose, then act — automatically, in that order, without asking the user
+to choose a path.**
 
 ## How it works
 
 ```
 activity traces → retro-scope (diagnose) → skill-forge (act) → skills/memories
 ```
+
+When invoked, huawei-auto-pal runs the full pipeline end-to-end:
 
 1. **retro-scope** reconstructs where the user's time and effort went — which tasks
    consumed the most human time, which problems kept recurring across weeks, what
@@ -37,6 +40,12 @@ activity traces → retro-scope (diagnose) → skill-forge (act) → skills/memo
    new experience, and recommends market skills. Durable changes require explicit
    approval unless a previously approved per-target policy authorizes a bounded,
    reversible behavioral-rule update.
+
+**Do not present a menu of paths (retro-scope only, skill-forge only, README,
+etc.).** Run retro-scope, then skill-forge, automatically. The only approval
+points are the ones explicitly defined in the safety model (new skills, memory,
+credentials, structural edits). Optional sources are detected and reported, not
+gated behind a user choice.
 
 The pipeline is: **find the waste → eliminate the waste going forward.**
 
@@ -65,9 +74,10 @@ See `skill-forge/SKILL.md` for full details.
 
 ## First-run guide
 
-When a user invokes huawei-auto-pal for the first time, guide them through
-setup before running the pipeline. First, check whether this is truly a first
-run or a renamed installation:
+When a user invokes huawei-auto-pal for the first time, run these pre-flight
+checks **sequentially and automatically**, then proceed straight into the
+pipeline. Do not stop to ask which path to follow — the path is always
+retro-scope → skill-forge.
 
 0. **Check for legacy output.** The skill was renamed from `huawei-auto-buddy`.
    If prior state exists at the old `skills/huawei-auto-buddy/output/` path,
@@ -88,19 +98,20 @@ run or a renamed installation:
    Claude Code sessions, git, Chrome/Edge history, VS Code history, Windows
    Recent, Jump Lists. No credentials, no CLI tools, no `.env` needed.
 
-3. **For each missing optional source**, explain what it would add and point to
-   the relevant section in `README.md` for setup. Do not install or configure
-   anything without explicit user approval.
+3. **For each missing optional source**, note what it would add and point to
+   the relevant section in `README.md` for setup — then **continue**. Do not
+   install or configure anything without explicit user approval, and do not
+   block the pipeline waiting for the user to configure optional sources.
 
-4. **Offer to proceed with available sources.** The first retro-scope run is
-   useful even with only the default sources. Optional tools can be added
-   later — re-running `--check` after setup confirms they're detected.
+4. **Proceed automatically to retro-scope.** The first run is useful even with
+   only the default sources. Optional tools can be added later — re-running
+   `--check` after setup confirms they're detected.
 
-5. **For skill-forge** (the act phase), mention that `README.md` has a
-   step-by-step credential guide with screenshots for the CodeHub token.
-   CodeHub is the active code-review integration; GitHub is currently
-   disabled (see README.md §GITHUB_TOKEN). These are optional — skill-forge
-   can work from retro-scope findings alone.
+5. **Then proceed automatically to skill-forge.** If `README.md` has a
+   step-by-step credential guide with screenshots for the CodeHub token,
+   mention it in passing. CodeHub is the active code-review integration;
+   GitHub is currently disabled (see README.md §GITHUB_TOKEN). These are
+   optional — skill-forge works from retro-scope findings alone.
 
 6. **After skill-forge creates output**, gently offer to register new skills
    and memory into the user's installed agents. Run
