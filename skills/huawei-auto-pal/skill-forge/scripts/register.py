@@ -2,15 +2,21 @@
 """Registration helper — list unregistered output skills and install them.
 
 Usage:
-  python register.py --list              # show unregistered skills + detected agents
-  python register.py --install <name>    # install one skill (asks which agent)
-  python register.py --install-memory    # install personal-context memory
-  python register.py --archive           # zip output/ to Downloads (personal backup)
-  python register.py --dist              # zip whole skill for distribution to colleagues
-  python register.py --dry-run --install <name>  # preview without writing
+  python register.py --list                          # show skills, agents, problem summaries
+  python register.py --describe <name>               # show full bilingual PROPOSAL.md
+  python register.py --install <name> --agent <ids>  # install into specific agents
+  python register.py --install <name> --all-agents   # install into every detected agent
+  python register.py --install-memory --agent <ids>  # install personal-context memory
+  python register.py --archive                       # zip output/ to Downloads (personal backup)
+  python register.py --dist                          # zip whole skill for distribution to colleagues
+  python register.py --dry-run --install <name> --agent <id>  # preview without writing
+
+Agent IDs: claude_code, codeagent, opencode, codex, openclaw, hermes.
+Use --agent with a comma-separated list to choose which agents receive the
+skill. Without --agent or --all-agents, --install lists agents and exits.
 
 This is the concrete entry point that skill-forge step 8 calls at the end
-of a run to gently offer registration to the user.
+of a run to present proposals and install skills into the user's agents.
 """
 
 from __future__ import annotations
@@ -59,8 +65,95 @@ def _is_installed(skill_name: str, agent: AgentTarget) -> bool:
     return (Path(agent.skills_dir) / skill_name).exists()
 
 
+def _read_frontmatter_description(skill_dir: str) -> str | None:
+    """Read the `description` field from a skill's SKILL.md frontmatter.
+
+    Returns None if the file or field is missing. Uses a minimal parse so we
+    don't add a PyYAML dependency on this path (frontmatter is simple YAML).
+    """
+    skill_md = os.path.join(skill_dir, "SKILL.md")
+    if not os.path.isfile(skill_md):
+        return None
+    try:
+        with open(skill_md, "r", encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return None
+    if not text.startswith("---"):
+        return None
+    # Find the closing frontmatter delimiter.
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return None
+    fm = parts[1]
+    for line in fm.splitlines():
+        line = line.strip()
+        if line.startswith("description:"):
+            desc = line[len("description:"):].strip()
+            # Handle YAML folded scalars (>-, >-) — take the first line; the
+            # full description is multi-line and we only need a summary.
+            if desc in (">-", ">", "|", "|-"):
+                # Next non-empty line is the start of the description.
+                continue
+            if desc:
+                return desc
+    return None
+
+
+def _proposal_summary(skill_name: str) -> tuple[str, bool]:
+    """Return a one-line problem summary for a skill in output/.
+
+    Extracts the first non-empty non-heading line under '## Problem' from
+    PROPOSAL.md. Falls back to the frontmatter `description` if no PROPOSAL.md
+    exists. Returns (summary, has_proposal).
+    """
+    proposal_path = os.path.join(_OUTPUT_DIR, skill_name, "PROPOSAL.md")
+    if os.path.isfile(proposal_path):
+        try:
+            with open(proposal_path, "r", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        except OSError:
+            pass
+        else:
+            in_problem = False
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith("## "):
+                    in_problem = stripped.lower().startswith("## problem")
+                    continue
+                if in_problem and stripped and not stripped.startswith("#"):
+                    return stripped, True
+    # Fallback: frontmatter description.
+    skill_dir = os.path.join(_OUTPUT_DIR, skill_name)
+    desc = _read_frontmatter_description(skill_dir)
+    if desc:
+        return desc, False
+    return "(no description available)", False
+
+
+def _parse_agent_ids(value: str, agents: list[AgentTarget]) -> list[AgentTarget]:
+    """Parse a comma-separated --agent value into a list of AgentTargets.
+
+    Validates each ID against detected agents. Exits with an error listing
+    valid IDs if any ID is unknown or not detected on this machine.
+    """
+    valid = {a.agent_id: a for a in agents}
+    ids = [s.strip() for s in value.split(",") if s.strip()]
+    if not ids:
+        print("Error: --agent requires at least one agent ID.", file=sys.stderr)
+        print(f"  Detected agents: {', '.join(valid) or '(none)'}", file=sys.stderr)
+        sys.exit(1)
+    unknown = [i for i in ids if i not in valid]
+    if unknown:
+        print(f"Error: unknown or undetected agent ID(s): {', '.join(unknown)}",
+              file=sys.stderr)
+        print(f"  Detected agents: {', '.join(valid) or '(none)'}", file=sys.stderr)
+        sys.exit(1)
+    return [valid[i] for i in ids]
+
+
 def cmd_list(args, agents, output_skills):
-    """Print unregistered skills and detected agents."""
+    """Print unregistered skills, detected agents, and problem summaries."""
     print("# Skill registration status")
     print()
     if not output_skills:
@@ -69,14 +162,18 @@ def cmd_list(args, agents, output_skills):
     else:
         print("Skills in output/:")
         for name in output_skills:
-            source = os.path.join(_OUTPUT_DIR, name)
+            summary, has_proposal = _proposal_summary(name)
+            tag = "" if has_proposal else "  (from description)"
             print(f"  {name}")
+            print(f"    Problem: {summary}{tag}")
             installed_somewhere = False
             for agent in agents:
+                if agent.skills_dir is None:
+                    continue
                 if _is_installed(name, agent):
-                    print(f"    ✓ {agent.display_name}")
+                    print(f"    ✓ {agent.display_name} — installed")
                     installed_somewhere = True
-                elif agent.skills_dir is not None:
+                else:
                     print(f"    ✗ {agent.display_name} — not installed")
             if not installed_somewhere:
                 print(f"    (not registered in any agent)")
@@ -85,6 +182,9 @@ def cmd_list(args, agents, output_skills):
     pc_path = os.path.join(_OUTPUT_DIR, "personal-context", "SKILL.md")
     if os.path.isfile(pc_path):
         print("Personal context (memory, not a skill):")
+        summary, has_proposal = _proposal_summary("personal-context")
+        tag = "" if has_proposal else "  (from description)"
+        print(f"  Summary: {summary}{tag}")
         for agent in agents:
             if agent.memory_format != "none":
                 print(f"  {agent.display_name}: {agent.memory_format}")
@@ -93,25 +193,83 @@ def cmd_list(args, agents, output_skills):
     print(format_agents_report(agents))
     print()
     if output_skills:
-        print("To register: python register.py --install <skill-name>")
+        print("To see full proposal:    python register.py --describe <skill-name>")
+        print("To install into an agent: python register.py --install <name> --agent <agent-id>")
+        print("  (agent IDs: %s)" % ", ".join(a.agent_id for a in agents if a.skills_dir is not None))
+        print("  use --all-agents to install into every detected agent")
     if os.path.isfile(pc_path):
-        print("To install memory: python register.py --install-memory")
+        print("To install memory:        python register.py --install-memory --agent <agent-id>")
+
+
+def cmd_describe(args, agents, output_skills):
+    """Print the full bilingual PROPOSAL.md for a skill or memory.
+
+    Falls back to the frontmatter description if no PROPOSAL.md exists.
+    """
+    name = args.describe
+    # Accept 'personal-context' for memory, or any skill name.
+    proposal_path = os.path.join(_OUTPUT_DIR, name, "PROPOSAL.md")
+    skill_md = os.path.join(_OUTPUT_DIR, name, "SKILL.md")
+
+    if not os.path.isfile(skill_md) and name != "personal-context":
+        print(f"Error: '{name}' not found in output/", file=sys.stderr)
+        sys.exit(1)
+
+    if os.path.isfile(proposal_path):
+        with open(proposal_path, "r", encoding="utf-8") as f:
+            print(f.read(), end="")
+    else:
+        # Fallback: frontmatter description.
+        desc = _read_frontmatter_description(os.path.join(_OUTPUT_DIR, name))
+        if desc:
+            print(f"# {name}")
+            print()
+            print("(No detailed PROPOSAL.md available. Showing frontmatter description.)")
+            print()
+            print(f"Description: {desc}")
+        else:
+            print(f"# {name}")
+            print()
+            print("(No PROPOSAL.md or description available for this skill.)")
 
 
 def cmd_install(args, agents, output_skills):
-    """Install one skill into detected agents."""
+    """Install one skill into selected agents.
+
+    Agent selection:
+    - --agent codeagent,claude_code : install into those specific agents
+    - --all-agents                   : install into every detected agent with a skills dir
+    - neither                        : list agents and exit without installing
+    """
     name = args.install
     source = os.path.join(_OUTPUT_DIR, name)
     if not os.path.isdir(source) or not os.path.isfile(os.path.join(source, "SKILL.md")):
         print(f"Error: skill '{name}' not found in output/", file=sys.stderr)
         sys.exit(1)
 
+    # Resolve which agents to install into.
+    skill_agents = [a for a in agents if a.skills_dir is not None]
     if args.all_agents:
-        targets = [a for a in agents if a.skills_dir is not None]
+        targets = skill_agents
+    elif args.agent:
+        targets = _parse_agent_ids(args.agent, agents)
+        # Filter to those that support skills.
+        no_skill = [a.display_name for a in targets if a.skills_dir is None]
+        if no_skill:
+            print(f"Warning: {', '.join(no_skill)} do not support skill directories, skipping",
+                  file=sys.stderr)
+        targets = [a for a in targets if a.skills_dir is not None]
     else:
-        # Let user pick interactively — but since this is called by an agent,
-        # just list and install into all that support skills.
-        targets = [a for a in agents if a.skills_dir is not None]
+        # No selection made — list available agents and exit.
+        print(f"Skill '{name}' is ready to install. Select an agent:")
+        print()
+        for a in skill_agents:
+            status = "✓ installed" if _is_installed(name, a) else "✗ not installed"
+            print(f"  {a.agent_id:15s}  {a.display_name}  ({status})")
+        print()
+        print("Run: python register.py --install %s --agent <agent-id>" % name)
+        print("  (comma-separate multiple IDs, or use --all-agents)")
+        return
 
     if not targets:
         print("No agents with skill directories detected.", file=sys.stderr)
@@ -134,13 +292,40 @@ def cmd_install(args, agents, output_skills):
 
 
 def cmd_install_memory(args, agents, output_skills):
-    """Install personal-context memory into detected agents."""
+    """Install personal-context memory into selected agents.
+
+    Agent selection works the same as --install:
+    - --agent codeagent,claude_code : install into those specific agents
+    - --all-agents                   : install into every detected agent with memory support
+    - neither                        : list agents and exit without installing
+    """
     pc_path = os.path.join(_OUTPUT_DIR, "personal-context", "SKILL.md")
     if not os.path.isfile(pc_path):
         print("Error: personal-context/SKILL.md not found in output/", file=sys.stderr)
         sys.exit(1)
 
-    targets = [a for a in agents if a.memory_format != "none"]
+    memory_agents = [a for a in agents if a.memory_format != "none"]
+    if args.all_agents:
+        targets = memory_agents
+    elif args.agent:
+        targets = _parse_agent_ids(args.agent, agents)
+        # Filter to those that support memory.
+        no_mem = [a.display_name for a in targets if a.memory_format == "none"]
+        if no_mem:
+            print(f"Warning: {', '.join(no_mem)} do not support memory installation, skipping",
+                  file=sys.stderr)
+        targets = [a for a in targets if a.memory_format != "none"]
+    else:
+        # No selection made — list available agents and exit.
+        print("Personal-context memory is ready to install. Select an agent:")
+        print()
+        for a in memory_agents:
+            print(f"  {a.agent_id:15s}  {a.display_name}  ({a.memory_format})")
+        print()
+        print("Run: python register.py --install-memory --agent <agent-id>")
+        print("  (comma-separate multiple IDs, or use --all-agents)")
+        return
+
     if not targets:
         print("No agents with supported memory mechanisms detected.", file=sys.stderr)
         sys.exit(1)
@@ -278,11 +463,15 @@ def main():
         description="Register output skills and memory into installed agents."
     )
     ap.add_argument("--list", action="store_true",
-                    help="list unregistered skills and detected agents")
+                    help="list unregistered skills, detected agents, and problem summaries")
+    ap.add_argument("--describe", metavar="NAME",
+                    help="print the full bilingual PROPOSAL.md for a skill or memory")
     ap.add_argument("--install", metavar="NAME",
-                    help="install a skill from output/ into detected agents")
+                    help="install a skill from output/ into selected agents (use --agent)")
     ap.add_argument("--install-memory", action="store_true",
-                    help="install personal-context memory into detected agents")
+                    help="install personal-context memory into selected agents (use --agent)")
+    ap.add_argument("--agent", metavar="IDS",
+                    help="comma-separated agent IDs to install into (e.g. codeagent,claude_code)")
     ap.add_argument("--archive", action="store_true",
                     help="zip output/ and save to the user's Downloads folder")
     ap.add_argument("--dist", action="store_true",
@@ -290,14 +479,15 @@ def main():
     ap.add_argument("--dry-run", action="store_true",
                     help="preview without writing anything")
     ap.add_argument("--all-agents", action="store_true",
-                    help="install into all detected agents (default)")
+                    help="install into all detected agents")
     args = ap.parse_args()
 
-    # --archive, --dist, --install, --install-memory are mutually exclusive
-    # packaging/action modes. Passing more than one silently shadows the others.
-    mode_count = sum(1 for m in (args.archive, args.dist, bool(args.install), args.install_memory) if m)
+    # --archive, --dist, --install, --install-memory, --describe are mutually
+    # exclusive action modes. Passing more than one silently shadows the others.
+    mode_count = sum(1 for m in (args.archive, args.dist, bool(args.install),
+                                  args.install_memory, bool(args.describe)) if m)
     if mode_count > 1:
-        print("Error: --archive, --dist, --install, and --install-memory are mutually exclusive.",
+        print("Error: --archive, --dist, --install, --install-memory, and --describe are mutually exclusive.",
               file=sys.stderr)
         sys.exit(1)
 
@@ -308,12 +498,14 @@ def main():
         cmd_archive(args, agents, output_skills)
     elif args.dist:
         cmd_dist(args, agents, output_skills)
-    elif args.list or (not args.install and not args.install_memory):
-        cmd_list(args, agents, output_skills)
+    elif args.describe:
+        cmd_describe(args, agents, output_skills)
     elif args.install:
         cmd_install(args, agents, output_skills)
     elif args.install_memory:
         cmd_install_memory(args, agents, output_skills)
+    else:
+        cmd_list(args, agents, output_skills)
 
 
 if __name__ == "__main__":

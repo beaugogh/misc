@@ -133,6 +133,19 @@ class TestInstallSkill(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertEqual(result.action, "error")
 
+    def test_proposal_md_excluded(self):
+        """PROPOSAL.md is proposal metadata, not part of the installed skill."""
+        (self.source / "PROPOSAL.md").write_text(
+            "# Proposal: test-skill\n\n## Problem\n\nSomething\n",
+            encoding="utf-8",
+        )
+        result = install_skill(str(self.source), self.agent)
+        self.assertTrue(result.success)
+        # SKILL.md must be copied.
+        self.assertTrue((self.skills_dir / "test-skill" / "SKILL.md").is_file())
+        # PROPOSAL.md must NOT be copied into the agent's skills dir.
+        self.assertFalse((self.skills_dir / "test-skill" / "PROPOSAL.md").is_file())
+
 
 class TestParsePersonalContext(unittest.TestCase):
     """Test parsing of personal-context/SKILL.md into memory facts."""

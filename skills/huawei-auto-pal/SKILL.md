@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.0.3
+version: 1.0.4
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -48,8 +48,10 @@ credentials, structural edits). Optional sources are detected and reported, not
 gated behind a user choice.
 
 **Do not present a menu of end-of-run options either (archive, distribute,
-register, etc.).** After skill-forge finishes, register new skills (Tier 3
-approval) and then archive automatically — run `register.py --archive` without
+register, etc.).** After skill-forge finishes, present the bilingual proposals
+(problem, evidence, why proposed, benefit) for each new skill or memory, ask
+which to install into which agents (Tier 3 — explicit approval per skill per
+agent), then archive automatically — run `register.py --archive` without
 asking. Distribution (`--dist`) is manual and on-demand only, never offered as
 an end-of-run choice.
 
@@ -119,11 +121,16 @@ retro-scope → skill-forge.
    GitHub is currently disabled (see README.md §GITHUB_TOKEN). These are
    optional — skill-forge works from retro-scope findings alone.
 
-6. **After skill-forge creates output**, register new skills and memory into
-   the user's installed agents (Tier 3 — explicit approval per skill). Run
-   `python skill-forge/scripts/register.py --list` to show what's available,
-   then ask which to install as a focused approval question. See
-   skill-forge/SKILL.md §8.
+6. **After skill-forge creates output**, present proposals to the user and ask
+   which to install into which agents. Run
+   `python skill-forge/scripts/register.py --list` to show available skills and
+   memory with one-line problem summaries. For each new item, run
+   `python skill-forge/scripts/register.py --describe <name>` and present the
+   full bilingual proposal (problem, evidence, why proposed, benefit of local
+   installation) so the user can make an informed decision. Then ask which
+   skills/memory to install and into which agents (CodeAgent? Claude Code? etc.),
+   and run `register.py --install <name> --agent <agent-id>` for each approval.
+   See skill-forge/SKILL.md §8.
 
 7. **Archive automatically.** At the end of the pipeline, run
    `python skill-forge/scripts/register.py --archive` without asking — it

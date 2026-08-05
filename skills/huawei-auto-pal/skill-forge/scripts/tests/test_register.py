@@ -16,6 +16,7 @@ SCRIPTS = os.path.dirname(HERE)
 sys.path.insert(0, SCRIPTS)
 
 import register
+from agent_targets import AgentTarget
 
 
 class TestFindOutputSkills(unittest.TestCase):
@@ -441,6 +442,306 @@ class TestMutualExclusivity(unittest.TestCase):
         # the "mutually exclusive" message.
         code, out, err = self._run_main("--dist", "--dry-run")
         self.assertNotIn("mutually exclusive", err)
+
+
+class TestProposalSummary(unittest.TestCase):
+    """Test _proposal_summary extracts problem summary from PROPOSAL.md."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="prop_sum_")
+        self._patch = patch.object(register, "_OUTPUT_DIR", self._tmp)
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _make_skill(self, name, with_proposal=True, problem_line="Something broke."):
+        d = Path(self._tmp, name)
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "---\nname: %s\ndescription: A fallback description.\n---\n# %s\n" % (name, name),
+            encoding="utf-8",
+        )
+        if with_proposal:
+            (d / "PROPOSAL.md").write_text(
+                "# Proposal: %s\n\n## Problem\n\n%s\n\n## Evidence\n\nData\n" % (name, problem_line),
+                encoding="utf-8",
+            )
+
+    def test_extracts_problem_from_proposal(self):
+        self._make_skill("my-skill", problem_line="npm hangs forever on large packages.")
+        summary, has_proposal = register._proposal_summary("my-skill")
+        self.assertTrue(has_proposal)
+        self.assertIn("npm hangs", summary)
+
+    def test_falls_back_to_description_without_proposal(self):
+        self._make_skill("legacy-skill", with_proposal=False)
+        summary, has_proposal = register._proposal_summary("legacy-skill")
+        self.assertFalse(has_proposal)
+        self.assertIn("fallback description", summary)
+
+    def test_returns_default_when_nothing_available(self):
+        summary, has_proposal = register._proposal_summary("nonexistent")
+        self.assertFalse(has_proposal)
+        self.assertIn("no description", summary)
+
+
+class TestCmdDescribe(unittest.TestCase):
+    """Test the --describe command."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="desc_")
+        self._patch = patch.object(register, "_OUTPUT_DIR", self._tmp)
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _make_skill(self, name, with_proposal=True, proposal_body="Full proposal text."):
+        d = Path(self._tmp, name)
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "---\nname: %s\ndescription: Desc fallback.\n---\n# %s\n" % (name, name),
+            encoding="utf-8",
+        )
+        if with_proposal:
+            (d / "PROPOSAL.md").write_text(proposal_body, encoding="utf-8")
+
+    def _run_describe(self, name):
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        args = type("A", (), {"describe": name})()
+        with redirect_stdout(buf):
+            register.cmd_describe(args, [], [])
+        return buf.getvalue()
+
+    def test_prints_full_proposal(self):
+        self._make_skill("my-skill", proposal_body="# Proposal: my-skill\n\nBilingual text here.")
+        out = self._run_describe("my-skill")
+        self.assertIn("Bilingual text here.", out)
+
+    def test_falls_back_to_description(self):
+        self._make_skill("legacy", with_proposal=False)
+        out = self._run_describe("legacy")
+        self.assertIn("Desc fallback.", out)
+        self.assertIn("No detailed PROPOSAL.md", out)
+
+    def test_missing_skill_exits(self):
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        buf_err = io.StringIO()
+        args = type("A", (), {"describe": "nonexistent"})()
+        with self.assertRaises(SystemExit):
+            with redirect_stderr(buf_err):
+                register.cmd_describe(args, [], [])
+
+
+class TestListWithProposal(unittest.TestCase):
+    """Test that --list output includes problem summaries."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="list_prop_")
+        self._patch_output = patch.object(register, "_OUTPUT_DIR", self._tmp)
+        self._patch_output.start()
+        self._patch_agents = patch.object(register, "discover_agents", return_value=[])
+        self._patch_agents.start()
+
+    def tearDown(self):
+        self._patch_output.stop()
+        self._patch_agents.stop()
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_list_shows_proposal_summary(self):
+        d = Path(self._tmp, "my-skill")
+        d.mkdir()
+        (d / "SKILL.md").write_text("---\nname: my-skill\n---\n", encoding="utf-8")
+        (d / "PROPOSAL.md").write_text(
+            "# Proposal\n\n## Problem\n\nnpm hangs forever.\n", encoding="utf-8",
+        )
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            register.cmd_list(None, [], ["my-skill"])
+        out = buf.getvalue()
+        self.assertIn("npm hangs", out)
+        self.assertIn("Problem:", out)
+
+    def test_list_shows_description_fallback(self):
+        d = Path(self._tmp, "legacy")
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "---\nname: legacy\ndescription: A legacy skill desc.\n---\n", encoding="utf-8",
+        )
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            register.cmd_list(None, [], ["legacy"])
+        out = buf.getvalue()
+        self.assertIn("legacy skill desc", out)
+        self.assertIn("from description", out)
+
+
+class TestInstallWithAgentFlag(unittest.TestCase):
+    """Test --install --agent selects specific agents."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="install_agent_")
+        self._patch_output = patch.object(register, "_OUTPUT_DIR", self._tmp)
+        self._patch_output.start()
+        # Create a fake skill to install.
+        d = Path(self._tmp, "test-skill")
+        d.mkdir()
+        (d / "SKILL.md").write_text("---\nname: test-skill\n---\n# test\n", encoding="utf-8")
+        # Fake agents: claude_code and codeagent, both with skills dirs.
+        self.claude_skills = Path(self._tmp, "claude", "skills")
+        self.claude_skills.mkdir(parents=True)
+        self.cac_skills = Path(self._tmp, "cac", "skills")
+        self.cac_skills.mkdir(parents=True)
+        self.agents = [
+            AgentTarget(agent_id="claude_code", display_name="Claude Code",
+                        skills_dir=str(self.claude_skills), memory_dir=None,
+                        memory_format="none", detect_path=""),
+            AgentTarget(agent_id="codeagent", display_name="CodeAgent",
+                        skills_dir=str(self.cac_skills), memory_dir=None,
+                        memory_format="none", detect_path=""),
+        ]
+        self._patch_agents = patch.object(register, "discover_agents", return_value=self.agents)
+        self._patch_agents.start()
+
+    def tearDown(self):
+        self._patch_output.stop()
+        self._patch_agents.stop()
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _run_install(self, *extra_args):
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        old_argv = sys.argv
+        sys.argv = ["register.py", "--install", "test-skill"] + list(extra_args)
+        buf_out, buf_err = io.StringIO(), io.StringIO()
+        try:
+            with redirect_stdout(buf_out), redirect_stderr(buf_err):
+                register.main()
+        except SystemExit as e:
+            sys.argv = old_argv
+            return e.code, buf_out.getvalue(), buf_err.getvalue()
+        sys.argv = old_argv
+        return 0, buf_out.getvalue(), buf_err.getvalue()
+
+    def test_installs_into_selected_agent_only(self):
+        code, out, err = self._run_install("--agent", "codeagent")
+        self.assertEqual(code, 0)
+        # Installed into CodeAgent.
+        self.assertTrue((self.cac_skills / "test-skill" / "SKILL.md").is_file())
+        # NOT installed into Claude Code.
+        self.assertFalse((self.claude_skills / "test-skill").exists())
+
+    def test_installs_into_multiple_agents(self):
+        code, out, err = self._run_install("--agent", "codeagent,claude_code")
+        self.assertEqual(code, 0)
+        self.assertTrue((self.cac_skills / "test-skill" / "SKILL.md").is_file())
+        self.assertTrue((self.claude_skills / "test-skill" / "SKILL.md").is_file())
+
+    def test_unknown_agent_id_errors(self):
+        code, out, err = self._run_install("--agent", "nonexistent")
+        self.assertNotEqual(code, 0)
+        self.assertIn("unknown or undetected", err)
+
+    def test_no_agent_flag_lists_and_exits(self):
+        code, out, err = self._run_install()
+        self.assertEqual(code, 0)
+        self.assertIn("Select an agent", out)
+        # Nothing installed.
+        self.assertFalse((self.cac_skills / "test-skill").exists())
+        self.assertFalse((self.claude_skills / "test-skill").exists())
+
+
+class TestInstallMemoryWithAgentFlag(unittest.TestCase):
+    """Test --install-memory --agent selects specific agents."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="install_mem_agent_")
+        self._patch_output = patch.object(register, "_OUTPUT_DIR", self._tmp)
+        self._patch_output.start()
+        # Create personal-context memory.
+        pc = Path(self._tmp, "personal-context")
+        pc.mkdir()
+        (pc / "SKILL.md").write_text("---\nname: personal-context\n---\n# Personal Context\n",
+                                     encoding="utf-8")
+        # Fake agents.
+        self.claude_mem = Path(self._tmp, "claude", "projects", "slug", "memory")
+        self.claude_mem.mkdir(parents=True)
+        self.cac_mem = Path(self._tmp, "cac", "projects", "slug", "memory")
+        self.cac_mem.mkdir(parents=True)
+        self.agents = [
+            AgentTarget(agent_id="claude_code", display_name="Claude Code",
+                        skills_dir=None, memory_dir=str(self.claude_mem),
+                        memory_format="claude_memory", detect_path=""),
+            AgentTarget(agent_id="codeagent", display_name="CodeAgent",
+                        skills_dir=None, memory_dir=str(self.cac_mem),
+                        memory_format="claude_memory", detect_path=""),
+        ]
+        self._patch_agents = patch.object(register, "discover_agents", return_value=self.agents)
+        self._patch_agents.start()
+
+    def tearDown(self):
+        self._patch_output.stop()
+        self._patch_agents.stop()
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _run_install_memory(self, *extra_args):
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        old_argv = sys.argv
+        sys.argv = ["register.py", "--install-memory"] + list(extra_args)
+        buf_out, buf_err = io.StringIO(), io.StringIO()
+        try:
+            with redirect_stdout(buf_out), redirect_stderr(buf_err):
+                register.main()
+        except SystemExit as e:
+            sys.argv = old_argv
+            return e.code, buf_out.getvalue(), buf_err.getvalue()
+        sys.argv = old_argv
+        return 0, buf_out.getvalue(), buf_err.getvalue()
+
+    def test_installs_memory_into_selected_agent(self):
+        code, out, err = self._run_install_memory("--agent", "codeagent")
+        self.assertEqual(code, 0)
+        self.assertIn("CodeAgent", out)
+
+    def test_no_agent_flag_lists_and_exits(self):
+        code, out, err = self._run_install_memory()
+        self.assertEqual(code, 0)
+        self.assertIn("Select an agent", out)
+
+
+class TestMutualExclusivityWithDescribe(unittest.TestCase):
+    """Test --describe participates in mutual exclusivity."""
+
+    def _run_main(self, *cli_args):
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        old_argv = sys.argv
+        sys.argv = ["register.py"] + list(cli_args)
+        buf_out, buf_err = io.StringIO(), io.StringIO()
+        try:
+            with redirect_stdout(buf_out), redirect_stderr(buf_err):
+                register.main()
+        except SystemExit as e:
+            sys.argv = old_argv
+            return e.code, buf_out.getvalue(), buf_err.getvalue()
+        sys.argv = old_argv
+        return 0, buf_out.getvalue(), buf_err.getvalue()
+
+    def test_describe_and_install_rejected(self):
+        code, out, err = self._run_main("--describe", "x", "--install", "y")
+        self.assertNotEqual(code, 0)
+        self.assertIn("mutually exclusive", err)
 
 
 if __name__ == "__main__":

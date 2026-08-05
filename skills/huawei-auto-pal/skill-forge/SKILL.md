@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.0.3
+version: 1.0.4
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -317,6 +317,42 @@ single staging area: `--archive` zips it, `--list` discovers from it, and `--ins
 copies from it into agent directories. Writing a skill anywhere other than `output/`
 makes it invisible to archiving, registration, and future runs.
 
+Alongside `SKILL.md`, create a `PROPOSAL.md` in `output/<skill-name>/`. This is a
+bilingual (English + Chinese) brief that explains to the user why the skill is
+worth installing. Structure each section as English first, then Chinese:
+
+```markdown
+# Proposal: <skill-name> / 提案：<skill-name>
+
+## Problem / 问题
+
+<English: the recurring friction or problem found>
+<Chinese: 相同内容>
+
+## Evidence / 证据
+
+<English: which sessions, how much time lost, recurrence count, error fingerprints>
+<Chinese: 相同内容>
+
+## Why This Skill Is Proposed / 为什么提出这个技能
+
+<English: the intervention logic — what the skill does, why it's the right shape>
+<Chinese: 相同内容>
+
+## Benefit of Local Installation / 本地安装的收益
+
+<English: what the user gains by installing it in their agent — time saved,
+automatic triggering, no need to remember the fix manually>
+<Chinese: 相同内容>
+```
+
+Be specific, clear, logical, and detailed where necessary — cite session counts, time
+lost, recurrence. The user reads this to decide whether to install the skill, so the
+reasoning must be coherent and comprehensive. This file is proposal metadata: it is
+read by `register.py --describe` but is **NOT** installed into agents (the installer
+excludes it). For memory, create the same file at
+`output/personal-context/PROPOSAL.md`.
+
 For a new or revised skill, follow skill-creator when available:
 
 1. Define realistic trigger and non-trigger examples.
@@ -343,6 +379,14 @@ rollback behavior.
 
 ### 7. Apply under the correct authority
 
+**Writing a NEW skill or memory to `output/` is staging, not a durable agent
+change — it requires no approval.** The skill-forge pipeline writes proposals to
+`output/` automatically and archives them (step 9) without asking. The authority
+tiers below apply to: (a) edits to EXISTING skills in `output/`, and (b)
+installation from `output/` into an agent's native directories. Creating a NEW
+skill or memory in `output/` is always permitted — it is personal, gitignored,
+and reversible.
+
 Show the user:
 
 1. the validated problem and evidence;
@@ -362,54 +406,86 @@ discovery. Apply only the authorized diff, rerun validation, and report the fina
 
 ### 8. Register into the user's agents
 
-After skills and memory have been created or updated in `output/`, register
-them into the user's installed agents. This is a pipeline step, not an
-end-of-run menu option — do not present it as one of several choices
-(archive, distribute, register, etc.). If there is nothing new to register,
-skip this step and go straight to step 9.
+After skills and memory have been created or updated in `output/`, present
+them to the user with full bilingual reasoning and ask which to install into
+which agents. This is a pipeline step, not an end-of-run menu option. If there
+is nothing new to register, skip this step and go straight to step 9.
 
-Run `--list` to show what's available:
+**Skill installation is always Tier 3** — explicit approval required per skill
+per agent. The user must be consulted before anything is installed natively
+into their agents. Run the three-phase flow below.
+
+#### Phase 1 — Show what's available
 
 ```bash
 python skill-forge/scripts/register.py --list
 ```
 
-This shows every skill in `output/`, whether it's already installed in each
-detected agent, and the available memory targets. **Skill registration is
-always Tier 3** — explicit approval required per skill per agent — so show
-the list and ask which to install as a focused approval question, not a
-menu of end-of-run paths. Then run:
+This shows every skill in `output/` with a one-line problem summary, whether
+it's already installed in each detected agent, and the available memory
+targets.
+
+#### Phase 2 — Present proposals
+
+For each skill or memory not yet installed, present the full bilingual
+proposal to the user. Run:
 
 ```bash
-python skill-forge/scripts/register.py --install <skill-name>     # one skill
-python skill-forge/scripts/register.py --install-memory            # personal context
-python skill-forge/scripts/register.py --dry-run --install <name>  # preview first
+python skill-forge/scripts/register.py --describe <skill-name>
 ```
 
-**Skill registration is always Tier 3** — explicit approval required per skill
-per agent. The `register.py` script handles discovery, conflict detection,
-copying, and validation. It reports exactly what was installed and where.
+This prints the `PROPOSAL.md` created in step 6 — the problem, the evidence,
+why the skill is proposed, and the benefit of installing it locally in the
+user's agents. The reasoning must be in both Chinese and English, well
+structured, clear, logical, coherent, easy to understand, comprehensive and
+detailed where necessary. The user reads this to decide whether the skill is
+worth installing. Present each proposal in full before asking.
+
+#### Phase 3 — Ask and install
+
+Ask the user: "Which of these would you like to install, and into which
+agents?" Present the detected agents by name (Claude Code, CodeAgent, etc.).
+The user may choose to install into one agent, several, or none. Then run:
+
+```bash
+# Install a skill into specific agents:
+python skill-forge/scripts/register.py --install <skill-name> --agent codeagent
+python skill-forge/scripts/register.py --install <skill-name> --agent codeagent,claude_code
+python skill-forge/scripts/register.py --install <skill-name> --all-agents
+
+# Install personal-context memory into specific agents:
+python skill-forge/scripts/register.py --install-memory --agent codeagent
+
+# Preview first:
+python skill-forge/scripts/register.py --dry-run --install <name> --agent <id>
+```
+
+Agent IDs: `claude_code`, `codeagent`, `opencode`, `codex`, `openclaw`,
+`hermes`. Without `--agent` or `--all-agents`, `--install` lists available
+agents and exits — it never installs into everything by default.
+
+The `register.py` script handles discovery, conflict detection, copying, and
+validation. It reports exactly what was installed and where.
 
 Supported agents and their targets:
 
-| Agent | Skills dir | Memory mechanism |
-|---|---|---|
-| Claude Code | `~/.claude/skills/` | `~/.claude/projects/<slug>/memory/` (MEMORY.md + per-fact .md) |
-| CodeAgent | `~/.cac/skills/` | `~/.cac/projects/<slug>/memory/` (same as Claude Code) |
-| OpenCode | `~/.config/opencode/skills/` | none (modern OpenCode uses MCP/LSP, not static memory) |
-| Codex | `~/.codex/skills/` | `AGENTS.md` in project root (emerging standard) |
-| OpenClaw | `~/.openclaw/workspace/skills/` or `~/.openclaw/skills/` | `~/.openclaw/workspace/USER.md` |
-| Hermes | `~/.hermes/skills/` | native persistent memory (exact file layout unconfirmed) |
+| Agent | ID | Skills dir | Memory mechanism |
+|---|---|---|---|
+| Claude Code | `claude_code` | `~/.claude/skills/` | `~/.claude/projects/<slug>/memory/` (MEMORY.md + per-fact .md) |
+| CodeAgent | `codeagent` | `~/.cac/skills/` | `~/.cac/projects/<slug>/memory/` (same as Claude Code) |
+| OpenCode | `opencode` | `~/.config/opencode/skills/` | none (modern OpenCode uses MCP/LSP, not static memory) |
+| Codex | `codex` | `~/.codex/skills/` | `AGENTS.md` in project root (emerging standard) |
+| OpenClaw | `openclaw` | `~/.openclaw/workspace/skills/` or `~/.openclaw/skills/` | `~/.openclaw/workspace/USER.md` |
+| Hermes | `hermes` | `~/.hermes/skills/` | native persistent memory (exact file layout unconfirmed) |
 
 For **personal-context memory** (not a skill — it holds declarative facts):
-`register.py --install-memory` routes facts to the agent's memory system
-automatically. Claude Code/CodeAgent get per-fact `.md` files + `MEMORY.md`
-index. Codex gets a `## Personal Context` section in `AGENTS.md`. OpenClaw
-gets a `USER.md` file. Hermes and OpenCode are reported as unsupported for
-memory until their layouts are confirmed.
+`register.py --install-memory --agent <id>` routes facts to the agent's memory
+system. Claude Code/CodeAgent get per-fact `.md` files + `MEMORY.md` index.
+Codex gets a `## Personal Context` section in `AGENTS.md`. OpenClaw gets a
+`USER.md` file. Hermes and OpenCode are reported as unsupported for memory
+until their layouts are confirmed.
 
-Use `dry_run=True` to preview what would be installed without writing. Always
-show the user the target paths and fact list before asking for approval.
+Always show the user the target paths and fact list before asking for approval.
 
 ### 9. Archive output to Downloads
 
