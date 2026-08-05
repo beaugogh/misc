@@ -89,10 +89,13 @@ def install_skill(
     # Copy the skill folder. We copy SKILL.md + scripts/ + references/ + assets/
     # (same structure quick_validate checks). Exclude PROPOSAL.md (bilingual
     # proposal metadata for the user's review — not part of the installed skill),
-    # __pycache__, and bytecode files.
+    # __pycache__, and bytecode files. symlinks=True copies symlinks as-is
+    # rather than following them — a symlink in output/<skill>/ pointing to
+    # ~/.ssh/id_rsa or .env must not leak into the agent's skills dir.
     copied: list[str] = []
     try:
         shutil.copytree(source, target,
+                        symlinks=True,
                         ignore=shutil.ignore_patterns("PROPOSAL.md", "__pycache__", "*.pyc", "*.pyo"))
         # Verify the copy.
         if not (target / "SKILL.md").is_file():

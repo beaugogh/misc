@@ -65,11 +65,30 @@ def _is_installed(skill_name: str, agent: AgentTarget) -> bool:
     return (Path(agent.skills_dir) / skill_name).exists()
 
 
+def _safe_output_subpath(name: str) -> str:
+    """Resolve name as a subdirectory of output/, rejecting path traversal.
+
+    The name comes from CLI args (--describe, --install) which may carry
+    untrusted text from AI-session traces. Ensure the resolved path stays
+    inside output/ so '../' cannot escape to read or copy arbitrary files.
+    """
+    base = os.path.normpath(_OUTPUT_DIR)
+    resolved = os.path.normpath(os.path.join(base, name))
+    if not (resolved == base or resolved.startswith(base + os.sep)):
+        print(f"Error: '{name}' resolves outside output/ — path traversal blocked.",
+              file=sys.stderr)
+        sys.exit(1)
+    return resolved
+
+
 def _read_frontmatter_description(skill_dir: str) -> str | None:
     """Read the `description` field from a skill's SKILL.md frontmatter.
 
-    Returns None if the file or field is missing. Uses a minimal parse so we
-    don't add a PyYAML dependency on this path (frontmatter is simple YAML).
+    Tries PyYAML first (handles folded scalars >-, >, block scalars |, quoted
+    values, multi-line). Falls back to a line-scrape for frontmatter that is
+    not strictly valid YAML — skill authors often write plain-text
+    descriptions containing unquoted colons, which PyYAML rejects but a
+    line-scrape handles. Returns None if the file or field is missing.
     """
     skill_md = os.path.join(skill_dir, "SKILL.md")
     if not os.path.isfile(skill_md):
@@ -81,19 +100,40 @@ def _read_frontmatter_description(skill_dir: str) -> str | None:
         return None
     if not text.startswith("---"):
         return None
-    # Find the closing frontmatter delimiter.
-    parts = text.split("---", 2)
-    if len(parts) < 3:
+    # Split on lines that are exactly "---" to avoid matching the substring
+    # inside frontmatter values (e.g. description: "a---b").
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
         return None
-    fm = parts[1]
-    for line in fm.splitlines():
-        line = line.strip()
-        if line.startswith("description:"):
-            desc = line[len("description:"):].strip()
-            # Handle YAML folded scalars (>-, >-) — take the first line; the
-            # full description is multi-line and we only need a summary.
+    fm_lines = []
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        fm_lines.append(line)
+    fm_text = "\n".join(fm_lines)
+
+    # Try strict YAML first (handles folded/block scalars, quoted values).
+    import yaml
+    try:
+        fm = yaml.safe_load(fm_text)
+        if isinstance(fm, dict):
+            desc = fm.get("description")
+            if isinstance(desc, str) and desc.strip():
+                return desc.strip()
+    except yaml.YAMLError:
+        pass  # Fall through to line-scrape for loose plain-text values.
+
+    # Fallback: line-scrape the description value. This handles plain-text
+    # descriptions with unquoted colons (common in skill frontmatter).
+    in_folded = False
+    for i, line in enumerate(fm_lines):
+        stripped = line.strip()
+        if in_folded and stripped:
+            return stripped
+        if stripped.startswith("description:"):
+            desc = stripped[len("description:"):].strip()
             if desc in (">-", ">", "|", "|-"):
-                # Next non-empty line is the start of the description.
+                in_folded = True
                 continue
             if desc:
                 return desc
@@ -108,6 +148,8 @@ def _proposal_summary(skill_name: str) -> tuple[str, bool]:
     exists. Returns (summary, has_proposal).
     """
     proposal_path = os.path.join(_OUTPUT_DIR, skill_name, "PROPOSAL.md")
+    # _safe_output_subpath is not called here because skill_name flows from
+    # _find_output_skills (trusted directory listing), not CLI input.
     if os.path.isfile(proposal_path):
         try:
             with open(proposal_path, "r", encoding="utf-8") as f:
@@ -138,7 +180,7 @@ def _parse_agent_ids(value: str, agents: list[AgentTarget]) -> list[AgentTarget]
     valid IDs if any ID is unknown or not detected on this machine.
     """
     valid = {a.agent_id: a for a in agents}
-    ids = [s.strip() for s in value.split(",") if s.strip()]
+    ids = list(dict.fromkeys(s.strip() for s in value.split(",") if s.strip()))
     if not ids:
         print("Error: --agent requires at least one agent ID.", file=sys.stderr)
         print(f"  Detected agents: {', '.join(valid) or '(none)'}", file=sys.stderr)
@@ -208,9 +250,12 @@ def cmd_describe(args, agents, output_skills):
     """
     name = args.describe
     # Accept 'personal-context' for memory, or any skill name.
-    proposal_path = os.path.join(_OUTPUT_DIR, name, "PROPOSAL.md")
-    skill_md = os.path.join(_OUTPUT_DIR, name, "SKILL.md")
+    skill_dir = _safe_output_subpath(name)
+    proposal_path = os.path.join(skill_dir, "PROPOSAL.md")
+    skill_md = os.path.join(skill_dir, "SKILL.md")
 
+    # personal-context is memory, not a skill — it may have a PROPOSAL.md
+    # without a SKILL.md, so skip the SKILL.md existence check for it.
     if not os.path.isfile(skill_md) and name != "personal-context":
         print(f"Error: '{name}' not found in output/", file=sys.stderr)
         sys.exit(1)
@@ -242,7 +287,7 @@ def cmd_install(args, agents, output_skills):
     - neither                        : list agents and exit without installing
     """
     name = args.install
-    source = os.path.join(_OUTPUT_DIR, name)
+    source = _safe_output_subpath(name)
     if not os.path.isdir(source) or not os.path.isfile(os.path.join(source, "SKILL.md")):
         print(f"Error: skill '{name}' not found in output/", file=sys.stderr)
         sys.exit(1)

@@ -744,5 +744,71 @@ class TestMutualExclusivityWithDescribe(unittest.TestCase):
         self.assertIn("mutually exclusive", err)
 
 
+class TestSafeOutputSubpath(unittest.TestCase):
+    """Test that _safe_output_subpath blocks path traversal."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="safe_path_")
+        self._patch = patch.object(register, "_OUTPUT_DIR", self._tmp)
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_valid_name_resolves(self):
+        resolved = register._safe_output_subpath("my-skill")
+        self.assertTrue(resolved.startswith(self._tmp))
+
+    def test_traversal_blocked(self):
+        with self.assertRaises(SystemExit):
+            register._safe_output_subpath("../etc")
+
+    def test_deep_traversal_blocked(self):
+        with self.assertRaises(SystemExit):
+            register._safe_output_subpath("../../../../etc")
+
+
+class TestReadFrontmatterFoldedScalar(unittest.TestCase):
+    """Test _read_frontmatter_description handles folded scalars (>-)."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="fm_fold_")
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_folded_scalar_returns_description(self):
+        d = Path(self._tmp, "my-skill")
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "---\nname: my-skill\ndescription: >-\n  This is a long description\n  spanning lines.\n---\n# my-skill\n",
+            encoding="utf-8",
+        )
+        desc = register._read_frontmatter_description(str(d))
+        self.assertIsNotNone(desc)
+        self.assertIn("long description", desc)
+
+    def test_plain_scalar_returns_description(self):
+        d = Path(self._tmp, "my-skill")
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "---\nname: my-skill\ndescription: A plain desc.\n---\n# my-skill\n",
+            encoding="utf-8",
+        )
+        desc = register._read_frontmatter_description(str(d))
+        self.assertEqual(desc, "A plain desc.")
+
+    def test_dashes_in_value_not_split(self):
+        d = Path(self._tmp, "my-skill")
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            '---\nname: my-skill\ndescription: "a---b"\n---\n# my-skill\n',
+            encoding="utf-8",
+        )
+        desc = register._read_frontmatter_description(str(d))
+        self.assertEqual(desc, "a---b")
+
+
 if __name__ == "__main__":
     unittest.main()
