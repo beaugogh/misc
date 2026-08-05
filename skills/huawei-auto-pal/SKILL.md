@@ -81,9 +81,10 @@ yet), guide them through setup before running the pipeline:
    later — re-running `--check` after setup confirms they're detected.
 
 5. **For skill-forge** (the act phase), mention that `README.md` has a
-   step-by-step credential guide with screenshots for CodeHub and GitHub
-   tokens. These are optional — skill-forge can work from retro-scope
-   findings alone.
+   step-by-step credential guide with screenshots for the CodeHub token.
+   CodeHub is the active code-review integration; GitHub is currently
+   disabled (see README.md §GITHUB_TOKEN). These are optional — skill-forge
+   can work from retro-scope findings alone.
 
 Do not block the pipeline on missing optional dependencies. Detect, report,
 and continue.

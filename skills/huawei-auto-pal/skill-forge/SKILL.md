@@ -197,7 +197,7 @@ the setup section in the parent [`README.md`](../README.md):
 | agentcenter | `agentcenter --version` | Skip market search and version comparison | README.md §agentcenter |
 | welink-cli | locate command and inspect auth status | Skip WeLink supplementary evidence | README.md §welink-cli |
 | CodeHub MCP | `CODEHUB_TOKEN` in `.env` | Skip MR reviews from Huawei internal repos | README.md §CODEHUB_TOKEN |
-| GitHub MCP | `GITHUB_TOKEN` in `.env` | Skip PR reviews from GitHub repos | README.md §GITHUB_TOKEN |
+| GitHub MCP | — (disabled: `ssl.CERT_NONE`, not called) | No GitHub PR reviews until TLS is fixed | README.md §GITHUB_TOKEN |
 
 If an optional tool is missing or authentication is expired, explain the impact
 and continue. Offer an exact, scoped repair command separately. Run it only after
@@ -245,7 +245,7 @@ let the user decide whether an intervention is desirable.
 
 ### 3. Collect supplementary evidence only when needed
 
-Use git, WeLink, CodeHub/GitHub, W3, or Wiki evidence only to resolve a specific
+Use git, WeLink, CodeHub, W3, or Wiki evidence only to resolve a specific
 uncertainty in a candidate. Minimize collection, bound result counts, and report
 which sources were used or skipped. Do not reinstall tools or refresh authentication
 as part of collection.

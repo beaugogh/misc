@@ -221,6 +221,11 @@ __marimo__/
 .DS_Store
 .claude/
 
+# Legacy output from the huawei-auto-buddy → huawei-auto-pal rename.
+# Git can't rename ignored files, so state left at the old path stays untracked.
+# Keep this until all installations have migrated to huawei-auto-pal/output/.
+skills/huawei-auto-buddy/output/
+
 # chatgpt-web-imagegen: generated image output dir (default --out)
 skills/chatgpt-web-imagegen/out/
 

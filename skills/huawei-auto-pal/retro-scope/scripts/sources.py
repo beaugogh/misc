@@ -96,6 +96,9 @@ class SourceAdapter(Protocol):
 
     name: str
     source_kind: str
+    # True when detect() can find the tool but collect() yields no events yet
+    # (placeholder adapter). --check reports these as DETECTOR-ONLY, not READY.
+    detector_only: bool = False
 
     def detect(self) -> bool: ...
 
