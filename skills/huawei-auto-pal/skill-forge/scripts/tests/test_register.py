@@ -743,6 +743,77 @@ class TestMutualExclusivityWithDescribe(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("mutually exclusive", err)
 
+    def test_present_and_install_rejected(self):
+        code, out, err = self._run_main("--present", "--install", "y")
+        self.assertNotEqual(code, 0)
+        self.assertIn("mutually exclusive", err)
+
+
+class TestCmdPresent(unittest.TestCase):
+    """Test the --present command prints all proposals."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="present_")
+        self._patch_output = patch.object(register, "_OUTPUT_DIR", self._tmp)
+        self._patch_output.start()
+        self._patch_agents = patch.object(register, "discover_agents", return_value=[])
+        self._patch_agents.start()
+
+    def tearDown(self):
+        self._patch_output.stop()
+        self._patch_agents.stop()
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _make_skill(self, name, with_proposal=True, problem_line="Something broke."):
+        d = Path(self._tmp, name)
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "---\nname: %s\ndescription: A fallback.\n---\n# %s\n" % (name, name),
+            encoding="utf-8",
+        )
+        if with_proposal:
+            (d / "PROPOSAL.md").write_text(
+                "# Proposal: %s\n\n## Problem\n\n%s\n" % (name, problem_line),
+                encoding="utf-8",
+            )
+
+    def _run_present(self):
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        args = type("A", (), {"present": True})()
+        with redirect_stdout(buf):
+            register.cmd_present(args, [], register._find_output_skills(self._tmp))
+        return buf.getvalue()
+
+    def test_prints_all_proposals(self):
+        self._make_skill("skill-a", problem_line="Problem A.")
+        self._make_skill("skill-b", problem_line="Problem B.")
+        out = self._run_present()
+        self.assertIn("Problem A.", out)
+        self.assertIn("Problem B.", out)
+        self.assertIn("skill-a", out)
+        self.assertIn("skill-b", out)
+
+    def test_includes_bilingual_header(self):
+        self._make_skill("my-skill")
+        out = self._run_present()
+        self.assertIn("中文", out)
+
+    def test_shows_install_instructions(self):
+        self._make_skill("my-skill")
+        out = self._run_present()
+        self.assertIn("--install", out)
+
+    def test_no_skills_message(self):
+        out = self._run_present()
+        self.assertIn("Nothing to present", out)
+
+    def test_includes_fallback_for_missing_proposal(self):
+        self._make_skill("legacy", with_proposal=False)
+        out = self._run_present()
+        self.assertIn("fallback", out.lower())
+
 
 class TestSafeOutputSubpath(unittest.TestCase):
     """Test that _safe_output_subpath blocks path traversal."""

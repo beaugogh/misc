@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.0.5
+version: 1.0.6
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -409,43 +409,38 @@ discovery. Apply only the authorized diff, rerun validation, and report the fina
 After skills and memory have been created or updated in `output/`, present
 them to the user with full bilingual reasoning and ask which to install into
 which agents. This is a pipeline step, not an end-of-run menu option. If there
-is nothing new to register, skip this step and go straight to step 9.
+is nothing in `output/`, skip this step and go straight to step 9.
 
 **Skill installation is always Tier 3** — explicit approval required per skill
 per agent. The user must be consulted before anything is installed natively
-into their agents. Run the three-phase flow below.
+into their agents. Run the two-phase flow below.
 
-#### Phase 1 — Show what's available
+#### Phase 1 — Present all proposals (mandatory, do not skip)
 
-```bash
-python skill-forge/scripts/register.py --list
-```
-
-This shows every skill in `output/` with a one-line problem summary, whether
-it's already installed in each detected agent, and the available memory
-targets.
-
-#### Phase 2 — Present proposals
-
-For each skill or memory not yet installed, present the full bilingual
-proposal to the user. Run:
+Run this single command and show its full output to the user verbatim:
 
 ```bash
-python skill-forge/scripts/register.py --describe <skill-name>
+python skill-forge/scripts/register.py --present
 ```
 
-This prints the `PROPOSAL.md` created in step 6 — the problem, the evidence,
-why the skill is proposed, and the benefit of installing it locally in the
-user's agents. The reasoning must be in both Chinese and English, well
-structured, clear, logical, coherent, easy to understand, comprehensive and
-detailed where necessary. The user reads this to decide whether the skill is
-worth installing. Present each proposal in full before asking.
+This prints the full bilingual `PROPOSAL.md` for every skill and memory in
+`output/` — the problem, the evidence, why each skill is proposed, and the
+benefit of installing it locally — in both Chinese and English, regardless of
+whether the skill is already installed. The user must see the reasoning for
+everything before any installation decision.
 
-#### Phase 3 — Ask and install
+**Do not skip this step. Do not summarize or paraphrase the output — print it
+in full so the user sees the complete bilingual reasoning.** If a skill has no
+PROPOSAL.md, the command prints its frontmatter description as a fallback and
+notes the gap.
 
-Ask the user: "Which of these would you like to install, and into which
-agents?" Present the detected agents by name (Claude Code, CodeAgent, etc.).
-The user may choose to install into one agent, several, or none. Then run:
+#### Phase 2 — Ask and install
+
+After the user has seen all proposals, ask: "Which of these would you like to
+install, and into which agents?" Present the detected agents by name (Claude
+Code, CodeAgent, etc.). The user may choose to install into one agent,
+several, or none. If the user declines or selects none, skip to step 9. Then
+run:
 
 ```bash
 # Install a skill into specific agents:
