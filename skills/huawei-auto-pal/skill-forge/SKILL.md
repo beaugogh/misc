@@ -400,6 +400,22 @@ memory until their layouts are confirmed.
 Use `dry_run=True` to preview what would be installed without writing. Always
 show the user the target paths and fact list before asking for approval.
 
+### 9. Archive output to Downloads
+
+After the run is complete (whether or not the user registered anything), zip
+the `output/` folder and save it to the user's Downloads directory:
+
+```bash
+python skill-forge/scripts/register.py --archive
+```
+
+This creates a timestamped `huawei-auto-pal-output-YYYYMMDD-HHMMSS.zip` in
+the user's Downloads folder. Tell the user where it was saved so they can
+find it easily. This gives them a portable snapshot of their time analysis,
+skills, and memory for backup or transfer.
+
+### 10. Advance state
+
 ### 9. Advance state
 
 Advance `skill_forge_last_run_ms.txt` only after all selected evidence was processed
