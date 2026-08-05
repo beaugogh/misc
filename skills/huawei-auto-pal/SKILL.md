@@ -1,15 +1,16 @@
 ---
 name: huawei-auto-pal
+version: 1.0.0
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
   Use for time logs, work-pattern reviews, session analysis, skill improvement,
   “how did I spend my time”, “分析session”, “时间日志”, “工时统计”, “自演进”, or
   “总结一下最近的工作”.
-metadata:
-  author: Bo Gao (b00563677)
-  category: Software Development
-  version: 1.0.0
+author: Bo Gao (b00563677)
+category: Software Development
+created: 2026-08-05
+updated: 2026-08-05
 ---
 
 # huawei-auto-pal
