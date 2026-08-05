@@ -1,6 +1,6 @@
 ---
 name: retro-scope
-version: 1.0.2
+version: 1.0.3
 description: >-
   Use only through huawei-auto-pal when reconstructing a user's personal work
   from existing activity traces, reporting Wall, Active, and Human time across

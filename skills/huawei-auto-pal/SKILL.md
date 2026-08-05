@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.0.2
+version: 1.0.3
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -46,6 +46,12 @@ etc.).** Run retro-scope, then skill-forge, automatically. The only approval
 points are the ones explicitly defined in the safety model (new skills, memory,
 credentials, structural edits). Optional sources are detected and reported, not
 gated behind a user choice.
+
+**Do not present a menu of end-of-run options either (archive, distribute,
+register, etc.).** After skill-forge finishes, register new skills (Tier 3
+approval) and then archive automatically — run `register.py --archive` without
+asking. Distribution (`--dist`) is manual and on-demand only, never offered as
+an end-of-run choice.
 
 The pipeline is: **find the waste → eliminate the waste going forward.**
 
@@ -113,10 +119,17 @@ retro-scope → skill-forge.
    GitHub is currently disabled (see README.md §GITHUB_TOKEN). These are
    optional — skill-forge works from retro-scope findings alone.
 
-6. **After skill-forge creates output**, gently offer to register new skills
-   and memory into the user's installed agents. Run
+6. **After skill-forge creates output**, register new skills and memory into
+   the user's installed agents (Tier 3 — explicit approval per skill). Run
    `python skill-forge/scripts/register.py --list` to show what's available,
-   then let the user pick what to install. See skill-forge/SKILL.md §8.
+   then ask which to install as a focused approval question. See
+   skill-forge/SKILL.md §8.
+
+7. **Archive automatically.** At the end of the pipeline, run
+   `python skill-forge/scripts/register.py --archive` without asking — it
+   zips `output/` to the user's Downloads folder. This is a pipeline step,
+   not an end-of-run menu option. Do not present archive/distribute/register
+   as a list of choices for the user to pick from.
 
 Do not block the pipeline on missing optional dependencies. Detect, report,
 and continue.

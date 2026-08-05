@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.0.2
+version: 1.0.3
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -362,23 +362,23 @@ discovery. Apply only the authorized diff, rerun validation, and report the fina
 
 ### 8. Register into the user's agents
 
-At the end of a run, after skills and memory have been created or updated in
-`output/`, gently offer to register them into the user's installed agents.
-This is a one-line prompt, not a blocking step:
+After skills and memory have been created or updated in `output/`, register
+them into the user's installed agents. This is a pipeline step, not an
+end-of-run menu option — do not present it as one of several choices
+(archive, distribute, register, etc.). If there is nothing new to register,
+skip this step and go straight to step 9.
 
-> I found 1 new skill and updated memory in output/. Would you like me to
-> register them into your agents? Run `python register.py --list` to see
-> what's available.
-
-If the user says yes, run:
+Run `--list` to show what's available:
 
 ```bash
 python skill-forge/scripts/register.py --list
 ```
 
 This shows every skill in `output/`, whether it's already installed in each
-detected agent, and the available memory targets. The user picks what to
-register. Then run:
+detected agent, and the available memory targets. **Skill registration is
+always Tier 3** — explicit approval required per skill per agent — so show
+the list and ask which to install as a focused approval question, not a
+menu of end-of-run paths. Then run:
 
 ```bash
 python skill-forge/scripts/register.py --install <skill-name>     # one skill
@@ -413,22 +413,27 @@ show the user the target paths and fact list before asking for approval.
 
 ### 9. Archive output to Downloads
 
-After the run is complete (whether or not the user registered anything), zip
-the `output/` folder and save it to the user's Downloads directory:
+**Run this automatically at the end of every pipeline run** — it is not an
+optional end-of-run choice. Do not ask the user whether to archive, distribute,
+or do neither. Zip the `output/` folder and save it to the user's Downloads
+directory:
 
 ```bash
 python skill-forge/scripts/register.py --archive
 ```
 
 This creates a timestamped `huawei-auto-pal-output-YYYYMMDD-HHMMSS.zip` in
-the user's Downloads folder. Tell the user where it was saved so they can
-find it easily. This gives them a portable snapshot of their time analysis,
-skills, and memory for backup or transfer.
+the user's Downloads folder. Report where it was saved so the user can find
+it. This gives them a portable snapshot of their time analysis, skills, and
+memory for backup or transfer. If the archive reports zero skills, note the
+warning and continue — do not block on it.
 
-### 10. Distribute the skill to colleagues
+### 10. Distribute the skill to colleagues (manual, on-demand only)
 
-To share `huawei-auto-pal` with colleagues (e.g. uploading to AgentCenter),
-zip the whole skill folder — excluding personal data — into Downloads:
+This step is **not** run automatically and is **not** offered as an end-of-run
+option. It is documented here for when the user explicitly asks to share or
+upload the skill. When they do, zip the whole skill folder — excluding
+personal data — into Downloads:
 
 ```bash
 python skill-forge/scripts/register.py --dist
@@ -437,8 +442,7 @@ python skill-forge/scripts/register.py --dist
 This creates a timestamped `huawei-auto-pal-YYYYMMDD-HHMMSS.zip` in the
 user's Downloads folder. It excludes `output/` (personal time logs and
 generated skills), all hidden files (`.env`, `.gitignore`, etc.),
-`__pycache__/`, and `.pyc` files — only shareable skill code is included. Tell the user where the zip was saved
-and that it is ready to upload to AgentCenter.
+`__pycache__/`, and `.pyc` files — only shareable skill code is included.
 
 ### 11. Advance state
 
