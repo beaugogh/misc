@@ -219,6 +219,7 @@ __marimo__/
 
 # custom
 .DS_Store
+.claude/
 
 # chatgpt-web-imagegen: generated image output dir (default --out)
 skills/chatgpt-web-imagegen/out/

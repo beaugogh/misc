@@ -1,23 +1,23 @@
-# huawei-auto-evolve 配置指南
+# skill-forge 配置指南
 
-本文件说明如何安装 auto-evolve 所依赖的 CLI 工具，以及如何获取 `.env` 中各凭据变量。
+本文件说明如何安装 skill-forge 所依赖的 CLI 工具，以及如何获取 `.env` 中各凭据变量。
 
 ## 快速开始
 
 ```bash
 # 1. 安装 CLI 工具（见下方"CLI 工具安装"）
 # 2. 复制凭据模板
-cp skills/huawei-auto-evolve/.env.example skills/huawei-auto-evolve/.env
+cp skills/huawei-auto-buddy/.env.example skills/huawei-auto-buddy/.env
 # 3. 按下方说明填入真实凭据
 # 4. 使用前加载凭据
-set -a; source skills/huawei-auto-evolve/.env; set +a
+set -a; source skills/huawei-auto-buddy/.env; set +a
 ```
 
 ---
 
 ## CLI 工具安装
 
-auto-evolve 依赖以下 CLI 工具。均为华为内部 npm 包，需从 `product_npm` 制品库安装。
+skill-forge 依赖以下 CLI 工具。均为华为内部 npm 包，需从 `product_npm` 制品库安装。
 
 ### 前置条件
 
@@ -56,14 +56,14 @@ CodeHub MCP 工具通过 `uvx` 启动一个本地 Python MCP 服务器。uv/uvx 
 - 官网：https://github.com/astral-sh/uv
 - Windows：`winget install astral-sh.uv` 或从 [releases 页面](https://github.com/astral-sh/uv/releases) 下载
 - 验证：`uvx --version`
-- **PATH 注意**：Git Bash 的 `which` 可能找不到 uvx（常见于安装在非标准路径如 `D:/CodingAgentCLI/uv/uvx.exe`）。auto-evolve 会自动检测常见位置，也可通过 `CODEHUB_UVX_ARGS` 环境变量指定完整路径
+- **PATH 注意**：Git Bash 的 `which` 可能找不到 uvx（常见于安装在非标准路径如 `D:/CodingAgentCLI/uv/uvx.exe`）。skill-forge 会自动检测常见位置，也可通过 `CODEHUB_UVX_ARGS` 环境变量指定完整路径
 
 ### nga.cmd — AI 辅助研发 Token 统计（可选）
 
 nga.cmd 是 CodeAgent CLI 套件的一部分，通常随 CodingAgentCLI 安装在 `D:/CodingAgentCLI/`。
 
 验证：`/d/CodingAgentCLI/nga.cmd --help`
-**PATH 注意**：Git Bash 的 `which` 不识别 `.cmd` 扩展名，auto-evolve 会用 `command -v nga.cmd || ls /d/CodingAgentCLI/nga.cmd` 检测。
+**PATH 注意**：Git Bash 的 `which` 不识别 `.cmd` 扩展名，skill-forge 会用 `command -v nga.cmd || ls /d/CodingAgentCLI/nga.cmd` 检测。
 
 ---
 
@@ -147,7 +147,7 @@ GITHUB_TOKEN=你的GitHub令牌
 WIKI_X_AUTH_TOKEN=你的Wiki令牌
 ```
 
-> auto-evolve 只读取 Wiki 文档（搜索、获取内容），无需此令牌。仅当需要用户级查询或写操作时才配置。
+> skill-forge 只读取 Wiki 文档（搜索、获取内容），无需此令牌。仅当需要用户级查询或写操作时才配置。
 
 ---
 

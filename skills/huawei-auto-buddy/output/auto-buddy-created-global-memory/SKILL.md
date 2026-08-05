@@ -1,13 +1,13 @@
 ---
-name: huawei-auto-evolve-created-global-memory
+name: auto-buddy-created-global-memory
 version: 0.0.1
-description: 长期记忆 skill。存储用户身份、工作习惯、开发环境、项目与团队等信息，供 huawei-auto-evolve 自演进引擎在每次分析时读取和增量更新。
+description: 长期记忆 skill。存储用户身份、工作习惯、开发环境、项目与团队等信息，供 huawei-auto-buddy 的 skill-forge 组件在每次分析时读取和增量更新。
 ---
 
-# 全局记忆 (huawei-auto-evolve-created-global-memory)
+# 全局记忆 (auto-buddy-created-global-memory)
 
-本文件由 huawei-auto-evolve 自演进引擎自动生成和维护，存储用户的长期记忆。
-每次运行自演进分析时，引擎会从 session 和外部数据源中提取新信息，增量更新到此文件。
+本文件由 huawei-auto-buddy 的 skill-forge 组件自动生成和维护，存储用户的长期记忆。
+每次运行分析时，skill-forge 会从 session 和外部数据源中提取新信息，增量更新到此文件。
 
 ## 用户身份
 
@@ -58,8 +58,12 @@ description: 长期记忆 skill。存储用户身份、工作习惯、开发环�
   - 四个 MCP 工具：huawei-w3-search、huawei-codehub、huawei-wiki、huawei-clouddevops
   - 三个子模块：anthropic-skills、superpowers、mattpocock-skills（位于 skills/ 下）
   - Git 子模块 relocated from root to skills/
-- **auto-evolve / huawei-auto-evolve**：自演进引擎 skill，本次 session 的核心工作对象
-- **huawei-retro-scope**：回顾分析 skill（其他 agent 的工作）
+- **huawei-auto-buddy**：个人 AI 工作伴侣 skill，diagnose→act 两阶段流水线
+  - **retro-scope** 组件（原 huawei-retro-scope）：回顾分析，识别时间消耗和反复出现的时间消耗
+  - **skill-forge** 组件（原 huawei-skill-forge）：根据 retro-scope 的发现创建/修改 skill 和记忆
+  - output 目录：`skills/huawei-auto-buddy/output/`（共享，gitignored）
+  - 水位文件：`last_run.txt`（retro-scope 和 skill-forge 共用）
+- **auto-evolve / huawei-auto-evolve**（已删除）：早期自演进引擎 skill，其操作机制已融入 huawei-auto-buddy 的 skill-forge 组件
 - **huawei-chaspark**：茶思屋 OpenCLI 插件
 - **webpage-to-markdown**：网页转 Markdown skill
 
@@ -74,14 +78,19 @@ description: 长期记忆 skill。存储用户身份、工作习惯、开发环�
 - **argparse.REMAINDER 陷阱**：`--json` 放在 tool name 之后会被 REMAINDER 吞掉，需 pre-extract 全局 flags
 - **外部主机 vs 内网主机代理方向相反**：华为内网工具（w3-search/codehub/wiki/clouddevops）需 **绕过** 代理（`ProxyHandler({})`）；GitHub 等外部主机需 **通过** 代理（`ProxyHandler({"https": "proxyuk...})` + `ssl.CERT_NONE`）。这是首次在 repo 中出现"通过代理"的工具
 - **env var 命名规范**：用户面用 `<PLATFORM>_TOKEN` / `<PLATFORM>_HOST`（如 `CODEHUB_TOKEN`、`GITHUB_TOKEN`、`CODEHUB_HOST`）；若服务器期望不同名称（如 CodeHub 服务器读 `PRIVATE_TOKEN`/`WEB_HOST`），wrapper 内部翻译，不暴露给用户
-- **Claude Code vs opencode session DB**：auto-evolve 读 opencode 的 `ngagent.db`，不读 Claude Code 的 session 存储。在 Claude Code 中的工作不会出现在 auto-evolve 的分析范围内——这是已知 gap
+- **Claude Code vs opencode session DB**：retro-scope 读 opencode 的 `ngagent.db`，不读 Claude Code 的 session 存储。在 Claude Code 中的工作不会出现在 retro-scope 的分析范围内——这是已知 gap
+- **Python `-c` 多行代码在 Windows 上被破坏**：`python -c "多行代码"` 在 Git Bash 中会被 `||  goto :error` 混入，导致 `IndentationError: unexpected indent`。解决方案：将代码写入 `.py` 文件再执行，不要用 `python -c` 传多行代码。这是 retro-scope 分析中第 2 大时间消耗（4.3h，79 次重试）
+- **npm install 是 #1 反复出现的时间消耗**：30 天内 5 个任务因 npm install 失败浪费 15+ 小时。根因：未设 NO_PROXY、未用 --strict-ssl=false、用错 registry URL。已创建 `npm-corporate-proxy` skill 解决
+- **控制台编码是 GBK**：Windows 控制台默认 GBK 编码，输出中文或 emoji 时报 `UnicodeEncodeError: 'gbk' codec can't encode character`。解决：写文件时用 `encoding='utf-8'`，或脚本中加 `sys.stdout.reconfigure(encoding='utf-8')`
+- **retro-scope 报告生成耗时约 5 分钟**：`python run.py` 从 `skills/huawei-auto-buddy/retro-scope/scripts/` 运行，生成 90d/30d/7d/1d HTML 报告 + dashboard index
 
 ## 工具与路径
 
 - **misc 仓库根**：`D:\workspace\misc`
-- **huawei-auto-evolve 目录**：`skills/huawei-auto-evolve/`
+- **huawei-auto-buddy 目录**：`skills/huawei-auto-buddy/`
+- **skill-creator 目录**：`skills/skill-creator/`（包含 init_skill.py，用于创建新 skill）
 - **MCP 工具目录**：`mcp-tools/{github,huawei-w3-search,huawei-codehub,huawei-wiki,huawei-clouddevops}/`
-- **.env（凭据）**：`skills/huawei-auto-evolve/.env`（CODEHUB_TOKEN + CODEHUB_HOST + GITHUB_TOKEN，gitignored，参见 README.md 获取指南）
+- **.env（凭据）**：`skills/huawei-auto-buddy/.env`（CODEHUB_TOKEN + CODEHUB_HOST + GITHUB_TOKEN，gitignored，参见 README.md 获取指南）
 - **catalog 生成**：`./scripts/generate-catalog.sh`（从 manifests 自动生成 CATALOG.md）
 - **adversarial-review skill**：`skills/adversarial-review/`（用于代码审查）
-- **evolved skills 输出目录**：`skills/huawei-auto-evolve/output/`（huawei-auto-evolve-created-* skills 存放处）
+- **evolved skills 输出目录**：`skills/huawei-auto-buddy/output/`（auto-buddy-created-* skills 存放处）
