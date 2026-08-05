@@ -97,10 +97,10 @@ run or a renamed installation:
    disabled (see README.md §GITHUB_TOKEN). These are optional — skill-forge
    can work from retro-scope findings alone.
 
-6. **After skill-forge creates output**, offer to register new skills and
-   memory into the user's installed agents (Claude Code, CodeAgent, OpenCode,
-   Codex, etc.). This is always Tier 3 — explicit approval per agent. See
-   skill-forge/SKILL.md §8 for details.
+6. **After skill-forge creates output**, gently offer to register new skills
+   and memory into the user's installed agents. Run
+   `python skill-forge/scripts/register.py --list` to show what's available,
+   then let the user pick what to install. See skill-forge/SKILL.md §8.
 
 Do not block the pipeline on missing optional dependencies. Detect, report,
 and continue.

@@ -104,7 +104,10 @@ def discover_agents(cwd: str | None = None) -> list[AgentTarget]:
             detect_path=str(cac_base),
         ))
 
-    # OpenCode
+    # OpenCode — skills confirmed at ~/.config/opencode/skills/.
+    # Memory: legacy opencode-ai used OpenCode.md in the project root; modern
+    # opencode uses MCP/LSP for live context. We support the legacy OpenCode.md
+    # convention since it's a simple markdown file in the project dir.
     opencode_base = HOME / ".config" / "opencode"
     if opencode_base.is_dir():
         skills_dir = str(opencode_base / "skills")
@@ -117,37 +120,46 @@ def discover_agents(cwd: str | None = None) -> list[AgentTarget]:
             detect_path=str(opencode_base),
         ))
 
-    # Codex
+    # Codex — skills in $CODEX_HOME/skills/ (default ~/.codex/skills/).
+    # Memory via AGENTS.md in the project root (emerging standard).
     codex_base = HOME / ".codex"
     if codex_base.is_dir():
-        # Codex doesn't have a skills/ subdirectory. Skills are not supported.
-        # Memory goes into ~/.codex/instructions.md (convention).
-        instructions_path = codex_base / "instructions.md"
+        skills_dir = str(codex_base / "skills")
         agents.append(AgentTarget(
             agent_id="codex",
             display_name="Codex",
-            skills_dir=None,
-            memory_dir=str(instructions_path),
-            memory_format="instructions_md",
+            skills_dir=skills_dir,
+            memory_dir=None,
+            memory_format="agents_md",
             detect_path=str(codex_base),
         ))
 
-    # OpenClaw — layout is uncertain, check common dirs
+    # OpenClaw — skills in ~/.openclaw/workspace/skills/ or ~/.openclaw/skills/.
+    # Memory via USER.md and MEMORY.md in the workspace.
     for claw_dir_name in (".openclaw", ".open-claw"):
         claw_base = HOME / claw_dir_name
         if claw_base.is_dir():
-            skills_dir = str(claw_base / "skills")
+            # Prefer workspace/skills/ (agent-specific), fall back to skills/ (shared).
+            workspace_skills = claw_base / "workspace" / "skills"
+            shared_skills = claw_base / "skills"
+            skills_dir = str(workspace_skills if workspace_skills.is_dir() or not shared_skills.is_dir()
+                             else shared_skills)
+            # Memory: USER.md in the workspace dir.
+            workspace_dir = claw_base / "workspace"
+            memory_dir = str(workspace_dir) if workspace_dir.is_dir() else None
             agents.append(AgentTarget(
                 agent_id="openclaw",
                 display_name="OpenClaw",
                 skills_dir=skills_dir,
-                memory_dir=None,
-                memory_format="none",
+                memory_dir=memory_dir,
+                memory_format="user_md" if memory_dir else "none",
                 detect_path=str(claw_base),
             ))
             break
 
-    # Hermes — layout is uncertain, check common dirs
+    # Hermes — skills in ~/.hermes/ (automated skill creation, SKILL.md format).
+    # Persistent memory is native but the exact file layout is not documented;
+    # treat as none until confirmed.
     for hermes_dir_name in (".hermes-agent", ".hermes"):
         hermes_base = HOME / hermes_dir_name
         if hermes_base.is_dir():

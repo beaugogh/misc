@@ -346,5 +346,99 @@ class TestInstallMemoryInstructions(unittest.TestCase):
         self.assertFalse(self.inst_path.exists())
 
 
+class TestInstallMemoryAgentsMd(unittest.TestCase):
+    """Test memory installation for Codex (AGENTS.md in project root)."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="agents_md_")
+        self._old_cwd = os.getcwd()
+        os.chdir(self._tmp)
+
+        self.pc_path = Path(self._tmp, "personal-context", "SKILL.md")
+        self.pc_path.parent.mkdir(parents=True)
+        self.pc_path.write_text(
+            "# Personal Context\n\n"
+            "## Proxy preference\nUser prefers NO_PROXY.\n",
+            encoding="utf-8",
+        )
+        self.agent = AgentTarget(
+            agent_id="codex",
+            display_name="Codex",
+            skills_dir=None,
+            memory_dir=None,
+            memory_format="agents_md",
+            detect_path="",
+        )
+
+    def tearDown(self):
+        os.chdir(self._old_cwd)
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_creates_agents_md(self):
+        result = install_memory(str(self.pc_path), self.agent)
+        self.assertTrue(result.success)
+        agents_md = Path(self._tmp, "AGENTS.md")
+        self.assertTrue(agents_md.is_file())
+        content = agents_md.read_text(encoding="utf-8")
+        self.assertIn("Personal Context", content)
+        self.assertIn("Proxy preference", content)
+
+    def test_appends_to_existing_agents_md(self):
+        agents_md = Path(self._tmp, "AGENTS.md")
+        agents_md.write_text("# Agents\n\n## Coding style\nUse 4 spaces.\n", encoding="utf-8")
+        result = install_memory(str(self.pc_path), self.agent)
+        self.assertTrue(result.success)
+        content = agents_md.read_text(encoding="utf-8")
+        self.assertIn("Coding style", content)
+        self.assertIn("Personal Context", content)
+
+    def test_dry_run_does_not_write(self):
+        result = install_memory(str(self.pc_path), self.agent, dry_run=True)
+        self.assertTrue(result.success)
+        self.assertFalse(Path(self._tmp, "AGENTS.md").exists())
+
+
+class TestInstallMemoryUserMd(unittest.TestCase):
+    """Test memory installation for OpenClaw (USER.md in workspace)."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="user_md_")
+        self.workspace = Path(self._tmp, "workspace")
+        self.workspace.mkdir()
+
+        self.pc_path = Path(self._tmp, "personal-context", "SKILL.md")
+        self.pc_path.parent.mkdir(parents=True)
+        self.pc_path.write_text(
+            "# Personal Context\n\n"
+            "## Proxy preference\nUser prefers NO_PROXY.\n",
+            encoding="utf-8",
+        )
+        self.agent = AgentTarget(
+            agent_id="openclaw",
+            display_name="OpenClaw",
+            skills_dir=None,
+            memory_dir=str(self.workspace),
+            memory_format="user_md",
+            detect_path="",
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_creates_user_md(self):
+        result = install_memory(str(self.pc_path), self.agent)
+        self.assertTrue(result.success)
+        user_md = self.workspace / "USER.md"
+        self.assertTrue(user_md.is_file())
+        content = user_md.read_text(encoding="utf-8")
+        self.assertIn("Proxy preference", content)
+        self.assertIn("NO_PROXY", content)
+
+    def test_dry_run_does_not_write(self):
+        result = install_memory(str(self.pc_path), self.agent, dry_run=True)
+        self.assertTrue(result.success)
+        self.assertFalse((self.workspace / "USER.md").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

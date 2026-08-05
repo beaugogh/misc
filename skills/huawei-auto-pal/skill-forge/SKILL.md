@@ -351,52 +351,51 @@ discovery. Apply only the authorized diff, rerun validation, and report the fina
 
 ### 8. Register into the user's agents
 
-A skill or memory created in `output/` is passive — the user's agents don't know
-it exists. After a skill is created or updated, offer to register it into each
-installed agent's skill directory. After personal-context memory is updated, offer
-to insert it into the agent's memory system.
+At the end of a run, after skills and memory have been created or updated in
+`output/`, gently offer to register them into the user's installed agents.
+This is a one-line prompt, not a blocking step:
 
-**Skill registration is always Tier 3** — explicit approval required, regardless of
-auto-sedimentation policy. Installing into an agent's directory is a structural
-change that affects behavior across all future sessions.
+> I found 1 new skill and updated memory in output/. Would you like me to
+> register them into your agents? Run `python register.py --list` to see
+> what's available.
 
-Use `skill-forge/scripts/agent_targets.py` to discover installed agents:
+If the user says yes, run:
 
-- Claude Code (`~/.claude/skills/`, memory via `~/.claude/projects/<slug>/memory/`)
-- CodeAgent (`~/.cac/skills/`, memory via `~/.cac/projects/<slug>/memory/`)
-- OpenCode (`~/.config/opencode/skills/`, no memory mechanism)
-- Codex (no skills dir, memory via `~/.codex/instructions.md`)
-- OpenClaw / Hermes (layout uncertain — skills dir best-effort, no memory)
+```bash
+python skill-forge/scripts/register.py --list
+```
 
-Discovery is read-only: it checks directory existence and derives the project slug
-from the current working directory. It never reads personal session or memory
-contents.
+This shows every skill in `output/`, whether it's already installed in each
+detected agent, and the available memory targets. The user picks what to
+register. Then run:
 
-For each detected agent with a `skills_dir`:
+```bash
+python skill-forge/scripts/register.py --install <skill-name>     # one skill
+python skill-forge/scripts/register.py --install-memory            # personal context
+python skill-forge/scripts/register.py --dry-run --install <name>  # preview first
+```
 
-1. Show the skill name, source path, target path, and agent name.
-2. If the target skill already exists, report the conflict — do not overwrite.
-3. On approval, **copy** the skill folder (SKILL.md + scripts/ + references/ +
-   assets/) into `<skills_dir>/<name>/` using
-   `skill-forge/scripts/skill_installer.py`.
-4. Validate the copied skill with `quick_validate.py`.
-5. Report success or failure with the exact target path.
+**Skill registration is always Tier 3** — explicit approval required per skill
+per agent. The `register.py` script handles discovery, conflict detection,
+copying, and validation. It reports exactly what was installed and where.
 
-For agents without a `skills_dir` (Codex, unknown OpenClaw/Hermes): report that
-the agent was detected but skill registration is not supported. Suggest manual
-copy.
+Supported agents and their targets:
+
+| Agent | Skills dir | Memory mechanism |
+|---|---|---|
+| Claude Code | `~/.claude/skills/` | `~/.claude/projects/<slug>/memory/` (MEMORY.md + per-fact .md) |
+| CodeAgent | `~/.cac/skills/` | `~/.cac/projects/<slug>/memory/` (same as Claude Code) |
+| OpenCode | `~/.config/opencode/skills/` | none (modern OpenCode uses MCP/LSP, not static memory) |
+| Codex | `~/.codex/skills/` | `AGENTS.md` in project root (emerging standard) |
+| OpenClaw | `~/.openclaw/workspace/skills/` or `~/.openclaw/skills/` | `~/.openclaw/workspace/USER.md` |
+| Hermes | `~/.hermes/skills/` | native persistent memory (exact file layout unconfirmed) |
 
 For **personal-context memory** (not a skill — it holds declarative facts):
-
-- Claude Code / CodeAgent: do NOT copy as a skill. Instead, parse the
-  `personal-context/SKILL.md` body into individual memory facts, create one
-  `.md` file per fact in the agent's `memory/` directory (with frontmatter:
-  name, description, type: user), and append a one-line pointer to `MEMORY.md`.
-  Update existing facts rather than duplicating.
-- Codex: append a `## Personal Context` section to `~/.codex/instructions.md`,
-  replacing any existing section.
-- OpenCode / OpenClaw / Hermes: report unsupported — leave personal-context in
-  `output/` for manual use.
+`register.py --install-memory` routes facts to the agent's memory system
+automatically. Claude Code/CodeAgent get per-fact `.md` files + `MEMORY.md`
+index. Codex gets a `## Personal Context` section in `AGENTS.md`. OpenClaw
+gets a `USER.md` file. Hermes and OpenCode are reported as unsupported for
+memory until their layouts are confirmed.
 
 Use `dry_run=True` to preview what would be installed without writing. Always
 show the user the target paths and fact list before asking for approval.
