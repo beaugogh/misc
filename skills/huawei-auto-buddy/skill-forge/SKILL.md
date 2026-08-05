@@ -19,6 +19,21 @@ output, never block the core workflow.
 | retro-scope findings | `huawei-auto-buddy/output/` exists with report data | None — user must run retro-scope first | Core input missing; skill-forge can still analyze sessions directly but loses pipeline context |
 | Python 3 | `python --version` | None | Fatal — cannot run |
 | skill-creator | `{SKILLS_DIR}/skill-creator/SKILL.md` exists with `init_skill.py` | None (collision risk with Anthropic's skill-creator submodule — see below) | Degrade to direct file-writing mode |
+
+### Credential setup
+
+CodeHub and GitHub MCP tools need tokens. The `.env.example` template in the
+`huawei-auto-buddy/` root documents how to get each token. Copy it to `.env`
+(gitignored) and fill in real values:
+
+```bash
+cp skills/huawei-auto-buddy/.env.example skills/huawei-auto-buddy/.env
+set -a; source skills/huawei-auto-buddy/.env; set +a
+```
+
+See `skills/huawei-auto-buddy/README.md` for step-by-step token setup with screenshots.
+
+
 | agentcenter CLI | `agentcenter --version` | Auto-reinstall (see below) | Skip skill recommendation + version-check (Steps 8-9) |
 | welink-cli | `welink-cli` in PATH; `auth status` | Auto-install + auto-refresh (see below) | Skip WeLink data collection |
 | git | `git --version` | None | Skip git commit analysis |
@@ -52,7 +67,9 @@ npm install -g @welink/welink-cli \
 
 `--ignore-scripts` skips a broken PowerShell postinstall bug. If token is expired
 (`auth status` shows EXPIRED), auto-refresh: `welink-cli auth login` (connects to WeLink
-PC client non-interactively). Both must fail before skipping WeLink data.
+PC client non-interactively). Both must fail before skipping WeLink data. For welink-cli
+API calls, set `NO_PROXY=open.inner.welink.huawei.com,cmc.centralrepo.rnd.huawei.com`
+(intranet hosts must bypass the corporate proxy).
 
 ### skill-creator collision risk
 
@@ -169,13 +186,22 @@ use if available, skip if not, report what was skipped.
    immediately after each batch.
 3. **CodeHub/GitHub MCP** — self-contained scripts at `mcp-tools/huawei-codehub/codehub.py`
    and `mcp-tools/github/github_mcp.py`. Use for MR reviews (recurring review comments =
-   recurring mistakes). Requires `CODEHUB_TOKEN`/`GITHUB_TOKEN` in `.env`. Internal hosts
-   need `NO_PROXY`; external hosts need proxy through `proxyuk.huawei.com:8080`.
+   recurring mistakes). Requires `CODEHUB_TOKEN`/`GITHUB_TOKEN` in `.env` (see Credential
+   setup above). Internal hosts (CodeHub) need `NO_PROXY=*.huawei.com`; external hosts
+   (GitHub) need `HTTPS_PROXY=http://proxyuk.huawei.com:8080`. For CodeHub, `codehub-g.huawei.com`
+   is directly reachable from most networks; `codehub-y.huawei.com` may be unreachable on
+   some segments. For uvx-launched local servers, add `--allow-insecure-host` to work around
+   corporate TLS interception.
 4. **W3 search** — `python3 mcp-tools/huawei-w3-search/w3_search.py "<name>" --size 10 --json`
    (self-contained, no install needed).
 5. **CloudDevOps Wiki** — `python3 mcp-tools/huawei-wiki/wiki_mcp.py search-wiki-documents
    --url <url> --search-range knowledge --search-key "<name>" --json` (read operations need
    no auth).
+6. **nga.cmd (AI dev token stats)** — `command -v nga.cmd || ls /d/CodingAgentCLI/nga.cmd`
+   (Git Bash doesn't recognize `.cmd` extensions). Commands:
+   `nga.cmd session list --disable-update`, `nga.cmd metrics <session_id> --disable-update`.
+   If `session list` returns empty (nga TUI and opencode DB are independent stores), fall
+   back to querying the opencode DB directly.
 
 ### Step 4: Analyze and extract long-term memory
 
