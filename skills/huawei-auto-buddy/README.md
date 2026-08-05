@@ -23,13 +23,14 @@ skill-forge 可选使用以下 CLI 工具。以下命令供用户手动执行；
 ### 前置条件
 
 - **Node.js ≥ v18**：`node -v` 验证。未安装参考 https://3ms.huawei.com/km/blogs/details/22148443
-- **公司代理**：安装内网 npm 包需绕过代理（`NO_PROXY=cmc.centralrepo.rnd.huawei.com`）。保持 TLS 校验开启；如公司网络使用 TLS 检查，请按内部 IT 文档配置可信 CA（例如 npm 的 `cafile`），不要使用 `--strict-ssl=false`。
+- **公司代理**：安装内网 npm 包需绕过代理（`NO_PROXY=cmc.centralrepo.rnd.huawei.com`）。优先按内部 IT 文档配置可信 CA（例如 npm 的 `cafile`）。若公司 TLS 检查仍阻断这个已批准的华为内网 registry，可对单次安装使用 `--strict-ssl=false`；不要把该设置写入全局配置，也不要用于公网 registry。
 
 ### welink-cli — WeLink 消息/会议/日历/邮件
 
 ```bash
 NO_PROXY=cmc.centralrepo.rnd.huawei.com \
   npm install -g @welink/welink-cli \
+  --strict-ssl=false \
   --@welink:registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/
 ```
 
@@ -41,6 +42,7 @@ NO_PROXY=cmc.centralrepo.rnd.huawei.com \
 ```bash
 NO_PROXY=cmc.centralrepo.rnd.huawei.com \
   npm install -g @aimarket/agentcenter \
+  --strict-ssl=false \
   --@aimarket:registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/
 ```
 

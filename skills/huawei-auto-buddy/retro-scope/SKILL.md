@@ -77,14 +77,20 @@ The registry supports these source families when detected:
 | Authoring | 3ms, Wiki, W3 when available | publication/edit events | Remote access may require credentials |
 
 For optional Huawei CLIs, show the documented install/authentication action only if
-the user asks. Require explicit approval before executing it. Keep TLS verification
-enabled and use the approved corporate CA configuration when needed.
+the user asks. Require explicit approval before executing it. Prefer the approved
+corporate CA configuration. For a specifically approved Huawei intranet npm registry,
+a command-scoped `--strict-ssl=false` fallback is permitted when TLS interception
+otherwise blocks installation; never persist that setting or use it for public hosts.
 
 ### 3. Collect incrementally
 
 Use `output/retro_scope_last_run.txt`, stored as epoch seconds. This state belongs
 only to retro-scope; never share it with skill-forge. The persistence layer accepts
 a legacy seconds watermark once but rejects millisecond values.
+
+Once both namespaced watermark files exist with valid units, the old `last_run.txt`
+is no longer read by either component. Report the legacy file and offer to remove it;
+delete it only with explicit approval because it is local ignored state.
 
 Record the collection-start timestamp, not completion time, so events created during
 processing remain eligible for the next run. Persist tasks atomically before advancing
@@ -171,9 +177,11 @@ Read [rubrics.md](rubrics.md) before changing report semantics. It defines Human
 ranking, evidence requirements, report structure, and genuine-interaction rules.
 
 Use [scripts/README.md](scripts/README.md) for the current adapter inventory and CLI
-details. Treat implementation and tests as authoritative for shipped behavior. Keep
-research proposals in research documents; do not present them as unresolved operational
-steps in this skill.
+details. Read [research-findings.md](research-findings.md) when revising the conceptual
+model, segmentation methodology, or research roadmap; do not load it for routine runs.
+Treat implementation and tests as authoritative for shipped behavior. Keep research
+proposals in research documents; do not present them as unresolved operational steps
+in this skill.
 
 ## Validation
 
