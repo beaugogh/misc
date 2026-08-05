@@ -1,14 +1,15 @@
 ---
 name: retro-scope
+version: 1.0.0
 description: >-
   Use only through huawei-auto-pal when reconstructing a user's personal work
   from existing activity traces, reporting Wall, Active, and Human time across
   multiple horizons, or identifying recurring time consumption with evidence and
   explicit coverage limitations. Do not invoke this component directly.
-metadata:
-  author: Bo Gao (b00563677)
-  category: Software Development
-  version: 1.0.0
+author: Bo Gao (b00563677)
+category: Software Development
+created: 2026-08-05
+updated: 2026-08-05
 ---
 
 # retro-scope

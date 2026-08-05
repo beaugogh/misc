@@ -1,14 +1,15 @@
 ---
 name: skill-forge
+version: 1.0.0
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
   bounded analysis, evaluation, low-friction approval, and explicitly opted-in
   automatic behavioral-rule sedimentation. Do not invoke this component directly.
-metadata:
-  author: Bo Gao (b00563677)
-  category: Software Development
-  version: 1.0.0
+author: Bo Gao (b00563677)
+category: Software Development
+created: 2026-08-05
+updated: 2026-08-05
 ---
 
 # skill-forge
