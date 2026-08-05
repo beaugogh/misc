@@ -1,110 +1,147 @@
 #!/usr/bin/env python3
-"""
-Skill Packager - Creates a distributable .skill file of a skill folder
+"""Create a deterministic, safety-checked .skill ZIP archive."""
 
-Usage:
-    python utils/package_skill.py <path/to/skill-folder> [output-directory]
+from __future__ import annotations
 
-Example:
-    python utils/package_skill.py skills/public/my-skill
-    python utils/package_skill.py skills/public/my-skill ./dist
-"""
-
+import argparse
+import re
+import stat
 import sys
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+
 from quick_validate import validate_skill
 
+ALLOWED_ROOTS = {"scripts", "references", "assets"}
+TOP_LEVEL_PREFIXES = ("LICENSE", "NOTICE")
+BLOCKED_PARTS = {
+    ".git", ".hg", ".svn", "__pycache__", ".pytest_cache", ".mypy_cache",
+    ".venv", "venv", "node_modules", "dist", "build", "evaluation-workspace",
+}
+SENSITIVE_NAMES = re.compile(
+    r"(^|[._-])(env|credentials?|secrets?|tokens?|id_rsa|id_ed25519|private[-_]?key)([._-]|$)",
+    re.IGNORECASE,
+)
+SECRET_PATTERNS = (
+    re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+    re.compile(rb"(?i)(?:api[_-]?key|access[_-]?token|client[_-]?secret)\s*[:=]\s*['\"]?[A-Za-z0-9_./+\-=]{16,}"),
+)
+MAX_SCAN_BYTES = 2_000_000
+FIXED_TIME = (1980, 1, 1, 0, 0, 0)
 
-def package_skill(skill_path, output_dir=None):
-    """
-    Package a skill folder into a .skill file.
 
-    Args:
-        skill_path: Path to the skill folder
-        output_dir: Optional output directory for the .skill file (defaults to current directory)
+def is_default_candidate(relative: Path) -> bool:
+    if relative == Path("SKILL.md"):
+        return True
+    if len(relative.parts) == 1 and relative.name.startswith(TOP_LEVEL_PREFIXES):
+        return True
+    return bool(relative.parts and relative.parts[0] in ALLOWED_ROOTS)
 
-    Returns:
-        Path to the created .skill file, or None if error
-    """
-    skill_path = Path(skill_path).resolve()
 
-    # Validate skill folder exists
-    if not skill_path.exists():
-        print(f"❌ Error: Skill folder not found: {skill_path}")
-        return None
+def collect_files(root: Path, includes: list[str]) -> tuple[list[Path], list[str]]:
+    candidates: set[Path] = set()
+    problems: list[str] = []
+    for path in root.rglob("*"):
+        relative = path.relative_to(root)
+        if is_default_candidate(relative):
+            candidates.add(path)
+    for requested in includes:
+        unresolved = root / requested
+        target = unresolved.resolve()
+        try:
+            target.relative_to(root)
+        except ValueError:
+            problems.append(f"include escapes skill directory: {requested}")
+            continue
+        if unresolved.is_symlink():
+            problems.append(f"symlink is not packageable: {requested}")
+        elif not target.exists():
+            problems.append(f"include not found: {requested}")
+        elif target.is_dir():
+            candidates.update(target.rglob("*"))
+        else:
+            candidates.add(target)
 
-    if not skill_path.is_dir():
-        print(f"❌ Error: Path is not a directory: {skill_path}")
-        return None
+    files: list[Path] = []
+    for path in sorted(candidates):
+        relative = path.relative_to(root)
+        if any(part in BLOCKED_PARTS or part.startswith(".") for part in relative.parts):
+            continue
+        if path.is_symlink():
+            problems.append(f"symlink is not packageable: {relative}")
+            continue
+        try:
+            mode = path.stat().st_mode
+        except OSError as error:
+            problems.append(f"cannot inspect {relative}: {error}")
+            continue
+        if not stat.S_ISREG(mode):
+            if not path.is_dir():
+                problems.append(f"non-regular file is not packageable: {relative}")
+            continue
+        if SENSITIVE_NAMES.search(relative.name):
+            problems.append(f"sensitive-looking filename: {relative}")
+            continue
+        try:
+            data = path.read_bytes()[:MAX_SCAN_BYTES]
+        except OSError as error:
+            problems.append(f"cannot read {relative}: {error}")
+            continue
+        if any(pattern.search(data) for pattern in SECRET_PATTERNS):
+            problems.append(f"possible secret content: {relative}")
+            continue
+        files.append(path)
+    return files, problems
 
-    # Validate SKILL.md exists
-    skill_md = skill_path / "SKILL.md"
-    if not skill_md.exists():
-        print(f"❌ Error: SKILL.md not found in {skill_path}")
-        return None
 
-    # Run validation before packaging
-    print("🔍 Validating skill...")
-    valid, message = validate_skill(skill_path)
-    if not valid:
-        print(f"❌ Validation failed: {message}")
-        print("   Please fix the validation errors before packaging.")
-        return None
-    print(f"✅ {message}\n")
+def package_skill(skill_path: str | Path, output_dir: str | Path | None = None, includes: list[str] | None = None) -> Path:
+    root = Path(skill_path).resolve()
+    validation = validate_skill(root)
+    if not validation.valid:
+        raise ValueError("validation failed: " + "; ".join(validation.errors))
 
-    # Determine output location
-    skill_name = skill_path.name
-    if output_dir:
-        output_path = Path(output_dir).resolve()
-        output_path.mkdir(parents=True, exist_ok=True)
-    else:
-        output_path = Path.cwd()
+    files, problems = collect_files(root, includes or [])
+    if problems:
+        raise ValueError("packaging safety checks failed: " + "; ".join(problems))
+    if root / "SKILL.md" not in files:
+        raise ValueError("SKILL.md is missing from package manifest")
 
-    skill_filename = output_path / f"{skill_name}.skill"
+    destination = Path(output_dir).resolve() if output_dir else Path.cwd().resolve()
+    destination.mkdir(parents=True, exist_ok=True)
+    archive = destination / f"{root.name}.skill"
+    if archive.is_relative_to(root):
+        raise ValueError("output archive must be outside the skill directory")
 
-    # Create the .skill file (zip format)
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
+        for path in files:
+            relative = PurePosixPath(root.name, *path.relative_to(root).parts)
+            info = zipfile.ZipInfo(str(relative), FIXED_TIME)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = (0o755 if path.stat().st_mode & stat.S_IXUSR else 0o644) << 16
+            bundle.writestr(info, path.read_bytes())
+            print(relative)
+    return archive
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("skill_directory")
+    parser.add_argument("output_directory", nargs="?")
+    parser.add_argument(
+        "--include",
+        action="append",
+        default=[],
+        help="explicit extra relative file or directory; repeat as needed",
+    )
+    args = parser.parse_args()
     try:
-        with zipfile.ZipFile(skill_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Walk through the skill directory
-            for file_path in skill_path.rglob('*'):
-                if file_path.is_file():
-                    # Calculate the relative path within the zip
-                    arcname = file_path.relative_to(skill_path.parent)
-                    zipf.write(file_path, arcname)
-                    print(f"  Added: {arcname}")
-
-        print(f"\n✅ Successfully packaged skill to: {skill_filename}")
-        return skill_filename
-
-    except Exception as e:
-        print(f"❌ Error creating .skill file: {e}")
-        return None
-
-
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python utils/package_skill.py <path/to/skill-folder> [output-directory]")
-        print("\nExample:")
-        print("  python utils/package_skill.py skills/public/my-skill")
-        print("  python utils/package_skill.py skills/public/my-skill ./dist")
-        sys.exit(1)
-
-    skill_path = sys.argv[1]
-    output_dir = sys.argv[2] if len(sys.argv) > 2 else None
-
-    print(f"📦 Packaging skill: {skill_path}")
-    if output_dir:
-        print(f"   Output directory: {output_dir}")
-    print()
-
-    result = package_skill(skill_path, output_dir)
-
-    if result:
-        sys.exit(0)
-    else:
-        sys.exit(1)
+        archive = package_skill(args.skill_directory, args.output_directory, args.include)
+    except (OSError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    print(f"created: {archive}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

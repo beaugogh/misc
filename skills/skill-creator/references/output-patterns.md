@@ -1,82 +1,67 @@
 # Output Patterns
 
-Use these patterns when skills need to produce consistent, high-quality output.
+Read this reference when a skill must produce consistent artifacts or quality standards.
 
-## Template Pattern
+## Contract pattern
 
-Provide templates for output format. Match the level of strictness to your needs.
-
-**For strict requirements (like API responses or data formats):**
+Specify required content and invariants before presentation details:
 
 ```markdown
-## Report structure
+Produce a report containing:
 
-ALWAYS use this exact template structure:
+- a one-paragraph decision summary;
+- findings tied to inspected evidence;
+- severity and confidence for each finding;
+- concrete remediation for actionable findings;
+- explicit limitations and unverified assumptions.
 
-# [Analysis Title]
-
-## Executive summary
-[One-paragraph overview of key findings]
-
-## Key findings
-- Finding 1 with supporting data
-- Finding 2 with supporting data
-- Finding 3 with supporting data
-
-## Recommendations
-1. Specific actionable recommendation
-2. Specific actionable recommendation
+Do not report a claim as verified without identifying its evidence.
 ```
 
-**For flexible guidance (when adaptation is useful):**
+Use exact schemas only when a downstream parser requires them. Otherwise allow the executing agent to adapt headings and ordering to the task.
+
+## Template pattern
+
+Provide a template when stable structure reduces omissions:
 
 ```markdown
-## Report structure
+# [Artifact title]
 
-Here is a sensible default format, but use your best judgment:
+## Outcome
+[What changed or what was concluded]
 
-# [Analysis Title]
+## Evidence
+[Checks, artifacts, or observations supporting the outcome]
 
-## Executive summary
-[Overview]
-
-## Key findings
-[Adapt sections based on what you discover]
-
-## Recommendations
-[Tailor to the specific context]
-
-Adjust sections as needed for the specific analysis type.
+## Limitations
+[Anything unresolved or not tested]
 ```
 
-## Examples Pattern
+Mark optional sections explicitly. Avoid templates that encourage empty filler.
 
-For skills where output quality depends on seeing examples, provide input/output pairs:
+## Example pattern
 
-```markdown
-## Commit message format
+Use compact input/output pairs when quality depends on style or boundary judgment. Include varied examples and at least one near miss. Explain the governing property so examples do not become accidental hard-coded rules.
 
-Generate commit messages following these examples:
+## Assertion pattern
 
-**Example 1:**
-Input: Added user authentication with JWT tokens
-Output:
-```
-feat(auth): implement JWT-based authentication
+Make evaluation criteria observable:
 
-Add login endpoint and token validation middleware
-```
-
-**Example 2:**
-Input: Fixed bug where dates displayed incorrectly in reports
-Output:
-```
-fix(reports): correct date formatting in timezone conversion
-
-Use UTC timestamps consistently across report generation
+```json
+{
+  "text": "The output preserves every input identifier exactly.",
+  "critical": true
+}
 ```
 
-Follow this style: type(scope): brief description, then detailed explanation.
-```
+Prefer assertions about user-visible outcomes over implementation trivia. A grader should be able to cite evidence for pass or failure.
 
-Examples help Claude understand the desired style and level of detail more clearly than descriptions alone.
+## Structured-output pattern
+
+When machine-readable output is required:
+
+- provide a schema and one valid example;
+- define required versus optional fields;
+- define unknown-value and error representation;
+- forbid commentary outside the structure only if the consumer requires it;
+- validate generated output with a parser or schema checker.
