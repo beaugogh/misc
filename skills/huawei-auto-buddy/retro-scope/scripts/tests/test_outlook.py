@@ -521,9 +521,10 @@ class TestCollectWithMockCOM(unittest.TestCase):
         events = list(adapter.collect())
         self.assertEqual(len(events), 3)
 
+    @patch("outlook_adapter._find_ost_files_no_com", return_value=["mail.ost"])
     @patch("outlook_adapter._try_import_win32com")
-    def test_detect_returns_true_with_valid_store(self, mock_import):
-        """detect() returns True when a store with Inbox is found."""
+    def test_detect_returns_true_when_pywin32_and_store_file_exist(self, mock_import, _mock_find):
+        """detect() stays file-based and does not create a COM session."""
         mock_outlook = self._build_mock_outlook()
         mock_import.return_value = self._make_mock_win32com(mock_outlook)
 

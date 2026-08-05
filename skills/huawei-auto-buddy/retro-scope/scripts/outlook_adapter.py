@@ -4,25 +4,19 @@ Provides email activity collection from Outlook for colleagues who do NOT have
 welink-cli installed. Uses the Outlook COM/MAPI interface (via pywin32) to read
 mail folders directly from the running Outlook desktop application.
 
-**Investigation verdict (2026-07-29, recorded in SKILL.md section D + open questions):**
+**Implementation decision:**
 
 1. **libpff / pffexport / pypff** — FAILED. ``pffexport`` not in PATH; ``pypff`` not
    installed; ``pip install libpff-python`` fails on Windows (C build error in
    pyproject.toml — the libpff C library doesn't build with MSVC on this platform).
    This was the OSS-first choice but is blocked on Windows without a prebuilt wheel.
-2. **Outlook COM / MAPI (pywin32)** — WORKS. ``pip install pywin32`` succeeds from
-   the tuna mirror. ``Outlook.Application`` COM Dispatch succeeds. Outlook.exe is
-   installed at ``C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE``.
-   Inbox (50 items) and Sent Items (38 items) are readable with subject, sender,
-   received time, attachments count. This is the path the adapter uses.
+2. **Outlook COM / MAPI (pywin32)** — supported on Windows with a configured
+   Outlook desktop profile. This is the path the adapter uses.
 3. **Graph API** — not tested (needs Azure admin consent; lowest priority).
 
-**OST file location:** The SKILL.md note "Not present on author's machine" is
-**outdated**. The OST file exists at ``D:\\Email\\bogao@huawei.com.ost`` (206.9 MB) —
-a custom location, not the default ``~/AppData/Local/Microsoft/Outlook/``. The
-default directory contains only ``RoamCache/``, ``spscoll.dat``, and a ``16/``
-subdir. The adapter's ``detect()`` checks both the default platform_paths location
-and any ``.ost``/``.pst`` files discoverable via the COM Stores collection.
+**OST file location:** Profiles can place OST/PST files outside the default
+platform directory. Detection therefore checks conventional locations without
+starting COM; collection discovers configured stores through MAPI.
 
 **Adapter shape:** Emits ``kind="email"``, ``source_kind="comm"`` events matching
 the welink-cli mail event shape (same ``tool_input`` keys: folder, direction,

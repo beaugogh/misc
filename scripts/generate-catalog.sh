@@ -19,6 +19,11 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 OUT="CATALOG.md"
+PREVIOUS_CATALOG="$(mktemp)"
+trap 'rm -f "$PREVIOUS_CATALOG"' EXIT
+if [ -f "$OUT" ]; then
+  cp "$OUT" "$PREVIOUS_CATALOG"
+fi
 
 # --- skills helpers ---------------------------------------------------------
 
@@ -65,12 +70,27 @@ render_skill_section() {
   local rows=""
   local nested=0
 
+  # Partial clones may have gitlinks without initialized submodule contents.
+  # Preserve the last generated external section instead of replacing it with
+  # an incorrect empty table.
+  if [ "$base" != "skills" ] && ! find "$base" -name SKILL.md -type f 2>/dev/null | grep -q .; then
+    awk -v marker="### $heading (" '
+      index($0, marker) == 1 { found=1 }
+      found && printed && ($0 ~ /^### / || $0 ~ /^## /) { exit }
+      found { print; printed=1 }
+    ' "$PREVIOUS_CATALOG"
+    return
+  fi
+
   if find "$base" -mindepth 3 -name SKILL.md -type f 2>/dev/null | grep -q .; then
     nested=1
   fi
 
   while IFS= read -r f; do
     [ -z "$f" ] && continue
+    # A tracked skill may be intentionally deleted in the working tree before
+    # the deletion is staged. Catalog the filesystem state, not the old index.
+    [ -f "$f" ] || continue
     case "$f" in
       */_analysis/*|*/node_modules/*|*/.git/*) continue ;;
     esac
@@ -105,7 +125,15 @@ render_skill_section() {
       rows+="| [\`$name\`]($linkprefix/$skilldir) | $desc |"$'\n'
     fi
     count=$((count+1))
-  done < <(find "$base" -name SKILL.md -type f 2>/dev/null | sort)
+  done < <(
+    if [ "$base" = "skills" ]; then
+      # Include tracked and ordinary untracked skills, but never gitignored
+      # generated output such as personal memories.
+      git ls-files --cached --others --exclude-standard -- 'skills/**/SKILL.md' | sort
+    else
+      find "$base" -name SKILL.md -type f 2>/dev/null | sort
+    fi
+  )
 
   printf '### %s (%d)\n\n' "$heading" "$count"
   if [ "$nested" -eq 1 ]; then

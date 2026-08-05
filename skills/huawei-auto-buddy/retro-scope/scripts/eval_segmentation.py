@@ -270,7 +270,9 @@ def load_benchmark(fixture_path: str | None = None) -> dict:
         here = os.path.dirname(os.path.abspath(__file__))
         fixture_path = os.path.join(here, "tests", "fixtures", "eval_benchmark.json")
     with open(fixture_path, encoding="utf-8") as f:
-        return json.load(f)
+        benchmark = json.load(f)
+    benchmark["_fixture_dir"] = os.path.dirname(os.path.abspath(fixture_path))
+    return benchmark
 
 
 def extract_reference_boundaries(benchmark: dict) -> list[float]:
@@ -318,6 +320,8 @@ def load_benchmark_events(benchmark: dict) -> list[float]:
 
     for session_path in benchmark["session_files"]:
         path = os.path.expanduser(session_path)
+        if not os.path.isabs(path):
+            path = os.path.join(benchmark.get("_fixture_dir", ""), path)
         if not os.path.exists(path):
             continue
         for ev in parse_session(path):
@@ -372,6 +376,8 @@ def run_eval(benchmark_path: str | None = None, collar_seconds: float = 300,
     events = []
     for session_path in benchmark["session_files"]:
         path = os.path.expanduser(session_path)
+        if not os.path.isabs(path):
+            path = os.path.join(benchmark.get("_fixture_dir", ""), path)
         if not os.path.exists(path):
             continue
         for ev in parse_session(path):

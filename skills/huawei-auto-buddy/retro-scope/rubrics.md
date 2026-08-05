@@ -31,9 +31,10 @@ are folded into the rule they inspired, not kept as separate entries.
    the narrative must say what was attempted, what failed, and what the user
    struggled with.
 
-5. **Retrospective, opt-in, portable.** No live tracking. No always-on watchers.
-   No manager-analyzing-team. No closed-source dependencies. Runs on whatever
-   sources a colleague has, detects them, and reports gaps honestly.
+5. **Retrospective, opt-in, portable core.** No live tracking. No always-on
+   watchers. No manager-analyzing-team. The core must not require a closed-source
+   dependency; optional platform or Huawei integrations must be labeled, detected,
+   user-approved, and skipped with an honest coverage note when unavailable.
 
 6. **Working hours derived from real data.** Do not assume a flat 8h/day. Derive
    the working-hour denominator from actual human activity in the period.
@@ -63,9 +64,11 @@ are folded into the rule they inspired, not kept as separate entries.
 11. **Per-period table includes all three time columns.** Wall, Active, Human —
     not just Wall and Active.
 
-12. **Session records exported as evidence.** Detailed JSON records per genuine
-    time sink task, with event timeline, user prompts, messages, page titles,
-    commit subjects, and file names. Stored in `output/session_records/`.
+12. **Session records exported as minimized evidence.** Redacted JSON records per
+    genuine time sink task may include a capped event timeline, prompts, messages,
+    page titles, commit subjects, and file names when needed to support the finding.
+    Store them in `output/session_records/` with restrictive permissions. Never
+    export credentials, unnecessary identity, or full correspondence.
 
 ## Language and Readability
 

@@ -49,7 +49,8 @@ python run.py --sources
 
 ## Optional dependencies
 
-The core pipeline runs on Python stdlib only. For advanced features:
+The core pipeline runs on Python stdlib only. After the user explicitly approves
+installing optional dependencies, advanced features can be enabled with:
 
 ```bash
 pip install -r scripts/requirements.txt
@@ -86,15 +87,16 @@ provide them.
 
 welink-cli is an npm CLI that exposes four data domains: meetings (duration), calendar,
 mail, and IM chat history. It is **optional** — the skill works without it via backup
-routes (3 of 4 domains; IM has no backup). See SKILL.md "Installing welink-cli" and
-"Data sources without welink-cli" for full details.
+routes (3 of 4 domains; IM has no backup). See `../SKILL.md` under "Discover sources"
+for the authority and coverage rules.
 
 ```bash
 npm install -g @welink/welink-cli \
   --registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/ \
-  --strict-ssl=false \
   --ignore-scripts
 ```
+
+This is a user-approved optional installation, never an automatic repair step.
 
 Two Windows gotchas: (1) set `NO_PROXY="cmc.centralrepo.rnd.huawei.com"` or npm hangs on
 the intranet registry; (2) `--ignore-scripts` skips a broken postinstall PowerShell

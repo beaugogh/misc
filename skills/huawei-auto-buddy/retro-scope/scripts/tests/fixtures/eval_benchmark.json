@@ -1,118 +1,20 @@
 {
   "date": "2026-07-14",
-  "description": "Hand-labeled one-day benchmark for segmentation evaluation (Phase 9.8.1).",
-  "limitation_note": "This is a small (one-day, single-source) benchmark, not a gold standard. Its purpose is to catch regressions and guide tuning of PELT penalty beta and Leiden lambda, not to be statistically rigorous. Boundary labels are subjective; a different annotator might choose slightly different positions. The benchmark covers 4 Claude Code sessions (1711 events total) spanning ~13 hours of wall-clock time.",
+  "description": "Portable synthetic segmentation benchmark with three independent user goals.",
+  "limitation_note": "This small synthetic fixture catches regressions; it is not a statistically representative quality benchmark.",
   "session_files": [
-    "~/.claude/projects/D--workspace-transcribe-and-align/e78aa812-9d30-4f05-a15d-ba637a2ab2d9.jsonl",
-    "~/.claude/projects/D--workspace-transcribe-and-align/b9e7c5e5-fc53-45db-b1de-30d64f82f588.jsonl",
-    "~/.claude/projects/D--MeetingRecordings/372c6d9b-dd9c-456e-850d-ec045cf14017.jsonl",
-    "~/.claude/projects/D--MeetingRecordings-20260709----/ecc60464-f0a2-4013-bb86-dbb298a89f8c.jsonl"
+    "eval_session.jsonl"
   ],
   "reference_boundaries": [
     {
-      "timestamp": 1783993904.55,
-      "iso": "2026-07-14T01:51:44Z",
-      "note": "Bug discussion: audit/synth duration fix. User asks about resurfacing bug. Session start = task start."
+      "timestamp": 1784025600.0,
+      "iso": "2026-07-14T10:40:00Z",
+      "note": "Goal changes from implementing a parser to reviewing documentation after a long gap."
     },
     {
-      "timestamp": 1783994757.693,
-      "iso": "2026-07-14T02:05:57Z",
-      "note": "Multi-speaker splitting: user says '246 is fine. but 256 is multi speaker'. Shifts from audit logic to multi-speaker chunk splitting."
-    },
-    {
-      "timestamp": 1783996116.947,
-      "iso": "2026-07-14T02:28:36Z",
-      "note": "Multi-speaker zh clearing investigation: user raises concern about multi-speaker detection invalidating zh text. New debugging task."
-    },
-    {
-      "timestamp": 1783996295.068,
-      "iso": "2026-07-14T02:31:35Z",
-      "note": "Re-align with multi-speaker on: user requests re-alignment and enabling multi-speaker detection by default. Execution task."
-    },
-    {
-      "timestamp": 1783999928.589,
-      "iso": "2026-07-14T03:32:08Z",
-      "note": "Fix bugs first: ~1h gap then user redirects to bug fixing. New prioritization."
-    },
-    {
-      "timestamp": 1784001268.997,
-      "iso": "2026-07-14T03:54:28Z",
-      "note": "Fix ffmpeg error: user directs to a specific ffmpeg error. Different bug from the audit bugs."
-    },
-    {
-      "timestamp": 1784005044.729,
-      "iso": "2026-07-14T04:57:24Z",
-      "note": "Investigate split chunk 119: user notes problematic sub-chunks from splitting. New investigation task."
-    },
-    {
-      "timestamp": 1784007424.201,
-      "iso": "2026-07-14T05:37:04Z",
-      "note": "Fix error handling: user lists specific code quality issues (bare except, swallowed errors). Code quality improvement task."
-    },
-    {
-      "timestamp": 1784009339.57,
-      "iso": "2026-07-14T06:08:59Z",
-      "note": "Switch to glm5.2 + remove heuristic fallback: user directs model change and code cleanup. Configuration change task."
-    },
-    {
-      "timestamp": 1784009933.1,
-      "iso": "2026-07-14T06:18:53Z",
-      "note": "Commit and push: user requests commit. Short task boundary — the commit itself is a discrete unit."
-    },
-    {
-      "timestamp": 1784010167.005,
-      "iso": "2026-07-14T06:22:47Z",
-      "note": "Synth ch4: user starts synthesis phase. Major shift from alignment debugging to synthesis."
-    },
-    {
-      "timestamp": 1784016618.914,
-      "iso": "2026-07-14T08:10:18Z",
-      "note": "Stop rejecting short sub-chunks: user corrects the rejection logic. Policy change during synthesis monitoring."
-    },
-    {
-      "timestamp": 1784019352.793,
-      "iso": "2026-07-14T08:55:52Z",
-      "note": "Solve independently: user pushes for autonomous problem-solving. Shift in working mode during synthesis."
-    },
-    {
-      "timestamp": 1784019964.304,
-      "iso": "2026-07-14T09:06:04Z",
-      "note": "Fix chunk 171 alignment: user reports specific alignment error. New targeted fix task."
-    },
-    {
-      "timestamp": 1784025989.883,
-      "iso": "2026-07-14T10:46:29Z",
-      "note": "Fix trailing 'you' from whisper: user identifies a systemic whisper transcription issue. Different scope from single-chunk fix."
-    },
-    {
-      "timestamp": 1784035596.94,
-      "iso": "2026-07-14T13:26:36Z",
-      "note": "Check synth files for ch4: ~2.5h gap then user checks if synth files are current. New verification task."
-    },
-    {
-      "timestamp": 1784037065.603,
-      "iso": "2026-07-14T13:51:05Z",
-      "note": "Commit and push: user requests final commit. Discrete commit task."
-    },
-    {
-      "timestamp": 1784013429.379,
-      "iso": "2026-07-14T07:17:09Z",
-      "note": "Meeting recording analysis review (session 372c6d9b): user loads meeting recording and analysis. Completely different project/context."
-    },
-    {
-      "timestamp": 1784037494.225,
-      "iso": "2026-07-14T13:58:14Z",
-      "note": "Meeting analysis lacks details (session 372c6d9b, second task): user asks to enhance analysis.md. Same session, different task from initial review."
-    },
-    {
-      "timestamp": 1783995240.634,
-      "iso": "2026-07-14T02:14:00Z",
-      "note": "Brief session (b9e7c5e5): user checks transcribe-and-align but session is not logged in. Very short interaction."
-    },
-    {
-      "timestamp": 1784038386.211,
-      "iso": "2026-07-14T14:13:06Z",
-      "note": "Meeting recording analysis + snapshots (session ecc60464): user asks to enhance analysis with details and extract snapshots. New session, new task."
+      "timestamp": 1784028600.0,
+      "iso": "2026-07-14T11:30:00Z",
+      "note": "Goal changes from documentation review to repairing tests after a long gap."
     }
   ]
 }

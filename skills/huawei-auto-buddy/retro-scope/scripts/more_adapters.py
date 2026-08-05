@@ -24,6 +24,7 @@ from typing import Iterator
 from datetime import datetime, timezone, timedelta
 
 from sources import make_event
+from platform_paths import WELINK_RECORDINGS
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +108,8 @@ class ICalendarAdapter:
 
     # Default lookback for recurring event expansion (days)
     _DEFAULT_LOOKBACK_DAYS = 365
+    _MAX_FILES = 50
+    _MAX_FILE_BYTES = 20 * 1024 * 1024
 
     def __init__(self, ics_paths: list[str] | None = None):
         # Default: look for .ics files in the skill's output dir and common dirs
@@ -116,6 +119,7 @@ class ICalendarAdapter:
         if self._ics_paths is not None:
             return [p for p in self._ics_paths if os.path.isfile(p)]
         paths = []
+        seen: set[str] = set()
         _scripts_dir = os.path.dirname(os.path.abspath(__file__))
         _retro_dir = os.path.dirname(_scripts_dir)
         _default_out = os.path.join(os.path.dirname(_retro_dir), "output")
@@ -135,9 +139,30 @@ class ICalendarAdapter:
             if not base:
                 continue
             if os.path.isfile(base) and base.lower().endswith(".ics"):
-                paths.append(base)
+                candidates = [base]
             elif os.path.isdir(base):
-                paths.extend(glob.glob(os.path.join(base, "**", "*.ics"), recursive=True))
+                candidates = []
+                for root, dirs, files in os.walk(base, followlinks=False):
+                    dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(root, d))]
+                    candidates.extend(os.path.join(root, name) for name in files
+                                      if name.lower().endswith(".ics"))
+                    if len(paths) + len(candidates) >= self._MAX_FILES:
+                        break
+            else:
+                candidates = []
+            for candidate in candidates:
+                real = os.path.realpath(candidate)
+                if real in seen or os.path.islink(candidate):
+                    continue
+                try:
+                    if os.path.getsize(candidate) > self._MAX_FILE_BYTES:
+                        continue
+                except OSError:
+                    continue
+                seen.add(real)
+                paths.append(candidate)
+                if len(paths) >= self._MAX_FILES:
+                    return paths
         return paths
 
     def detect(self) -> bool:
@@ -573,7 +598,7 @@ class JumpListAdapter:
 # WeLink Meeting recordings
 # ---------------------------------------------------------------------------
 
-WELINK_RECORDINGS_DIR = "D:\\MeetingRecordings"
+WELINK_RECORDINGS_DIR = WELINK_RECORDINGS
 
 # Regex for WeLink recording filenames:
 #   "20260713 09.55.29 会议 99997299.lnk"        — space-separated, dots in time

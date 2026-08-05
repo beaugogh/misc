@@ -129,7 +129,12 @@ def parse_session(path: str) -> Iterator[dict]:
                 continue
 
             ts_raw = obj.get("timestamp")
-            ts = _parse_iso8601(ts_raw) if ts_raw else None
+            try:
+                ts = _parse_iso8601(ts_raw) if isinstance(ts_raw, str) and ts_raw else None
+            except (TypeError, ValueError, OverflowError):
+                # Reject only the malformed record; one bad timestamp must not
+                # truncate the rest of a session file.
+                continue
             typ = obj.get("type", "?")
             message = obj.get("message") if isinstance(obj.get("message"), dict) else None
             cwd = obj.get("cwd")

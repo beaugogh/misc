@@ -221,6 +221,12 @@ class TestBenchmarkLoading(unittest.TestCase):
         for b in boundaries:
             self.assertIsInstance(b, (int, float))
 
+    def test_default_benchmark_is_portable_and_evaluable(self):
+        metrics = run_eval()
+        self.assertNotIn("note", metrics)
+        self.assertEqual(metrics["n_ref_boundaries"], 2)
+        self.assertGreater(metrics["n_pred_boundaries"], 0)
+
     def test_extract_predicted_boundaries(self):
         """extract_predicted_boundaries drops the first task start (session start)."""
         tasks = [

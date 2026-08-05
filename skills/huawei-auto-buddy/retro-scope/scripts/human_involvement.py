@@ -213,16 +213,15 @@ def compute_human_involvement(events: list[dict], task: dict) -> dict:
 
 
 def compute_actual_working_hours(tasks: list[dict]) -> float:
-    """Compute actual working hours from human activity in the task set.
+    """Compute average observed working hours per active day.
 
     Instead of assuming 8h/day, we derive the working-hour denominator from
     the data itself: the total human-engaged time across all tasks, plus a
     minimum per-day-with-activity to account for days where the human was
     present but the inter-action gaps were > 30 min (meetings, focused work).
 
-    This is used as the denominator for the "% of working time" calculation,
-    replacing the flat 8h/day assumption. If no human activity is detected
-    at all, falls back to 8h × number of days with tasks (conservative).
+    This is the per-day denominator for working-day conversions. If no human
+    activity is detected, return zero so callers can state their fallback.
     """
     from datetime import datetime, timezone
 
@@ -242,12 +241,11 @@ def compute_actual_working_hours(tasks: list[dict]) -> float:
         # No human activity detected — fall back to active time span.
         return 0.0
 
-    # The actual working hours is the human-engaged time, but at minimum
-    # 1h per day with activity (the human was present, even if gaps > 30min
-    # prevented full engagement measurement).
+    # Count at least one observed hour per active day, then derive a daily
+    # average rather than returning a period total as though it were per-day.
     min_hours = len(days_with_activity) * 1.0
     engaged_hours = total_human_engaged / 3600
-    return max(engaged_hours, min_hours)
+    return max(engaged_hours, min_hours) / len(days_with_activity)
 
 
 def describe_human_involvement(human_data: dict, task: dict) -> str:

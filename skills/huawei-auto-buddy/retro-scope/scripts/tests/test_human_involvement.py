@@ -172,15 +172,15 @@ class TestComputeActualWorkingHours(unittest.TestCase):
         # 5h total engaged
         self.assertAlmostEqual(compute_actual_working_hours(tasks), 5.0, delta=0.01)
 
-    def test_minimum_one_hour_per_active_day(self):
+    def test_minimum_one_hour_average_per_active_day(self):
         # 2 tasks on different days, but only 30min engaged each.
-        # Min should be 2h (1h × 2 days).
+        # The period has 2h minimum total over 2 active days: 1h/day average.
         tasks = [
             {"start": 1780000000.0, "human_data": {"human_engaged_seconds": 1800}},  # 0.5h
             {"start": 1780000000.0 + 86400, "human_data": {"human_engaged_seconds": 1800}},  # 0.5h next day
         ]
         result = compute_actual_working_hours(tasks)
-        self.assertGreaterEqual(result, 2.0)
+        self.assertAlmostEqual(result, 1.0, delta=0.01)
 
 
 class TestDescribeHumanInvolvement(unittest.TestCase):

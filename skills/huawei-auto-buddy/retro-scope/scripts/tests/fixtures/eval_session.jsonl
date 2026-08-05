@@ -1,0 +1,6 @@
+{"type":"user","timestamp":"2026-07-14T10:00:00Z","sessionId":"eval-session","cwd":"/synthetic/project","gitBranch":"main","message":{"role":"user","content":"Implement the configuration parser."}}
+{"type":"assistant","timestamp":"2026-07-14T10:05:00Z","sessionId":"eval-session","cwd":"/synthetic/project","gitBranch":"main","message":{"role":"assistant","content":"Implemented the parser.","stop_reason":"end_turn"}}
+{"type":"user","timestamp":"2026-07-14T10:40:00Z","sessionId":"eval-session","cwd":"/synthetic/project","gitBranch":"main","message":{"role":"user","content":"Review the setup documentation for accuracy."}}
+{"type":"assistant","timestamp":"2026-07-14T10:45:00Z","sessionId":"eval-session","cwd":"/synthetic/project","gitBranch":"main","message":{"role":"assistant","content":"Reviewed the documentation.","stop_reason":"end_turn"}}
+{"type":"user","timestamp":"2026-07-14T11:30:00Z","sessionId":"eval-session","cwd":"/synthetic/project","gitBranch":"main","message":{"role":"user","content":"Repair the failing unit tests."}}
+{"type":"assistant","timestamp":"2026-07-14T11:35:00Z","sessionId":"eval-session","cwd":"/synthetic/project","gitBranch":"main","message":{"role":"assistant","content":"Repaired the tests.","stop_reason":"end_turn"}}

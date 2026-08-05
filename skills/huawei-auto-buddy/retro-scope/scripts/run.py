@@ -48,6 +48,9 @@ import os
 import json
 import re
 import argparse
+import time
+import tempfile
+from bisect import bisect_left, bisect_right
 from datetime import datetime, timezone
 
 # Windows console defaults to the system codepage (e.g. cp936/GBK on Chinese
@@ -294,16 +297,44 @@ def _export_session_records(tasks: list[dict], events: list[dict], output_dir: s
     from datetime import datetime as _dt, timezone as _tz
     records_dir = os.path.join(output_dir, "session_records")
     os.makedirs(records_dir, exist_ok=True)
+    try:
+        os.chmod(records_dir, 0o700)
+    except OSError:
+        pass
 
-    # Build a lookup from task start/end to events.
+    secret_patterns = (
+        (re.compile(r"(?i)((?:api[_-]?key|access[_-]?token|password|secret|cookie)\s*[:=]\s*)[^\s,;]+"), r"\1[REDACTED]"),
+        (re.compile(r"(?i)(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;]+"), r"\1[REDACTED]"),
+        (re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b"), "[REDACTED_JWT]"),
+        (re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE), "[REDACTED_EMAIL]"),
+    )
+
+    def _redact(value):
+        if isinstance(value, str):
+            for pattern, replacement in secret_patterns:
+                value = pattern.sub(replacement, value)
+            return value
+        if isinstance(value, list):
+            return [_redact(item) for item in value]
+        if isinstance(value, dict):
+            return {key: _redact(item) for key, item in value.items()}
+        return value
+
+    # Build a timestamp index once instead of rescanning every event per task.
+    ordered_events = sorted(
+        (e for e in events if isinstance(e.get("timestamp"), (int, float))),
+        key=lambda e: e["timestamp"],
+    )
+    event_timestamps = [e["timestamp"] for e in ordered_events]
+
     def _events_for_task(t):
         start = t.get("start", 0)
         end = t.get("end", 0)
         sid = t.get("session_id")
-        return [e for e in events
-                if e.get("timestamp") is not None
-                and start <= e.get("timestamp", 0) <= end
-                and (e.get("session_id") == sid if sid else True)]
+        lo = bisect_left(event_timestamps, start)
+        hi = bisect_right(event_timestamps, end)
+        return [e for e in ordered_events[lo:hi]
+                if e.get("session_id") == sid or not sid]
 
     exported = 0
     for t in tasks:
@@ -351,10 +382,23 @@ def _export_session_records(tasks: list[dict], events: list[dict], output_dir: s
             })
         record["event_timeline"] = timeline
         record["event_count_total"] = len(task_events)
+        record = _redact(record)
 
         filepath = os.path.join(records_dir, filename)
-        with open(filepath, "w", encoding="utf-8") as f:
-            _json.dump(record, f, ensure_ascii=False, indent=2)
+        fd, tmp_path = tempfile.mkstemp(prefix=".session-record-", dir=records_dir)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                _json.dump(record, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            try:
+                os.chmod(tmp_path, 0o600)
+            except OSError:
+                pass
+            os.replace(tmp_path, filepath)
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
         exported += 1
 
     print(f"[session_records] exported {exported} genuine time sink records → {records_dir}", file=sys.stderr)
@@ -622,8 +666,9 @@ def main():
         sys.exit(0)
 
     # Collect events — incremental if watermark exists and --rebuild not set.
-    from persistence import read_watermark, write_watermark, save_tasks
+    from persistence import read_watermark, persist_run
 
+    collection_started_at = time.time()
     watermark = None if args.rebuild else read_watermark()
     if watermark:
         # Incremental: only events after the watermark.
@@ -756,6 +801,12 @@ def main():
     except Exception as e:
         print(f"[session_records] export failed: {e}", file=sys.stderr)
 
+    # Persist the complete, unfiltered task set before any reporting branch
+    # exits. Use the collection start time so events created during processing
+    # remain eligible for the next run.
+    if args.persist:
+        persist_run(tasks, collection_started_at)
+
     # --- Multi-horizon mode (default) vs single-range mode ---
     # Multi-horizon is the default (--horizons=90d,30d,7d,1d). It's disabled when:
     #   - --since is set (explicit single-range request)
@@ -851,11 +902,6 @@ def main():
         kind_counts = Counter(t.get("source_kind", "unknown") for t in tasks)
         agg = {"_fallback": True, "task_count": len(tasks),
                "kinds": dict(kind_counts)}
-
-    # Persist tasks if requested.
-    if args.persist:
-        save_tasks(tasks, mode="merge")
-        write_watermark()
 
     # Report.
     # Determine format: --json takes precedence (backwards compat), then --format,

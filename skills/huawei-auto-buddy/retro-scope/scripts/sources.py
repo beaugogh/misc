@@ -132,6 +132,7 @@ class SourceRegistry:
         """
         events: list[dict] = []
         skipped: list[dict] = []
+        max_events_per_source = 100_000
         for adapter in self._adapters:
             if not adapter.detect():
                 skipped.append({"name": adapter.name, "reason": "not detected"})
@@ -141,7 +142,12 @@ class SourceRegistry:
                     evs = adapter.collect_since(watermark)
                 else:
                     evs = adapter.collect()
-                events.extend(evs)
+                for index, event in enumerate(evs):
+                    if index >= max_events_per_source:
+                        skipped.append({"name": adapter.name,
+                                        "reason": "partial: 100000-event safety limit reached"})
+                        break
+                    events.append(event)
             except Exception as e:
                 skipped.append({"name": adapter.name, "reason": f"error: {e}"})
             finally:

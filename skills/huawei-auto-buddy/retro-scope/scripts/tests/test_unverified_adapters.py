@@ -234,16 +234,10 @@ class TestRegistration(unittest.TestCase):
         from unverified_adapters import register_unverified_adapters
         reg = SourceRegistry()
         register_unverified_adapters(reg)
-        # The registry should have 5 adapters registered.
-        # (SourceRegistry doesn't expose a count, so we check via collect_all
-        # which runs detect() on each — absent sources are in the skipped list.)
-        events, skipped = reg.collect_all()
-        # All 5 should be in skipped (not detected on this machine, unless
-        # opencli is present for wiki/w3).
-        skip_names = [s["name"] if isinstance(s, dict) else str(s) for s in skipped]
-        self.assertIn("codex", skip_names)
-        self.assertIn("openclaw", skip_names)
-        self.assertIn("hermes_agent", skip_names)
+        names = [adapter.name for adapter in reg._adapters]
+        self.assertEqual(names, [
+            "codex", "openclaw", "hermes_agent", "clouddevops_wiki", "w3",
+        ])
 
 
 if __name__ == "__main__":

@@ -201,6 +201,9 @@ class OpenclawAdapter:
 
     name = "openclaw"
     source_kind = "ai_session"
+    _MAX_FILES = 100
+    _MAX_FILE_BYTES = 50 * 1024 * 1024
+    _MAX_DB_ROWS = 10_000
 
     def __init__(self, openclaw_dir: str | None = None):
         self._dirs = [openclaw_dir] if openclaw_dir else OPENCLAW_DIRS
@@ -209,14 +212,31 @@ class OpenclawAdapter:
         return any(os.path.isdir(d) for d in self._dirs)
 
     def _find_data_files(self) -> Iterator[str]:
+        yielded = 0
+        seen: set[str] = set()
         for d in self._dirs:
             if not os.path.isdir(d):
                 continue
-            # JSONL files.
-            yield from glob.glob(os.path.join(d, "**", "*.jsonl"), recursive=True)
-            # SQLite files.
-            yield from glob.glob(os.path.join(d, "**", "*.db"), recursive=True)
-            yield from glob.glob(os.path.join(d, "**", "*.sqlite"), recursive=True)
+            for root, dirs, files in os.walk(d, followlinks=False):
+                dirs[:] = [name for name in dirs
+                           if not os.path.islink(os.path.join(root, name))]
+                for name in files:
+                    if not name.lower().endswith((".jsonl", ".db", ".sqlite")):
+                        continue
+                    path = os.path.join(root, name)
+                    real = os.path.realpath(path)
+                    if real in seen or os.path.islink(path):
+                        continue
+                    try:
+                        if os.path.getsize(path) > self._MAX_FILE_BYTES:
+                            continue
+                    except OSError:
+                        continue
+                    seen.add(real)
+                    yield path
+                    yielded += 1
+                    if yielded >= self._MAX_FILES:
+                        return
 
     def _parse_sqlite(self, path: str) -> Iterator[dict]:
         """Try to parse a SQLite DB with session/message tables.
@@ -263,32 +283,37 @@ class OpenclawAdapter:
             _IDENT_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
             if not _IDENT_RE.match(msg_table) or (ts_col and not _IDENT_RE.match(ts_col)):
                 return  # Suspicious table/column name — skip this DB.
-            cur.execute(f'SELECT * FROM "{msg_table}" ORDER BY "{ts_col}"')
-            for row in cur.fetchall():
-                col_names = [desc[0] for desc in cur.description]
-                row_dict = dict(zip(col_names, row))
-                ts_val = row_dict.get(ts_col)
-                if isinstance(ts_val, (int, float)):
-                    ts = float(ts_val) / 1000 if ts_val > 1e12 else float(ts_val)
-                elif isinstance(ts_val, str):
-                    try:
-                        ts = datetime.fromisoformat(ts_val.replace("Z", "+00:00")).timestamp()
-                    except (ValueError, TypeError):
+            cur.execute(f'SELECT * FROM "{msg_table}" ORDER BY "{ts_col}" LIMIT ?',
+                        (self._MAX_DB_ROWS,))
+            col_names = [desc[0] for desc in cur.description]
+            while True:
+                rows = cur.fetchmany(500)
+                if not rows:
+                    break
+                for row in rows:
+                    row_dict = dict(zip(col_names, row))
+                    ts_val = row_dict.get(ts_col)
+                    if isinstance(ts_val, (int, float)):
+                        ts = float(ts_val) / 1000 if ts_val > 1e12 else float(ts_val)
+                    elif isinstance(ts_val, str):
+                        try:
+                            ts = datetime.fromisoformat(ts_val.replace("Z", "+00:00")).timestamp()
+                        except (ValueError, TypeError):
+                            continue
+                    else:
                         continue
-                else:
-                    continue
-                kind = "user_message"
-                if role_col:
-                    role = str(row_dict.get(role_col, "")).lower()
-                    if "assistant" in role or "ai" in role:
-                        kind = "assistant_message"
-                yield make_event(
-                    source="openclaw", source_kind="ai_session",
-                    session_id=str(row_dict.get(session_col, "")) if session_col else None,
-                    cwd=None, git_branch=None,
-                    timestamp=ts, kind=kind,
-                    text=str(row_dict.get(content_col, ""))[:2000] if content_col else None,
-                )
+                    kind = "user_message"
+                    if role_col:
+                        role = str(row_dict.get(role_col, "")).lower()
+                        if "assistant" in role or "ai" in role:
+                            kind = "assistant_message"
+                    yield make_event(
+                        source="openclaw", source_kind="ai_session",
+                        session_id=str(row_dict.get(session_col, "")) if session_col else None,
+                        cwd=None, git_branch=None,
+                        timestamp=ts, kind=kind,
+                        text=str(row_dict.get(content_col, ""))[:2000] if content_col else None,
+                    )
         except sqlite3.Error:
             pass
         finally:

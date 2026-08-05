@@ -49,8 +49,12 @@ else:
 # Windows Recent (Windows-only)
 WINDOWS_RECENT = _join("AppData", "Roaming", "Microsoft", "Windows", "Recent") if IS_WINDOWS else ""
 
-# WeLink Meeting recordings (Windows-only, configurable)
-WELINK_RECORDINGS = "D:\\MeetingRecordings" if IS_WINDOWS else ""
+# WeLink Meeting recordings. Prefer an explicit per-user setting; otherwise use
+# a conventional Documents location instead of embedding one machine's drive.
+WELINK_RECORDINGS = os.environ.get(
+    "WELINK_RECORDINGS_DIR",
+    _join("Documents", "MeetingRecordings") if IS_WINDOWS else "",
+)
 
 # Outlook (Mac path included for colleagues on Mac)
 if IS_WINDOWS:
@@ -69,10 +73,6 @@ def audit_no_hardcoded_identity() -> list[str]:
     the current user's home via os.path.expanduser).
     """
     issues = []
-    # The WeLink recordings path is a known Windows hardcode — note it as configurable.
-    if IS_WINDOWS and WELINK_RECORDINGS and not os.path.isdir(WELINK_RECORDINGS):
-        issues.append(f"WELINK_RECORDINGS defaults to '{WELINK_RECORDINGS}' which doesn't exist — "
-                      "should be auto-detected or configurable, not hardcoded.")
     # Check this module's source for hardcoded usernames (not the resolved paths)
     src = os.path.abspath(__file__)
     try:

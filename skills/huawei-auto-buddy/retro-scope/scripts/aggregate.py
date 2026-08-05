@@ -908,7 +908,8 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
                 (t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0
                 for t in by_kind_tasks[kind]
             ) / 3600
-            kind_wd = _as_working_days(kind_active)
+            working_day_hours = actual_working_hours or WORKING_DAY_HOURS
+            kind_wd = _as_working_days(kind_active, working_day_hours)
             color = kind_colors.get(kind, "#888")
             items = []
             for t in kind_tasks:
@@ -974,12 +975,14 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 
     # Working-day conversion for the summary header.
     # Use actual working hours (from human activity) if available, else 8h/day.
-    wd_total = _as_working_days(total_active)
+    working_day_hours = actual_working_hours or WORKING_DAY_HOURS
+    wd_total = _as_working_days(total_active, working_day_hours)
     human_engaged_total = sum(
         (t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0
         for t in (tasks or [])
     ) / 3600
-    working_basis = f"8h/day" if actual_working_hours <= 0 else f"{actual_working_hours:.0f}h actual"
+    working_basis = (f"{WORKING_DAY_HOURS:g}h/day fallback" if actual_working_hours <= 0
+                     else f"{actual_working_hours:.1f}h observed/day")
 
     # Three-way time breakdown: wall → active → human, with percentages.
     # Per-type: human is % of active (nested), active is % of wall (rubric 36).

@@ -5,6 +5,8 @@ Run with:
     python -m unittest tests.test_parallel -v
 """
 
+from __future__ import annotations
+
 import unittest
 import os
 import sys

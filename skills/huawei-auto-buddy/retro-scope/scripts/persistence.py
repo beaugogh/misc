@@ -4,7 +4,7 @@ Stores reconstructed tasks in a flat JSONL log (output/tasks.jsonl) — a delibe
 simple intermediate that's easy to migrate to OCEL 2.0 later (Phase 5). Append-only
 across runs with dedup by task id.
 
-The watermark (output/last_run.txt) holds the last-analysis timestamp, enabling two-axis
+The watermark (output/retro_scope_last_run.txt) holds an epoch-seconds timestamp, enabling two-axis
 incremental collection: new sessions/files + new messages in old sessions. Adapters that
 support `collect_since(watermark)` use it; others fall back to full collect.
 
@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import json
 import time
+import tempfile
 
 # Default output directory: skills/huawei-auto-buddy/output/ (two levels up
 # from scripts/ — retro-scope is a component of huawei-auto-buddy, so its
@@ -27,31 +28,62 @@ _RETRO_SCOPE_DIR = os.path.dirname(_SCRIPTS_DIR)
 _DEFAULT_OUTPUT_DIR = os.path.join(os.path.dirname(_RETRO_SCOPE_DIR), "output")
 OUTPUT_DIR = os.environ.get("RETRO_SCOPE_OUTPUT_DIR", _DEFAULT_OUTPUT_DIR)
 TASKS_LOG = os.path.join(OUTPUT_DIR, "tasks.jsonl")
-WATERMARK_FILE = os.path.join(OUTPUT_DIR, "last_run.txt")
+WATERMARK_FILE = os.path.join(OUTPUT_DIR, "retro_scope_last_run.txt")
+LEGACY_WATERMARK_FILE = os.path.join(OUTPUT_DIR, "last_run.txt")
 
 
 def ensure_data_dir():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    try:
+        os.chmod(OUTPUT_DIR, 0o700)
+    except OSError:
+        pass
+
+
+def _atomic_write(path: str, content: str) -> None:
+    """Write a private file atomically in the destination directory."""
+    ensure_data_dir()
+    fd, tmp_path = tempfile.mkstemp(prefix=f".{os.path.basename(path)}.", dir=OUTPUT_DIR)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.chmod(tmp_path, 0o600)
+        except OSError:
+            pass
+        os.replace(tmp_path, path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 def read_watermark() -> float | None:
     """Read the last-analysis timestamp (epoch seconds). Returns None if no prior run."""
-    if not os.path.exists(WATERMARK_FILE):
+    path = WATERMARK_FILE
+    if not os.path.exists(path):
+        # One-time compatibility with the former shared watermark. A legacy
+        # millisecond value belongs to skill-forge and must not be interpreted
+        # as seconds.
+        path = LEGACY_WATERMARK_FILE
+    if not os.path.exists(path):
         return None
     try:
-        with open(WATERMARK_FILE, encoding="utf-8") as f:
-            return float(f.read().strip())
+        with open(path, encoding="utf-8") as f:
+            value = float(f.read().strip())
+        if value < 0 or value >= 100_000_000_000:
+            return None
+        return value
     except (ValueError, OSError):
         return None
 
 
 def write_watermark(ts: float | None = None):
-    """Write the watermark. Defaults to current time."""
-    ensure_data_dir()
+    """Atomically write an epoch-seconds watermark. Defaults to current time."""
     if ts is None:
         ts = time.time()
-    with open(WATERMARK_FILE, "w", encoding="utf-8") as f:
-        f.write(str(ts))
+    _atomic_write(WATERMARK_FILE, str(float(ts)))
 
 
 def load_existing_tasks() -> list[dict]:
@@ -95,10 +127,21 @@ def save_tasks(tasks: list[dict], mode: str = "replace"):
             by_id[t["id"]] = t  # new/updated overwrites
         tasks = list(by_id.values())
 
-    with open(TASKS_LOG, "w", encoding="utf-8") as f:
-        for t in tasks:
-            # Sort keys for stable diffs; ensure_ascii=False for CJK subjects.
-            f.write(json.dumps(t, ensure_ascii=False, sort_keys=True) + "\n")
+    content = "".join(
+        json.dumps(t, ensure_ascii=False, sort_keys=True) + "\n"
+        for t in tasks
+    )
+    _atomic_write(TASKS_LOG, content)
+
+
+def persist_run(tasks: list[dict], collection_started_at: float) -> None:
+    """Persist tasks before advancing the watermark.
+
+    Stable task IDs make a retry safe if the process stops between the two
+    atomic replacements. Writing the watermark last prevents data loss.
+    """
+    save_tasks(tasks, mode="merge")
+    write_watermark(collection_started_at)
 
 
 def incremental_collect(registry, watermark: float | None):

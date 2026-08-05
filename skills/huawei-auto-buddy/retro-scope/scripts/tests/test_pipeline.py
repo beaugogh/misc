@@ -112,6 +112,16 @@ class TestAdapter(unittest.TestCase):
             # ISO 8601 -> epoch seconds; 10:00:00.500 UTC on 2026-07-01
             self.assertAlmostEqual(events[0]["timestamp"], 1782900000.5, places=1)
 
+    def test_malformed_timestamp_skips_only_bad_record(self):
+        lines = [
+            _line("user", role="user", content="bad", ts="not-a-date"),
+            _line("user", role="user", content="good", ts="2026-07-01T10:00:01Z"),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            _write_session(lines, tmp)
+            events = collect_events(tmp)
+        self.assertEqual([e.get("text") for e in events], ["good"])
+
     def test_timestampless_events_kept_by_adapter_dropped_by_segmenter(self):
         """Adapter yields them (kind=mode etc.); segment() filters them out."""
         lines = [
