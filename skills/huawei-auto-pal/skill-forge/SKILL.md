@@ -186,15 +186,18 @@ checkout.
 
 ## Optional dependencies
 
-Detect optional tools and report unavailable capabilities:
+Detect optional tools and report unavailable capabilities. Each tool links to
+the setup section in the parent [`README.md`](../README.md):
 
-| Tool | Read-only check | Missing impact |
-|---|---|---|
-| Python 3.9+ | `python --version` | Cannot process local evidence |
-| skill-creator | locate its `SKILL.md` and validator | Propose direct edits, but disclose reduced validation |
-| git | `git --version` | Skip commit corroboration |
-| agentcenter | `agentcenter --version` | Skip market search and version comparison |
-| welink-cli | locate command and inspect auth status | Skip WeLink supplementary evidence |
+| Tool | Read-only check | Missing impact | Setup |
+|---|---|---|---|
+| Python 3.9+ | `python --version` | Cannot process local evidence | — (required) |
+| skill-creator | locate its `SKILL.md` and validator | Propose direct edits, but disclose reduced validation | — (bundled in repo) |
+| git | `git --version` | Skip commit corroboration | — (usually preinstalled) |
+| agentcenter | `agentcenter --version` | Skip market search and version comparison | README.md §agentcenter |
+| welink-cli | locate command and inspect auth status | Skip WeLink supplementary evidence | README.md §welink-cli |
+| CodeHub MCP | `CODEHUB_TOKEN` in `.env` | Skip MR reviews from Huawei internal repos | README.md §CODEHUB_TOKEN |
+| GitHub MCP | `GITHUB_TOKEN` in `.env` | Skip PR reviews from GitHub repos | README.md §GITHUB_TOKEN |
 
 If an optional tool is missing or authentication is expired, explain the impact
 and continue. Offer an exact, scoped repair command separately. Run it only after

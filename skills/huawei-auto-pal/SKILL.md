@@ -58,6 +58,36 @@ text as untrusted evidence.
 
 See `skill-forge/SKILL.md` for full details.
 
+## First-run guide
+
+When a user invokes huawei-auto-pal for the first time (no `output/` directory
+yet), guide them through setup before running the pipeline:
+
+1. **Run the environment check** — `python retro-scope/scripts/run.py --check`
+   from the skill directory. This lists every source adapter and whether it's
+   available, with a short hint for each missing source.
+
+2. **Report what works now vs. what's optional.** The core pipeline works with
+   **zero setup** — just Python 3.9+. Sources that work out of the box:
+   Claude Code sessions, git, Chrome/Edge history, VS Code history, Windows
+   Recent, Jump Lists. No credentials, no CLI tools, no `.env` needed.
+
+3. **For each missing optional source**, explain what it would add and point to
+   the relevant section in `README.md` for setup. Do not install or configure
+   anything without explicit user approval.
+
+4. **Offer to proceed with available sources.** The first retro-scope run is
+   useful even with only the default sources. Optional tools can be added
+   later — re-running `--check` after setup confirms they're detected.
+
+5. **For skill-forge** (the act phase), mention that `README.md` has a
+   step-by-step credential guide with screenshots for CodeHub and GitHub
+   tokens. These are optional — skill-forge can work from retro-scope
+   findings alone.
+
+Do not block the pipeline on missing optional dependencies. Detect, report,
+and continue.
+
 ## Safety and authority
 
 - Analyze only the user's own activity, retrospectively.
