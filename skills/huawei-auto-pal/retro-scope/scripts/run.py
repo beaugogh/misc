@@ -23,7 +23,7 @@ Flags:
                                           Each report includes a data-availability section
                                           showing per-source coverage. Sources with no data
                                           in a horizon are listed as "No data in range".
-    --output-dir <dir>                    directory for multi-horizon reports (default: ../../output/ i.e. huawei-auto-buddy/output/)
+    --output-dir <dir>                    directory for multi-horizon reports (default: ../../output/ i.e. huawei-auto-pal/output/)
     --granularity {day,week,month,year}   aggregation period (single-range mode; default: week)
     --format {text,table,markdown,html,json}  output format (single-range; default: text)
     --json                                emit raw JSON (equivalent to --format json; takes precedence)
@@ -791,7 +791,7 @@ def main():
 
     # --- Export detailed session records as evidence (rubric 66) ---
     # Extracts detailed session records for later inspection.
-    # Default: skills/huawei-auto-buddy/output/ (shared with skill-forge).
+    # Default: skills/huawei-auto-pal/output/ (shared with skill-forge).
     _default_out = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
         "output")

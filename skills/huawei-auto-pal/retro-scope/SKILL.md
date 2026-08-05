@@ -1,7 +1,7 @@
 ---
 name: retro-scope
 description: >-
-  Use only through huawei-auto-buddy when reconstructing a user's personal work
+  Use only through huawei-auto-pal when reconstructing a user's personal work
   from existing activity traces, reporting Wall, Active, and Human time across
   multiple horizons, or identifying recurring time consumption with evidence and
   explicit coverage limitations. Do not invoke this component directly.

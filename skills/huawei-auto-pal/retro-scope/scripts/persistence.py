@@ -19,8 +19,8 @@ import json
 import time
 import tempfile
 
-# Default output directory: skills/huawei-auto-buddy/output/ (two levels up
-# from scripts/ — retro-scope is a component of huawei-auto-buddy, so its
+# Default output directory: skills/huawei-auto-pal/output/ (two levels up
+# from scripts/ — retro-scope is a component of huawei-auto-pal, so its
 # output lives at the parent skill level, shared with skill-forge).
 # Can be overridden via RETRO_SCOPE_OUTPUT_DIR env var or --output-dir flag.
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))

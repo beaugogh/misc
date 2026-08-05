@@ -1,7 +1,7 @@
 ---
 name: skill-forge
 description: >-
-  Use only through huawei-auto-buddy when validated retro-scope findings or
+  Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
   bounded analysis, evaluation, low-friction approval, and explicitly opted-in
   automatic behavioral-rule sedimentation. Do not invoke this component directly.
@@ -9,7 +9,7 @@ description: >-
 
 # skill-forge
 
-Act on huawei-auto-buddy's diagnosis. Consume retro-scope evidence, identify a
+Act on huawei-auto-pal's diagnosis. Consume retro-scope evidence, identify a
 reusable intervention, produce the smallest durable change, evaluate it, and apply
 it only under explicit current approval or a previously approved, narrowly scoped
 auto-sedimentation policy.
@@ -153,7 +153,7 @@ services, personal facts, and any third-party or marketplace artifact.
 
 ## Inputs and state
 
-Primary inputs under `huawei-auto-buddy/output/`:
+Primary inputs under `huawei-auto-pal/output/`:
 
 - `report_*.html`: time-consumption findings and trends.
 - `session_records/*.json`: sensitive supporting evidence.

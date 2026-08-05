@@ -6,7 +6,7 @@
 
 ```bash
 # 1. 安装 CLI 工具（见下方"CLI 工具安装"）
-# 2. 在 huawei-auto-buddy 目录中复制凭据模板
+# 2. 在 huawei-auto-pal 目录中复制凭据模板
 cp .env.example .env
 # 3. 按下方说明填入真实凭据
 # 4. 使用前加载凭据
