@@ -56,8 +56,10 @@ Use `RETRO_SCOPE_OUTPUT_DIR` or `--output-dir` to override the default parent
 
 ### 1. Confirm scope
 
-Clarify the requested period and whether the user wants diagnosis only or intends
-to continue to skill-forge. Default to multi-horizon diagnosis. Do not broaden from
+Use the default multi-horizon diagnosis (90d/30d/7d/1d) unless the user has
+explicitly requested a specific period. Do not ask whether the user wants
+"diagnosis only" or "intends to continue to skill-forge" — huawei-auto-pal
+always runs retro-scope then skill-forge automatically. Do not broaden from
 the user's own activity to colleague or team analysis.
 
 ### 2. Discover sources
