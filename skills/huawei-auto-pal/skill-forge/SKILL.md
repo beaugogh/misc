@@ -349,7 +349,59 @@ obtain explicit approval before writing.
 An approval or opt-in for one target does not authorize another target or unrelated
 discovery. Apply only the authorized diff, rerun validation, and report the final result.
 
-### 8. Advance state
+### 8. Register into the user's agents
+
+A skill or memory created in `output/` is passive — the user's agents don't know
+it exists. After a skill is created or updated, offer to register it into each
+installed agent's skill directory. After personal-context memory is updated, offer
+to insert it into the agent's memory system.
+
+**Skill registration is always Tier 3** — explicit approval required, regardless of
+auto-sedimentation policy. Installing into an agent's directory is a structural
+change that affects behavior across all future sessions.
+
+Use `skill-forge/scripts/agent_targets.py` to discover installed agents:
+
+- Claude Code (`~/.claude/skills/`, memory via `~/.claude/projects/<slug>/memory/`)
+- CodeAgent (`~/.cac/skills/`, memory via `~/.cac/projects/<slug>/memory/`)
+- OpenCode (`~/.config/opencode/skills/`, no memory mechanism)
+- Codex (no skills dir, memory via `~/.codex/instructions.md`)
+- OpenClaw / Hermes (layout uncertain — skills dir best-effort, no memory)
+
+Discovery is read-only: it checks directory existence and derives the project slug
+from the current working directory. It never reads personal session or memory
+contents.
+
+For each detected agent with a `skills_dir`:
+
+1. Show the skill name, source path, target path, and agent name.
+2. If the target skill already exists, report the conflict — do not overwrite.
+3. On approval, **copy** the skill folder (SKILL.md + scripts/ + references/ +
+   assets/) into `<skills_dir>/<name>/` using
+   `skill-forge/scripts/skill_installer.py`.
+4. Validate the copied skill with `quick_validate.py`.
+5. Report success or failure with the exact target path.
+
+For agents without a `skills_dir` (Codex, unknown OpenClaw/Hermes): report that
+the agent was detected but skill registration is not supported. Suggest manual
+copy.
+
+For **personal-context memory** (not a skill — it holds declarative facts):
+
+- Claude Code / CodeAgent: do NOT copy as a skill. Instead, parse the
+  `personal-context/SKILL.md` body into individual memory facts, create one
+  `.md` file per fact in the agent's `memory/` directory (with frontmatter:
+  name, description, type: user), and append a one-line pointer to `MEMORY.md`.
+  Update existing facts rather than duplicating.
+- Codex: append a `## Personal Context` section to `~/.codex/instructions.md`,
+  replacing any existing section.
+- OpenCode / OpenClaw / Hermes: report unsupported — leave personal-context in
+  `output/` for manual use.
+
+Use `dry_run=True` to preview what would be installed without writing. Always
+show the user the target paths and fact list before asking for approval.
+
+### 9. Advance state
 
 Advance `skill_forge_last_run_ms.txt` only after all selected evidence was processed
 successfully. Use the collection-start timestamp so evidence created during processing
@@ -375,6 +427,7 @@ Report:
 - memory, skill, or market proposals with evidence;
 - current-session adaptations and systemic-deficiency triggers;
 - exact writes performed and whether authority was current approval or per-target opt-in;
+- skills registered into agent directories and memory facts inserted, with target paths;
 - backup and rollback paths for automatic sedimentation;
 - validation and evaluation results;
 - watermark/cursor status and remaining work.

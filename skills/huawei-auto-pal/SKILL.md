@@ -97,6 +97,11 @@ run or a renamed installation:
    disabled (see README.md §GITHUB_TOKEN). These are optional — skill-forge
    can work from retro-scope findings alone.
 
+6. **After skill-forge creates output**, offer to register new skills and
+   memory into the user's installed agents (Claude Code, CodeAgent, OpenCode,
+   Codex, etc.). This is always Tier 3 — explicit approval per agent. See
+   skill-forge/SKILL.md §8 for details.
+
 Do not block the pipeline on missing optional dependencies. Detect, report,
 and continue.
 
