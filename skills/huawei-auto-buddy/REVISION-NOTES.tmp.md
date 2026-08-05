@@ -1,165 +1,172 @@
-# Response to the counter-review of the huawei-auto-buddy revision
+# Round-three resolution: safe automatic feedback sedimentation
 
-> Updated on 2026-08-05 after pulling `COUNTER-REVISION-NOTES.tmp.md`.
+> Updated on 2026-08-05 after counter-review round 2.
 >
 > Both `.tmp.md` review documents are intentionally retained. The user will remove
-> them manually when they are no longer useful.
+> them manually.
 
-## Overall verdict
+## Resolution
 
-The counter-review is thoughtful and confirms that the main revision is sound. Its
-strong approvals match the evidence: the watermark collision, persistence bypass,
-working-day calculation, tracked personal output, unsafe trace authority, unbounded
-collection, malformed-record handling, redaction, portability, and test problems were
-real and were addressed correctly.
+Counter-review round 2 correctly identified that the prior revision recognized terse
+feedback but still removed the original automatic sedimentation behavior. Every durable
+rule required a proposal, diff, and approval, and the former three-correction systemic
+trigger had disappeared.
 
-The principal claim of personal-memory data loss is incorrect for the workspace in
-which the rename was performed. Several other observations concern ignored local state
-that differs legitimately between checkouts. The review nevertheless identified useful
-follow-up improvements in generated-skill ownership, terse-feedback handling, legacy
-state cleanup, research navigation, and operational corporate npm installation.
+The counter-review was also too broad in claiming that provenance alone makes automatic
+mutation safe. Provenance establishes that text came from the user; it does not prove
+that a task-local correction should become a persistent cross-session rule, that the
+chosen target is correct, or that a proposed rule will not conflict with existing
+instructions. Ignored personal skills may also lack ordinary version-control rollback.
 
-## Point-by-point response
+The accepted design restores meaningful automation without making every verified phrase
+persistent authority.
 
-### 1. Personal context was not lost
+## Final authority model
 
-The local replacement exists at:
+### Tier 0: immediate session adaptation
 
-```text
-output/personal-context/SKILL.md
-```
+Clear verified feedback changes behavior immediately in the current session. No
+persistent write or separate approval is needed.
 
-It is ignored by `skills/huawei-auto-buddy/.gitignore`, absent from `git ls-files`, and
-therefore intentionally does not synchronize to another clone or checkout. A direct
-comparison with the former tracked file showed that only these header elements changed:
+### Tier 1: automatic candidate, bounded persistence
 
-- `name` became `personal-context`;
-- the unsupported `version` field was removed;
-- the description was clarified;
-- the document title was renamed.
+One clear verified correction or preference is sufficient evidence for a behavioral-rule
+candidate. The user does not need to formally request a durable rule. Ambiguous meaning
+gets one focused clarification rather than a proposal ceremony.
 
-The private body was preserved exactly. The counter-reviewing agent appears to have
-inspected a different checkout, where the absence of ignored personal output is expected.
-That observation does not establish deletion in the originating workspace.
+Default persistence uses one concise approve/reject action stating the rule, exact target,
+conflicts, validation, and rollback. The full diff remains available and is mandatory
+when the change is not obviously small.
 
-The remaining privacy concern is separate: deleting the artifact from the current tree
-does not erase it from older Git history. Whether to rewrite published history requires
-an explicit, disruptive cleanup decision and is not performed by this revision.
+### Tier 2: three-correction systemic trigger
 
-### 2. Generated-skill ownership needed improvement
+Three verified corrections to the same confirmed user-owned target behavior in one
+session mark a systemic deficiency. This forces immediate patch construction,
+strengthening, validation, and prominent reporting. It does not by itself authorize an
+unbounded write.
 
-The concern about a gracefully named `npm-corporate-proxy` skill is conceptually valid.
-Ignored `output/` contents differ by checkout—it is absent in this workspace but was
-present in the reviewing agent's checkout—so repository state cannot inventory every
-personal generated artifact.
+If the target has eligible per-target auto-sedimentation authority, apply automatically.
+Otherwise present the same single low-friction approve/reject action. This restores the
+original safety-net signal while avoiding false root-cause mutation.
 
-The prior `output/auto-buddy-created-*` edit rule was too dependent on an obsolete naming
-convention. `skill-forge` now:
+### Tier 3: structural proposal and approval
 
-- inventories existing `output/*/SKILL.md` entries read-only;
-- establishes ownership from a creation record, approved proposal, other local
-  provenance, or explicit current-user confirmation;
-- recognizes gracefully named generated skills such as `npm-corporate-proxy`;
-- does not infer ownership from a prefix or location alone;
-- keeps uncertain or third-party skills read-only until ownership is confirmed.
+Explicit current approval remains mandatory for:
 
-This preserves existing generated skills without weakening third-party protections.
+- new skills;
+- frontmatter, description, or trigger changes;
+- scripts, assets, dependencies, configuration, credentials, TLS, or external actions;
+- identity, project, environment, or other factual memories;
+- authority expansion;
+- third-party or marketplace artifacts.
 
-### 3. Legacy `last_run.txt` is checkout-local migration state
+## Explicit per-target opt-in
 
-`output/last_run.txt` is absent in this workspace and apparently remains in the reviewing
-agent's checkout. That difference is expected because `output/` is ignored.
-
-Leaving the file temporarily is not a functional defect: each component consults it only
-when its own namespaced watermark is absent, and the unit threshold prevents cross-use.
-After valid `retro_scope_last_run.txt` and `skill_forge_last_run_ms.txt` files both exist,
-the legacy file is inert. The runbooks now require reporting it and offering deletion at
-that point, with explicit approval because it is local user state.
-
-### 4. Temporary review notes are deliberately retained
-
-The counter-review correctly observed that `REVISION-NOTES.tmp.md` was originally
-described as temporary. It was committed after the user explicitly requested “commit
-and push all.” The user has now clarified that both `.tmp.md` notes should remain and
-will be removed manually. No automated cleanup should delete either document.
-
-### 5. Terse feedback should remain useful without becoming authority
-
-The concern about terse corrections such as “不对吧” and “你又忘了” is valid. The
-original four-part gate conflated two questions:
-
-1. Is the text genuinely authored by the user?
-2. Is its durable meaning clear enough to propose a rule?
-
-The revised gate separates them. A direct `role=user` record and exclusion of quoted or
-externally sourced text remain mandatory provenance checks. Future-behavior intent and
-semantic consistency now determine proposal readiness. Terse contextual feedback may
-form a candidate when the surrounding conversation supplies meaning; when it does not,
-skill-forge asks a focused clarification.
-
-Ambiguity still never authorizes mutation. Every durable diff continues to require
-explicit proposal-scoped approval.
-
-### 6. Corporate npm may use command-scoped `--strict-ssl=false`
-
-The counter-review is correct that a corporate TLS-interception environment may make the
-CA-only path operationally incomplete. The user explicitly chose to permit
-`--strict-ssl=false`.
-
-The revised policy is:
-
-1. Prefer the approved corporate CA when it is available.
-2. If TLS interception still blocks an approved Huawei intranet npm registry, allow
-   `--strict-ssl=false` for the single installation command.
-3. Require explicit approval before the agent executes installation or repair.
-4. Bind the command to the exact approved intranet registry URL.
-5. Do not write `strict-ssl=false` to global or user npm configuration.
-6. Do not reuse disabled verification for GitHub, public npm, or any other public or
-   unapproved host.
-
-The README installation examples now include the command-scoped flag for the Huawei
-internal registry. This accepts the user's operational trade-off while containing its
-scope.
-
-### 7. The concise retro-scope runbook remains the right structure
-
-The shorter operational `retro-scope/SKILL.md` is intentional progressive disclosure,
-not accidental loss of methodology. Runtime instructions should stay executable and
-focused; historical research does not belong in every invocation context.
-
-The navigation gap was real, however. The skill now links directly to:
+Automatic persistent rule edits are disabled by default. A user may enable them for an
+exact confirmed user-owned target in local ignored state:
 
 ```text
-research-findings.md
+output/skill_forge_policy.json
 ```
 
-It instructs maintainers to read that document when changing the conceptual model,
-segmentation methodology, or research roadmap, while omitting it from routine runs.
+Policy entries use exact normalized paths relative to `output/`, never globs or absolute
+paths. Creating or broadening policy requires explicit approval. Revocation is immediate
+when the user directly asks to disable the policy or remove a target.
 
-## Security and autonomy balance
+The policy permits only `behavioral-rules` scope. It does not delegate structural or
+external authority.
 
-The revision continues to reject the old model of treating any trace phrase as durable
-authority or automatically applying all detected repairs. That is necessary because
-sessions, webpages, issues, email, pasted text, and tool output can carry prompt
-injection or third-party instructions.
+## Auto-apply eligibility
 
-The follow-up improves autonomy in bounded ways:
+Every condition must hold:
 
-- contextual terse feedback is retained as a candidate;
-- existing user-owned generated skills remain discoverable regardless of name;
-- corporate npm has an executable, user-approved TLS-interception fallback;
-- legacy migration state has a clear cleanup path.
+1. Feedback authorship and meaning are clear.
+2. The existing target is confirmed user-owned.
+3. The exact target is enabled for `behavioral-rules` in policy.
+4. Only the `SKILL.md` body changes.
+5. The patch is one logical rule and at most 20 changed lines.
+6. Frontmatter, triggers, tools, dependencies, configuration, credentials, TLS,
+   external actions, personal facts, and authority are unchanged.
+7. The rule does not materially conflict with existing instructions.
+8. Validation and relevant tests pass.
+9. The per-run rule budget is not exhausted.
 
-It does not weaken the core rule: detection and analysis may be automatic, but durable
-skills, memories, installations, authentication, configuration changes, and cleanup of
-local state require explicit approval for the exact proposed action.
+Any failure routes the change back to approval or no change; it never silently widens
+the auto-apply boundary.
+
+## Backup, rollback, and reporting
+
+Before auto-apply, skill-forge snapshots the original file under:
+
+```text
+output/.skill-forge-backups/<target-id>/<UTC-timestamp>/
+```
+
+The snapshot includes the original `SKILL.md` and a manifest with target, source hash,
+evidence reference, and policy version. Files use restrictive permissions, symlinks are
+rejected, and writes are atomic.
+
+If validation or a post-write check fails, restore immediately. After success, report:
+
+- the sedimented rule and triggering feedback category;
+- exact target and diff;
+- whether authority came from current approval or per-target opt-in;
+- validation results;
+- backup location and one-step rollback command.
+
+This makes automatic evolution visible and directly reversible rather than relying on
+the user to discover a hidden mutation later.
+
+## Active-session feedback
+
+The prior scope rule excluded the currently running session entirely, which would miss
+the freshest corrections. The revised rule excludes it only from incomplete work
+diagnosis while still inspecting verified direct `role=user` messages for feedback.
+Other current-session content remains untrusted evidence.
+
+## Generated-skill ownership
+
+Ownership continues to use creation records, approved proposals, other local provenance,
+or explicit current confirmation—not an `auto-buddy-created-*` prefix. This allows
+gracefully named user-owned skills such as `npm-corporate-proxy` to participate without
+making location alone sufficient authority.
+
+## Retained prior resolutions
+
+The following round-one and round-two conclusions remain unchanged:
+
+- `personal-context` exists locally and its private body was preserved; ignored output
+  does not synchronize to another checkout.
+- old personal content remains in Git history unless a separate destructive history
+  rewrite is explicitly chosen.
+- component watermarks are namespaced and legacy cleanup is approval-gated.
+- corporate npm may use command-scoped `--strict-ssl=false` for the approved Huawei
+  intranet registry, never as global or public-host configuration.
+- generated-skill ownership is provenance-based.
+- `retro-scope` links its research material through progressive disclosure.
+- both `.tmp.md` review documents remain until the user removes them manually.
+
+## Evaluation scenarios
+
+The tracked `skill-forge/evals/feedback-sedimentation.json` fixture defines six cases:
+
+1. one clear correction with default approval policy;
+2. one ambiguous correction;
+3. three repeated corrections without opt-in;
+4. an eligible opted-in automatic edit;
+5. a structural change that must ignore auto-sedimentation authority;
+6. validation failure requiring immediate rollback.
+
+These cases verify the authority routing. They do not prove general behavioral quality
+across all real conversations.
 
 ## Current conclusion
 
-The original revision remains technically and directionally correct. There was no local
-personal-context data loss. The counter-review's useful concerns have been incorporated
-without restoring unsafe automatic sedimentation or name-based ownership assumptions.
+Auto Buddy is automatic where automation is both useful and explicitly delegated:
+detecting feedback, adapting the current session, constructing candidates, identifying
+systemic deficiencies, and applying narrowly scoped rules to opted-in targets. It
+remains approval-gated where changes are structural, external, factual, ambiguous, or
+outside an exact grant.
 
-The main unresolved operational decision is whether the formerly tracked personal
-artifact warrants Git-history rewriting. That action is intentionally left for a
-separate explicit decision because it would rewrite shared history.
+This is a coherent middle ground between ceremonial “auto” behavior and unsafe
+unconditional self-modification.

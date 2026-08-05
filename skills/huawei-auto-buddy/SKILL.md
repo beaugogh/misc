@@ -2,9 +2,10 @@
 name: huawei-auto-buddy
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
-  friction into proposed skills or memories. Use for time logs, work-pattern
-  reviews, session analysis, skill improvement, “how did I spend my time”,
-  “分析session”, “时间日志”, “工时统计”, “自演进”, or “总结一下最近的工作”.
+  friction or verified user feedback into safely governed skills or memories.
+  Use for time logs, work-pattern reviews, session analysis, skill improvement,
+  “how did I spend my time”, “分析session”, “时间日志”, “工时统计”, “自演进”, or
+  “总结一下最近的工作”.
 ---
 
 # huawei-auto-buddy
@@ -28,8 +29,9 @@ activity traces → retro-scope (diagnose) → skill-forge (act) → skills/memo
    that address validated problems — so the next time the user faces the same
    situation, a skill or memory is ready to help them solve it quickly and avoid
    wasting time. It also extracts long-term memory, updates existing skills based on
-   new experience, and recommends market skills. Durable changes require review
-   and explicit user approval.
+   new experience, and recommends market skills. Durable changes require explicit
+   approval unless a previously approved per-target policy authorizes a bounded,
+   reversible behavioral-rule update.
 
 The pipeline is: **find the waste → eliminate the waste going forward.**
 
@@ -66,7 +68,14 @@ See `skill-forge/SKILL.md` for full details.
   person's identity without consent, or encode one machine's inventory in the skill.
 - Detect unavailable dependencies and report them. Never install, authenticate, update,
   or weaken TLS settings without explicit user approval.
-- Require a proposed diff and explicit approval before creating or modifying durable
-  skills, memories, configuration, or third-party dependencies.
+- Require explicit approval for new skills, structural edits, memories containing facts,
+  configuration, dependencies, credentials, external actions, and third-party artifacts.
+- Permit automatic sedimentation only for a small behavioral-rule edit to an existing,
+  confirmed user-owned skill or personal-context target under ignored `output/` that
+  the user previously opted in by exact path. Back up, validate, report, and make the
+  edit directly reversible.
+- Treat three verified corrections to the same behavior in one session as a systemic
+  deficiency that must produce a validated patch; auto-apply it only when the target's
+  opt-in policy and bounded-edit rules permit it.
 - Prefer portable dependencies; label Huawei-internal optional integrations accurately.
 - Degrade gracefully and ground every conclusion in attributable evidence.

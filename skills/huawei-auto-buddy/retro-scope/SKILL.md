@@ -1,10 +1,10 @@
 ---
 name: retro-scope
 description: >-
-  Reconstruct a user's personal work from existing activity traces, report Wall,
-  Active, and Human time across multiple horizons, and identify recurring time
-  consumption with evidence and explicit coverage limitations. Component of
-  huawei-auto-buddy; invoke through the parent skill rather than directly.
+  Use only through huawei-auto-buddy when reconstructing a user's personal work
+  from existing activity traces, reporting Wall, Active, and Human time across
+  multiple horizons, or identifying recurring time consumption with evidence and
+  explicit coverage limitations. Do not invoke this component directly.
 ---
 
 # retro-scope

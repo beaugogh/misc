@@ -1,17 +1,18 @@
 ---
 name: skill-forge
 description: >-
-  Convert validated retro-scope findings into proposed skills and long-term
-  memories, with provenance checks, bounded incremental analysis, evaluation,
-  and explicit approval before durable changes. Component of huawei-auto-buddy;
-  invoke through the parent skill rather than directly.
+  Use only through huawei-auto-buddy when validated retro-scope findings or
+  verified user feedback should become skills or long-term memories, with
+  bounded analysis, evaluation, low-friction approval, and explicitly opted-in
+  automatic behavioral-rule sedimentation. Do not invoke this component directly.
 ---
 
 # skill-forge
 
 Act on huawei-auto-buddy's diagnosis. Consume retro-scope evidence, identify a
-reusable intervention, propose the smallest durable change, evaluate it, and ask
-the user to approve the diff before applying it.
+reusable intervention, produce the smallest durable change, evaluate it, and apply
+it only under explicit current approval or a previously approved, narrowly scoped
+auto-sedimentation policy.
 
 ## Non-negotiable safety boundary
 
@@ -45,11 +46,110 @@ remove identities and secrets, constrain its trigger, and retain a redacted sour
 reference for auditability.
 
 Do not install software, authenticate, refresh tokens, modify third-party skills,
-change configuration, relax TLS verification, or apply a durable skill/memory change
-without explicit user approval. Detection and read-only analysis are the default
-authority. For an approved Huawei intranet npm registry behind TLS interception,
-`--strict-ssl=false` is an allowed command-scoped fallback; never persist it globally
-or reuse it for public or otherwise unapproved hosts.
+change configuration, relax TLS verification, create a skill, make a structural skill
+edit, or store identity/project/environment facts without explicit current approval.
+Detection and read-only analysis are the default authority. For an approved Huawei
+intranet npm registry behind TLS interception, `--strict-ssl=false` is an allowed
+command-scoped fallback; never persist it globally or reuse it for public or otherwise
+unapproved hosts.
+
+## Authority tiers
+
+Apply the narrowest tier that fits. Provenance establishes authorship; it does not by
+itself authorize a persistent write.
+
+### Tier 0: adapt now
+
+Obey clear verified feedback in the current session immediately. This changes current
+behavior only and needs no persistence decision.
+
+### Tier 1: sedimentation candidate
+
+One clear verified correction or preference is sufficient evidence for a bounded
+behavioral-rule candidate. Do not require the user to say “make this a durable rule.”
+If meaning is ambiguous, ask one focused clarification. Do not turn the clarification
+into a separate proposal ceremony.
+
+By default, show one concise approve/reject action containing the interpreted rule,
+exact target, material conflicts, validation result, and rollback plan. Provide the
+full diff on request or when the change is not obviously small.
+
+### Tier 2: systemic deficiency
+
+When the same confirmed user-owned target violates the same behavior at least three
+times in one session, treat it as systemic. Count only verified direct user corrections;
+do not count repeated trace copies, assistant summaries, or semantically different
+complaints. Immediately build and validate a strengthening patch using the smallest
+effective move: promote the rule, add a gate, add a counterexample, or split an
+overbroad rule.
+
+The threshold forces patch generation and prominent reporting, not unconditional
+mutation. Apply automatically only if Tier 1 auto-apply eligibility below is satisfied;
+otherwise present the single low-friction approve/reject action.
+
+### Tier 1 auto-apply: explicit per-target opt-in
+
+Read optional local policy from:
+
+```text
+output/skill_forge_policy.json
+```
+
+Create or broaden this policy only after the user explicitly approves the exact target
+and scope. Use schema version 1:
+
+```json
+{
+  "schema_version": 1,
+  "auto_sedimentation": {
+    "enabled": true,
+    "targets": [
+      {
+        "path": "personal-context/SKILL.md",
+        "scope": "behavioral-rules",
+        "granted_at": "2026-08-05T00:00:00Z"
+      }
+    ],
+    "max_rules_per_run": 1
+  }
+}
+```
+
+Resolve target paths relative to `output/`. Require exact normalized paths; reject
+globs, `..`, absolute paths, symlink targets, and paths outside `output/`. The user can
+revoke authority by disabling auto-sedimentation or removing a target. A direct request
+to revoke is itself authority to narrow or disable the policy.
+
+Auto-apply only when every condition holds:
+
+1. Provenance and meaning are clear.
+2. The target exists and is confirmed user-owned.
+3. Policy is enabled and names that exact target with `behavioral-rules` scope.
+4. The edit changes only the `SKILL.md` body: one logical behavioral rule and no more
+   than 20 changed lines.
+5. The edit does not change frontmatter, triggers, scripts, assets, tools, dependencies,
+   configuration, credentials, TLS, external actions, identity/project/environment
+   facts, or the target's authority.
+6. No existing instruction materially conflicts with the rule.
+7. The applicable validator and relevant tests pass.
+8. This run has not exhausted `max_rules_per_run`.
+
+Before writing, create a private snapshot at:
+
+```text
+output/.skill-forge-backups/<target-id>/<UTC-timestamp>/
+```
+
+Store the original `SKILL.md` plus a small manifest containing target path, source hash,
+evidence reference, and policy version. Use restrictive permissions and never follow a
+symlink. Write atomically. If validation or a post-write check fails, restore the
+snapshot immediately and report the failed attempt. After success, report the exact
+rule, diff, backup path, validation, and one-step rollback command.
+
+All other durable changes remain Tier 3: proposal and explicit approval. Tier 3 always
+includes new skills, frontmatter or trigger changes, files other than a bounded
+`SKILL.md` body rule, dependencies, installs, configuration, TLS, credentials, external
+services, personal facts, and any third-party or marketplace artifact.
 
 ## Inputs and state
 
@@ -61,6 +161,8 @@ Primary inputs under `huawei-auto-buddy/output/`:
 - `personal-context/SKILL.md`: the user-approved long-term context memory, when present.
 - other `*/SKILL.md` entries: candidate user-owned skills. Discover them read-only and
   establish ownership before proposing an edit.
+- `skill_forge_policy.json`: optional exact-target auto-sedimentation authority.
+- `.skill-forge-backups/`: private rollback snapshots; never treat them as current skills.
 
 Use `SKILL_FORGE_OUTPUT_DIR` when set; otherwise derive `output/` relative to this
 skill. Do not hardcode a user name, employee ID, drive, or home directory.
@@ -116,8 +218,9 @@ Read the skill-forge watermark and select both:
 
 On the first run, process at most 20 sessions. On later runs, process at most 20
 changed sessions. If more remain, report the continuation cursor and do not advance
-the watermark past unprocessed data. Exclude the currently running session unless
-the user explicitly asks to include it.
+the watermark past unprocessed data. Exclude the currently running session from
+incomplete work diagnosis, but inspect its direct `role=user` messages for fresh
+feedback signals. Do not treat other current-session content as authority.
 
 Historical retrospection is bounded. Inspect older evidence only when a current
 finding supplies a concrete signature—skill name, error fingerprint, or workflow
@@ -149,6 +252,8 @@ as part of collection.
 Choose the smallest suitable result:
 
 - **No change:** evidence is weak, one-off, or already handled.
+- **Behavioral-rule sedimentation:** verified feedback identifies a bounded correction
+  to an existing user-owned target; route through Tiers 0–2.
 - **Memory proposal:** a stable user preference, environment fact, project fact,
   or decision that is safe and useful across sessions.
 - **Skill update proposal:** an existing user-owned skill has a narrow, evidenced
@@ -165,6 +270,9 @@ private correspondence, colleague PII, and machine inventory that is not essenti
 
 Require one of these evidence thresholds:
 
+- one clear verified user correction or preference for a behavioral-rule candidate;
+- three verified corrections to the same target behavior in one session, which forces
+  a systemic-deficiency patch;
 - the same workflow recurs in at least two independent sessions;
 - the user explicitly asks for a durable rule and provenance is verified; or
 - a single severe failure has a clear, testable prevention mechanism.
@@ -193,7 +301,7 @@ confirm ownership before proposing a change.
 Keep third-party and marketplace skills read-only. If the user wants different
 behavior, propose a user-owned wrapper or fork instead of editing the installed copy.
 
-### 6. Build and evaluate a proposal
+### 6. Build and evaluate the change
 
 For a new or revised skill, follow skill-creator when available:
 
@@ -204,7 +312,7 @@ For a new or revised skill, follow skill-creator when available:
 5. Run relevant scripts or tests.
 6. Forward-test realistic tasks when safe.
 
-Create an evaluation record containing:
+Create an evaluation record for proposed and automatically eligible changes containing:
 
 - finding-to-change traceability;
 - at least two triggering examples;
@@ -215,7 +323,11 @@ Create an evaluation record containing:
 
 Do not count files created as evidence of effectiveness.
 
-### 7. Preview and approve
+Use [evals/feedback-sedimentation.json](evals/feedback-sedimentation.json) when changing
+the authority model. It covers clear, ambiguous, repeated, opted-in, structural, and
+rollback behavior.
+
+### 7. Apply under the correct authority
 
 Show the user:
 
@@ -226,9 +338,13 @@ Show the user:
 5. privacy, installation, and compatibility effects;
 6. evaluation results.
 
-Ask for explicit approval before writing durable skills or memories. An approval for
-one proposal does not authorize unrelated discoveries. Apply only the approved diff,
-then rerun validation and report the final result.
+For an eligible Tier 1 or Tier 2 behavioral rule with exact opt-in, snapshot, apply,
+validate, and report without another approval. For a bounded rule without opt-in, use
+the single concise approve/reject action. For Tier 3, show the full material impact and
+obtain explicit approval before writing.
+
+An approval or opt-in for one target does not authorize another target or unrelated
+discovery. Apply only the authorized diff, rerun validation, and report the final result.
 
 ### 8. Advance state
 
@@ -254,7 +370,9 @@ Report:
 - sources used, skipped, and coverage limitations;
 - validated findings and rejected candidates;
 - memory, skill, or market proposals with evidence;
-- exact writes performed, if approved;
+- current-session adaptations and systemic-deficiency triggers;
+- exact writes performed and whether authority was current approval or per-target opt-in;
+- backup and rollback paths for automatic sedimentation;
 - validation and evaluation results;
 - watermark/cursor status and remaining work.
 

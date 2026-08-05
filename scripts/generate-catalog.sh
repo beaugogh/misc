@@ -73,7 +73,7 @@ render_skill_section() {
   # Partial clones may have gitlinks without initialized submodule contents.
   # Preserve the last generated external section instead of replacing it with
   # an incorrect empty table.
-  if [ "$base" != "skills" ] && ! find "$base" -name SKILL.md -type f 2>/dev/null | grep -q .; then
+  if [ "$base" != "skills" ] && [ -z "$(find "$base" -name SKILL.md -type f -print -quit 2>/dev/null)" ]; then
     awk -v marker="### $heading (" '
       index($0, marker) == 1 { found=1 }
       found && printed && ($0 ~ /^### / || $0 ~ /^## /) { exit }
@@ -82,7 +82,7 @@ render_skill_section() {
     return
   fi
 
-  if find "$base" -mindepth 3 -name SKILL.md -type f 2>/dev/null | grep -q .; then
+  if [ -n "$(find "$base" -mindepth 3 -name SKILL.md -type f -print -quit 2>/dev/null)" ]; then
     nested=1
   fi
 
