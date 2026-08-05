@@ -196,7 +196,7 @@ the setup section in the parent [`README.md`](../README.md):
 | git | `git --version` | Skip commit corroboration | — (usually preinstalled) |
 | agentcenter | `agentcenter --version` | Skip market search and version comparison | README.md §agentcenter |
 | welink-cli | locate command and inspect auth status | Skip WeLink supplementary evidence | README.md §welink-cli |
-| CodeHub MCP | `CODEHUB_TOKEN` in `.env` | Skip MR reviews from Huawei internal repos | README.md §CODEHUB_TOKEN |
+| CodeHub MCP | `python3 mcp-tools/huawei-codehub/codehub.py --list-tools` succeeds | Skip MR reviews from Huawei internal repos | README.md §CODEHUB_TOKEN |
 | GitHub MCP | — (disabled: `ssl.CERT_NONE`, not called) | No GitHub PR reviews until TLS is fixed | README.md §GITHUB_TOKEN |
 
 If an optional tool is missing or authentication is expired, explain the impact

@@ -96,6 +96,47 @@ from segment_tasks import segment
 from aggregate import aggregate, render_report, render_markdown, render_table, render_html
 
 
+def render_check_output(adapters, hints=None):
+    """Render the --check status report as a string.
+
+    Pure function: takes an iterable of adapter objects (each with .name,
+    .detect(), and optional .detector_only) and an optional hints dict.
+    Does NOT call collect() on any adapter. Used by --check and by tests.
+    """
+    if hints is None:
+        hints = _ADAPTER_HINTS
+    lines = [
+        "# retro-scope environment check",
+        "# READY = detected and collection implemented",
+        "# DETECTOR-ONLY = tool detected, but collect() yields no events yet",
+        "# NOT DETECTED = collection exists but source is absent; see README.md",
+        "",
+    ]
+    for adapter in adapters:
+        is_detector_only = getattr(adapter, "detector_only", False)
+        hint = hints.get(adapter.name, "")
+        try:
+            ok = adapter.detect()
+        except Exception as e:
+            lines.append(f"  {adapter.name:20s} ERROR: {e}")
+            continue
+        if ok and is_detector_only:
+            status = "DETECTOR-ONLY"
+            line = f"  {adapter.name:20s} {status}"
+            if hint:
+                line += f"  ({hint})"
+        elif ok:
+            status = "READY"
+            line = f"  {adapter.name:20s} {status}"
+        else:
+            status = "NOT DETECTED"
+            line = f"  {adapter.name:20s} {status}"
+            if hint:
+                line += f"  ({hint})"
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def _parse_date(s: str) -> float:
     """Parse YYYY-MM-DD to epoch seconds (UTC start of day)."""
     dt = datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=timezone.utc)
@@ -656,6 +697,28 @@ def main():
                     help="run segmentation evaluation against the labeled benchmark (Phase 9.8)")
     args = ap.parse_args()
 
+    # --check and --eval are detection/evaluation-only modes that must NOT
+    # collect personal session data. Handle them before the two-pass AI
+    # collection below, which parses real Claude session records.
+    if args.check:
+        from sources import default_registry as _reg
+        from persistence import detect_legacy_output, format_legacy_report
+        # session_cwds not needed — --check only calls detect(), not collect().
+        reg = _reg(session_cwds=[])
+        print(render_check_output(reg._adapters))
+        # Surface legacy output migration status (read-only, no personal contents).
+        legacy = detect_legacy_output()
+        if legacy["status"] != "current_only" and legacy["status"] != "none":
+            print()
+            print(format_legacy_report(legacy))
+        sys.exit(0)
+
+    if args.eval:
+        from eval_segmentation import run_eval, format_metrics_report
+        metrics = run_eval()
+        print(format_metrics_report(metrics))
+        sys.exit(0)
+
     # Two-pass collection: first collect AI-session events to discover project cwds,
     # then build the registry with those cwds so the git adapter finds the right repos.
     from claude_code_adapter import ClaudeCodeAdapter
@@ -668,44 +731,6 @@ def main():
         session_cwds = sorted({e.get("cwd") for e in ai_events if e.get("cwd")})
 
     reg = default_registry(session_cwds=session_cwds)
-
-    # --eval: run segmentation evaluation against the labeled benchmark, then exit.
-    if args.eval:
-        from eval_segmentation import run_eval, format_metrics_report
-        metrics = run_eval()
-        print(format_metrics_report(metrics))
-        sys.exit(0)
-
-    # --check: verify adapters detect, report status, exit.
-    if args.check:
-        print("# retro-scope environment check")
-        print("# READY = detected and collection implemented")
-        print("# DETECTOR-ONLY = tool detected, but collect() yields no events yet")
-        print("# NOT DETECTED = collection exists but source is absent; see README.md")
-        print()
-        for adapter in reg._adapters:
-            is_detector_only = getattr(adapter, "detector_only", False)
-            hint = _ADAPTER_HINTS.get(adapter.name, "")
-            try:
-                ok = adapter.detect()
-            except Exception as e:
-                print(f"  {adapter.name:20s} ERROR: {e}")
-                continue
-            if ok and is_detector_only:
-                status = "DETECTOR-ONLY"
-                line = f"  {adapter.name:20s} {status}"
-                if hint:
-                    line += f"  ({hint})"
-            elif ok:
-                status = "READY"
-                line = f"  {adapter.name:20s} {status}"
-            else:
-                status = "NOT DETECTED"
-                line = f"  {adapter.name:20s} {status}"
-                if hint:
-                    line += f"  ({hint})"
-            print(line)
-        sys.exit(0)
 
     # Collect events — incremental if watermark exists and --rebuild not set.
     from persistence import read_watermark, persist_run

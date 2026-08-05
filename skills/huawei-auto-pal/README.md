@@ -171,6 +171,20 @@ CODEHUB_HOST=https://codehub-g.huawei.com/
 (`NO_PROXY=*.huawei.com`). The wrapper is at
 [`../../mcp-tools/huawei-codehub/codehub.py`](../../mcp-tools/huawei-codehub/codehub.py).
 
+**Verify readiness / 验证可用性** (after uvx + token + host are set):
+```bash
+python3 mcp-tools/huawei-codehub/codehub.py --list-tools
+```
+This confirms the wrapper starts, the server launches via uvx, credentials
+are accepted, and tools can be enumerated — without making a real API call.
+If it fails, see
+[`../../mcp-tools/huawei-codehub/README.md`](../../mcp-tools/huawei-codehub/README.md)
+for the three execution paths (wrapper, Claude Code MCP, opencode MCP) and
+troubleshooting.
+
+验证（uvx + 令牌 + 地址配置完成后）：运行上面的 `--list-tools` 命令确认封装启动、
+uvx 拉起服务、凭据被接受且工具可枚举。失败时请查阅 CodeHub MCP 文档。
+
 ### GITHUB_TOKEN — GitHub personal access token (currently disabled)
 
 **Status / 状态**: ⚠️ **Disabled / 已禁用**
