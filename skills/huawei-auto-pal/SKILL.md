@@ -6,6 +6,10 @@ description: >-
   Use for time logs, work-pattern reviews, session analysis, skill improvement,
   “how did I spend my time”, “分析session”, “时间日志”, “工时统计”, “自演进”, or
   “总结一下最近的工作”.
+metadata:
+  author: Bo Gao (b00563677)
+  category: Software Development
+  version: 1.0.0
 ---
 
 # huawei-auto-pal

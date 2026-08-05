@@ -5,6 +5,10 @@ description: >-
   verified user feedback should become skills or long-term memories, with
   bounded analysis, evaluation, low-friction approval, and explicitly opted-in
   automatic behavioral-rule sedimentation. Do not invoke this component directly.
+metadata:
+  author: Bo Gao (b00563677)
+  category: Software Development
+  version: 1.0.0
 ---
 
 # skill-forge
@@ -207,7 +211,7 @@ is available, offer a command-local `--strict-ssl=false` fallback, explain that 
 disables certificate verification for that invocation, and bind it to the exact
 intranet registry URL. Do not write `strict-ssl=false` to global or user configuration.
 
-Load credentials from the gitignored `.env` described by `.env.example`. Never
+Load credentials from the gitignored `.env` described by `env.example`. Never
 print, persist, or place credential values into a prompt, report, skill, or memory.
 
 ## Workflow
@@ -414,9 +418,22 @@ the user's Downloads folder. Tell the user where it was saved so they can
 find it easily. This gives them a portable snapshot of their time analysis,
 skills, and memory for backup or transfer.
 
-### 10. Advance state
+### 10. Distribute the skill to colleagues
 
-### 9. Advance state
+To share `huawei-auto-pal` with colleagues (e.g. uploading to AgentCenter),
+zip the whole skill folder — excluding personal data — into Downloads:
+
+```bash
+python skill-forge/scripts/register.py --dist
+```
+
+This creates a timestamped `huawei-auto-pal-YYYYMMDD-HHMMSS.zip` in the
+user's Downloads folder. It excludes `output/` (personal time logs and
+generated skills), all hidden files (`.env`, `.gitignore`, etc.),
+`__pycache__/`, and `.pyc` files — only shareable skill code is included. Tell the user where the zip was saved
+and that it is ready to upload to AgentCenter.
+
+### 11. Advance state
 
 Advance `skill_forge_last_run_ms.txt` only after all selected evidence was processed
 successfully. Use the collection-start timestamp so evidence created during processing

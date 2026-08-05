@@ -879,7 +879,7 @@ def main():
     #   - --since is set (explicit single-range request)
     #   - --horizons is explicitly empty
     #   - --format/--json/--output is set (single-report request)
-    #   - --task/--top/--sources/--check/--eval (already exited above)
+    #   - --task/--top/--sources/--check/--eval mode — already exited above
     use_multi_horizon = (
         bool(args.horizons)
         and not args.since
