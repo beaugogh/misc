@@ -115,7 +115,7 @@ skill-forge 的部分补充数据源需要凭据。复制模板并填入真实�
 
 ```bash
 # 1. Copy the template / 复制模板
-cp .env.example .env
+cp env.example .env
 
 # 2. Edit .env and fill in your real tokens / 编辑 .env 填入真实 token
 

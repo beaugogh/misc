@@ -255,5 +255,168 @@ class TestCmdArchive(unittest.TestCase):
             )
 
 
+class TestCmdDist(unittest.TestCase):
+    """Test the --dist command — zips the whole skill folder for sharing."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="dist_test_")
+        self._old_root = register._SKILL_ROOT
+        self._old_output = register._OUTPUT_DIR
+        # Build a fake skill root: <tmp>/huawei-auto-pal/...
+        self._skill_root = os.path.join(self._tmp, "huawei-auto-pal")
+        os.makedirs(self._skill_root)
+        # Core skill files.
+        with open(os.path.join(self._skill_root, "SKILL.md"), "w", encoding="utf-8") as f:
+            f.write("---\nname: huawei-auto-pal\n---\n# test\n")
+        # Subdirectory with code.
+        sub = os.path.join(self._skill_root, "skill-forge", "scripts")
+        os.makedirs(sub)
+        with open(os.path.join(sub, "register.py"), "w", encoding="utf-8") as f:
+            f.write("# test code\n")
+        # Personal output (must be excluded).
+        out = os.path.join(self._skill_root, "output")
+        os.makedirs(out)
+        with open(os.path.join(out, "report.html"), "w", encoding="utf-8") as f:
+            f.write("<html>personal</html>")
+        # .env (must be excluded — credentials).
+        with open(os.path.join(self._skill_root, ".env"), "w", encoding="utf-8") as f:
+            f.write("GITHUB_TOKEN=secret\n")
+        # .gitignore files (hidden files — AgentCenter rejects them).
+        with open(os.path.join(self._skill_root, ".gitignore"), "w", encoding="utf-8") as f:
+            f.write("output/\n.env\n")
+        with open(os.path.join(sub, ".gitignore"), "w", encoding="utf-8") as f:
+            f.write("__pycache__/\n")
+        # env.example (non-hidden, safe template — must be included).
+        with open(os.path.join(self._skill_root, "env.example"), "w", encoding="utf-8") as f:
+            f.write("# template\n")
+        # __pycache__ (must be excluded).
+        pycache = os.path.join(sub, "__pycache__")
+        os.makedirs(pycache)
+        with open(os.path.join(pycache, "junk.pyc"), "wb") as f:
+            f.write(b"\x00\x00")
+        # Patch _SKILL_ROOT and _downloads_dir.
+        self._downloads = os.path.join(self._tmp, "Downloads")
+        self._patch = patch.object(register, "_downloads_dir", return_value=self._downloads)
+        self._patch.start()
+        register._SKILL_ROOT = self._skill_root
+
+    def tearDown(self):
+        self._patch.stop()
+        register._SKILL_ROOT = self._old_root
+        register._OUTPUT_DIR = self._old_output
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _run_dist(self, dry_run=False):
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            register.cmd_dist(type("Args", (), {"dry_run": dry_run})(), [], [])
+        return buf.getvalue()
+
+    def _zip_names(self):
+        import zipfile
+        zips = [f for f in os.listdir(self._downloads) if f.endswith(".zip")]
+        self.assertEqual(len(zips), 1)
+        zip_path = os.path.join(self._downloads, zips[0])
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            return zf.namelist(), zip_path
+
+    def test_dry_run_does_not_write(self):
+        out = self._run_dist(dry_run=True)
+        self.assertIn("Would zip", out)
+        self.assertFalse(os.path.isdir(self._downloads) and os.listdir(self._downloads))
+
+    def test_creates_zip_in_downloads(self):
+        out = self._run_dist()
+        self.assertIn("Skill package saved to:", out)
+        self.assertIn("AgentCenter", out)
+        names, _ = self._zip_names()
+        # Skill code is included, rooted under the skill folder name.
+        self.assertTrue(any(n == "huawei-auto-pal/SKILL.md" for n in names))
+        self.assertTrue(any(n.endswith("register.py") for n in names))
+
+    def test_excludes_output_dir(self):
+        self._run_dist()
+        names, _ = self._zip_names()
+        leaked = [n for n in names if n.startswith("huawei-auto-pal/output/")]
+        self.assertFalse(leaked, f"output/ dir leaked: {leaked}")
+
+    def test_excludes_env_file(self):
+        self._run_dist()
+        names, _ = self._zip_names()
+        self.assertFalse(any(n.endswith(".env") for n in names), f".env leaked: {names}")
+
+    def test_excludes_all_hidden_files(self):
+        """AgentCenter rejects hidden files — all dotfiles must be excluded."""
+        self._run_dist()
+        names, _ = self._zip_names()
+        leaked = [n for n in names if os.path.basename(n).startswith(".")]
+        self.assertFalse(leaked, f"hidden files leaked: {leaked}")
+
+    def test_includes_non_hidden_env_example(self):
+        """env.example (non-hidden template) must be included for colleagues."""
+        self._run_dist()
+        names, _ = self._zip_names()
+        self.assertTrue(any(n.endswith("env.example") for n in names),
+                        f"env.example missing: {names}")
+
+    def test_excludes_pycache_and_pyc(self):
+        self._run_dist()
+        names, _ = self._zip_names()
+        self.assertFalse(any("__pycache__" in n for n in names), f"pycache leaked: {names}")
+        self.assertFalse(any(n.endswith(".pyc") for n in names), f"pyc leaked: {names}")
+
+    def test_zip_extracts_to_single_dir(self):
+        """The zip should extract into a single huawei-auto-pal/ dir for colleagues."""
+        self._run_dist()
+        names, zip_path = self._zip_names()
+        # Every path starts with the skill folder name.
+        for n in names:
+            self.assertTrue(n.startswith("huawei-auto-pal/"),
+                            f"path not under skill dir: {n}")
+
+    def test_missing_skill_root(self):
+        register._SKILL_ROOT = "/nonexistent/skill/root"
+        with self.assertRaises(SystemExit):
+            register.cmd_dist(type("Args", (), {"dry_run": False})(), [], [])
+
+
+class TestMutualExclusivity(unittest.TestCase):
+    """Test that --archive/--dist/--install/--install-memory cannot combine."""
+
+    def _run_main(self, *cli_args):
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        old_argv = sys.argv
+        sys.argv = ["register.py"] + list(cli_args)
+        buf_out, buf_err = io.StringIO(), io.StringIO()
+        try:
+            with redirect_stdout(buf_out), redirect_stderr(buf_err):
+                register.main()
+        except SystemExit as e:
+            sys.argv = old_argv
+            return e.code, buf_out.getvalue(), buf_err.getvalue()
+        sys.argv = old_argv
+        return 0, buf_out.getvalue(), buf_err.getvalue()
+
+    def test_archive_and_dist_rejected(self):
+        code, out, err = self._run_main("--archive", "--dist", "--dry-run")
+        self.assertNotEqual(code, 0)
+        self.assertIn("mutually exclusive", err)
+
+    def test_dist_and_install_rejected(self):
+        code, out, err = self._run_main("--dist", "--install", "some-skill", "--dry-run")
+        self.assertNotEqual(code, 0)
+        self.assertIn("mutually exclusive", err)
+
+    def test_single_mode_accepted(self):
+        # --dist alone should not trigger the mutual-exclusivity guard.
+        # It may exit for other reasons (e.g. no skill root), but not with
+        # the "mutually exclusive" message.
+        code, out, err = self._run_main("--dist", "--dry-run")
+        self.assertNotIn("mutually exclusive", err)
+
+
 if __name__ == "__main__":
     unittest.main()
