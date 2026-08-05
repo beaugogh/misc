@@ -1,5 +1,5 @@
 ---
-name: huawei-auto-buddy
+name: huawei-auto-pal
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -8,7 +8,7 @@ description: >-
   “总结一下最近的工作”.
 ---
 
-# huawei-auto-buddy
+# huawei-auto-pal
 
 Personal AI work companion for Huawei employees. Two jobs, one pipeline:
 **diagnose, then act.**
