@@ -115,6 +115,24 @@ class TestInstallSkill(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertTrue((self.skills_dir / "test-skill" / "SKILL.md").is_file())
 
+    def test_rejects_path_traversal_name(self):
+        """A source dir named '..' must be rejected, not copied into the parent."""
+        bad_source = Path(self._tmp, "..")
+        # Create a SKILL.md in the parent to make it look like a skill.
+        (bad_source / "SKILL.md").write_text("---\nname: bad\n---\n# bad\n", encoding="utf-8")
+        result = install_skill(str(bad_source), self.agent)
+        self.assertFalse(result.success)
+        self.assertEqual(result.action, "error")
+
+    def test_rejects_invalid_skill_name(self):
+        """A source dir with invalid characters must be rejected."""
+        bad_source = Path(self._tmp, "bad name with spaces")
+        bad_source.mkdir()
+        (bad_source / "SKILL.md").write_text("---\nname: bad\n---\n# bad\n", encoding="utf-8")
+        result = install_skill(str(bad_source), self.agent)
+        self.assertFalse(result.success)
+        self.assertEqual(result.action, "error")
+
 
 class TestParsePersonalContext(unittest.TestCase):
     """Test parsing of personal-context/SKILL.md into memory facts."""
@@ -147,6 +165,27 @@ Windows 11 with Git Bash.
         content = "# PC\n\n## My Fact\nThis is a fact. It has two sentences.\n"
         facts = _parse_personal_context(content)
         self.assertIn("This is a fact", facts[0]["description"])
+
+    def test_non_ascii_title_produces_slug(self):
+        """Non-ASCII titles (Chinese, Japanese) must produce a meaningful slug, not 'unnamed-fact'."""
+        content = "# PC\n\n## 代理设置\n使用 NO_PROXY。\n"
+        facts = _parse_personal_context(content)
+        self.assertEqual(len(facts), 1)
+        self.assertNotEqual(facts[0]["name"], "unnamed-fact")
+        self.assertTrue(len(facts[0]["name"]) > 0)
+
+    def test_code_fence_heading_not_split(self):
+        """## inside a code fence must not be treated as a new section."""
+        content = (
+            "# PC\n\n"
+            "## Real fact\nSome text.\n\n"
+            "```\n## Not a fact\nThis is code.\n```\n\n"
+            "## Another fact\nMore text.\n"
+        )
+        facts = _parse_personal_context(content)
+        self.assertEqual(len(facts), 2)
+        self.assertEqual(facts[0]["title"], "Real fact")
+        self.assertEqual(facts[1]["title"], "Another fact")
 
 
 class TestInstallMemoryClaude(unittest.TestCase):
@@ -189,7 +228,8 @@ class TestInstallMemoryClaude(unittest.TestCase):
         content = (self.memory_dir / "proxy-preference.md").read_text(encoding="utf-8")
         self.assertIn("---", content)
         self.assertIn("name: proxy-preference", content)
-        self.assertIn("type: user", content)
+        self.assertIn("node_type: memory", content)
+        self.assertIn("type: project", content)
 
     def test_memory_index_has_entries(self):
         install_memory(str(self.pc_path), self.agent)

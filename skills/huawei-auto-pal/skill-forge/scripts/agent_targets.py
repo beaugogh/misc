@@ -39,19 +39,18 @@ class AgentTarget:
 def derive_project_slug(cwd: str | None = None) -> str:
     """Derive the project slug an agent uses for the given directory.
 
-    Claude Code and CodeAgent use the same algorithm: replace : \\ / with -,
-    collapse consecutive dashes, strip trailing dashes.
+    Claude Code and CodeAgent use the same algorithm: replace : \\ / with -.
+    Consecutive dashes are NOT collapsed — a Windows drive colon plus the
+    following separator produce a double dash that Claude Code preserves
+    (e.g. D:\\workspace\\misc → D--workspace-misc).
 
-    D:\\workspace\\misc → D--workspace-misc
+    Only leading/trailing dashes are stripped.
     """
     if cwd is None:
         cwd = os.getcwd()
     # Replace drive colon, backslashes, forward slashes with dashes.
     slug = cwd.replace(":", "-").replace("\\", "-").replace("/", "-")
-    # Collapse consecutive dashes.
-    while "--" in slug:
-        slug = slug.replace("--", "-")
-    # Strip leading/trailing dashes.
+    # Strip leading/trailing dashes only — preserve internal double dashes.
     slug = slug.strip("-")
     return slug
 
@@ -79,10 +78,8 @@ def discover_agents(cwd: str | None = None) -> list[AgentTarget]:
     # Claude Code
     claude_base = HOME / ".claude"
     if claude_base.is_dir():
-        skills_dir = str(claude_base / "skills")
         # skills/ may not exist yet — that's fine, installer creates it.
-        if not (claude_base / "skills").is_dir():
-            skills_dir = str(claude_base / "skills")  # still return it
+        skills_dir = str(claude_base / "skills")
         memory_dir = _claude_memory_dir(claude_base, slug)
         agents.append(AgentTarget(
             agent_id="claude_code",
@@ -130,7 +127,7 @@ def discover_agents(cwd: str | None = None) -> list[AgentTarget]:
             agent_id="codex",
             display_name="Codex",
             skills_dir=None,
-            memory_dir=str(instructions_path) if instructions_path.exists() or codex_base.is_dir() else None,
+            memory_dir=str(instructions_path),
             memory_format="instructions_md",
             detect_path=str(codex_base),
         ))

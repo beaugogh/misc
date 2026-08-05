@@ -23,15 +23,16 @@ class TestDeriveProjectSlug(unittest.TestCase):
     """Test the project slug algorithm used by Claude Code / CodeAgent."""
 
     def test_windows_path(self):
+        # Windows drive colon + backslash → double dash, preserved by Claude Code.
         self.assertEqual(
             agent_targets.derive_project_slug("D:\\workspace\\misc"),
-            "D-workspace-misc",
+            "D--workspace-misc",
         )
 
     def test_windows_deep_path(self):
         self.assertEqual(
             agent_targets.derive_project_slug("D:\\workspace\\misc\\skills\\foo"),
-            "D-workspace-misc-skills-foo",
+            "D--workspace-misc-skills-foo",
         )
 
     def test_unix_path(self):
@@ -51,16 +52,19 @@ class TestDeriveProjectSlug(unittest.TestCase):
         self.assertIsInstance(slug, str)
         self.assertTrue(len(slug) > 0)
 
-    def test_consecutive_dashes_collapsed(self):
+    def test_double_dashes_preserved(self):
+        # Claude Code uses D--workspace-misc, not D-workspace-misc.
+        # D:\\workspace\\misc (escaped) = D:\workspace\misc → D--workspace-misc
+        # D:\\\\workspace\\\\misc (escaped) = D:\\workspace:\\misc → D---workspace--misc
         self.assertEqual(
             agent_targets.derive_project_slug("D:\\\\workspace\\\\misc"),
-            "D-workspace-misc",
+            "D---workspace--misc",
         )
 
     def test_trailing_dashes_stripped(self):
         self.assertEqual(
             agent_targets.derive_project_slug("D:\\workspace\\misc\\"),
-            "D-workspace-misc",
+            "D--workspace-misc",
         )
 
 

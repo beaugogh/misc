@@ -56,6 +56,13 @@ def install_skill(
 
     skill_name = source.name
 
+    # Validate skill_name — reject path traversal and invalid characters.
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9._-]*$', skill_name):
+        return InstallResult(
+            False, "error", source_dir,
+            f"invalid skill directory name: {skill_name!r} — must match [a-zA-Z0-9][a-zA-Z0-9._-]*"
+        )
+
     if agent.skills_dir is None:
         return InstallResult(
             False, "unsupported", "",
@@ -119,27 +126,45 @@ def _parse_personal_context(content: str) -> list[dict]:
     Returns a list of {name, description, body} dicts.
     """
     facts: list[dict] = []
-    # Split on ## headings (but not # which is the title).
-    sections = re.split(r'^## ', content, flags=re.MULTILINE)
-    for section in sections[1:]:  # skip content before first ##
-        lines = section.strip().split('\n')
-        title = lines[0].strip()
-        body = '\n'.join(lines[1:]).strip()
-        if not title:
+    # Split on ## headings at line start, but not inside fenced code blocks.
+    in_fence = False
+    current_title = None
+    current_body: list[str] = []
+    for line in content.split('\n'):
+        stripped = line.strip()
+        if stripped.startswith('```'):
+            in_fence = not in_fence
+            current_body.append(line)
             continue
-        # Derive a slug from the title.
-        slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
-        if not slug:
-            slug = "unnamed-fact"
-        # Description: first sentence of body, truncated.
-        first_sentence = body.split('.')[0][:100] if body else title
-        facts.append({
-            "name": slug,
-            "title": title,
-            "description": first_sentence,
-            "body": body,
-        })
+        if not in_fence and line.startswith('## '):
+            # Flush previous section.
+            if current_title is not None:
+                facts.append(_make_fact(current_title, '\n'.join(current_body).strip()))
+            current_title = line[3:].strip()
+            current_body = []
+        elif current_title is not None:
+            current_body.append(line)
+    # Flush last section.
+    if current_title is not None:
+        facts.append(_make_fact(current_title, '\n'.join(current_body).strip()))
     return facts
+
+
+def _make_fact(title: str, body: str) -> dict:
+    """Build a memory fact dict from a title and body text."""
+    # Derive a slug from the title — lowercase, allow Unicode word chars so
+    # non-ASCII titles (Chinese, Japanese, etc.) produce a meaningful slug.
+    slug = re.sub(r'[^\w]+', '-', title.lower(), flags=re.UNICODE).strip('-')
+    if not slug:
+        slug = "unnamed-fact"
+    # Description: first sentence of body, truncated.
+    first_sentence = body.split('.')[0][:100] if body else title
+    return {
+        "name": slug,
+        "title": title,
+        "description": first_sentence,
+        "body": body,
+    }
 
 
 def install_memory(
@@ -217,32 +242,49 @@ def _install_claude_memory(
     new_index_lines: list[str] = []
     updated_count = 0
     new_count = 0
+    written_fact_paths: list[Path] = []
 
-    for fact in facts:
-        slug = fact["name"]
-        fact_path = memory_dir / f"{slug}.md"
+    try:
+        for fact in facts:
+            slug = fact["name"]
+            fact_path = memory_dir / f"{slug}.md"
 
-        # Write the fact file (overwrite if exists — the user approved this).
-        fact_content = f"""---
+            # Write the fact file (overwrite if exists — the user approved this).
+            # Frontmatter matches Claude Code's memory schema: node_type + type.
+            fact_content = f"""---
 name: {slug}
 description: {fact['description']}
 metadata:
-  type: user
+  node_type: memory
+  type: project
 ---
 
 {fact['body']}
 """
-        fact_path.write_text(fact_content, encoding="utf-8")
-        files_written.append(f"{slug}.md")
+            fact_path.write_text(fact_content, encoding="utf-8")
+            written_fact_paths.append(fact_path)
+            files_written.append(f"{slug}.md")
 
-        if slug in existing_names:
-            updated_count += 1
-        else:
-            new_count += 1
+            if slug in existing_names:
+                updated_count += 1
+            else:
+                new_count += 1
 
-        # Index line.
-        index_line = f"- [{fact['title']}]({slug}.md) — {fact['description']}"
-        new_index_lines.append(index_line)
+            # Index line — escape brackets in title to avoid breaking markdown links.
+            safe_title = fact['title'].replace(']', '\\]').replace('[', '\\[')
+            index_line = f"- [{safe_title}]({slug}.md) — {fact['description']}"
+            new_index_lines.append(index_line)
+    except Exception as e:
+        # Rollback: remove any partially-written fact files.
+        for p in written_fact_paths:
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return InstallResult(
+            False, "error", str(memory_dir),
+            f"memory write failed after {len(written_fact_paths)} facts, rolled back: {e}",
+        )
 
     # Update MEMORY.md: append new lines, skip duplicates.
     if existing_index:
@@ -252,9 +294,9 @@ metadata:
                 r'^- \[[^\]]+\]\(' + re.escape(slug) + r'\.md\).*\n?',
                 '', existing_index, flags=re.MULTILINE
             )
-        # Append new lines.
+        # Append new lines, skipping any that are already present.
         existing_index = existing_index.rstrip() + '\n'
-        for line in new_index_lines:
+        for line, fact in zip(new_index_lines, facts):
             if f"]({fact['name']}.md)" not in existing_index:
                 existing_index += line + '\n'
         index_path.write_text(existing_index, encoding="utf-8")
@@ -296,10 +338,10 @@ def _install_instructions_md(
 
     if instructions_path.exists():
         existing = instructions_path.read_text(encoding="utf-8")
-        # Replace existing Personal Context section if present.
+        # Replace existing Personal Context section if present (case-insensitive).
         existing = re.sub(
             r'\n?## Personal Context\n.*?(?=\n## |\Z)',
-            '', existing, flags=re.DOTALL
+            '', existing, flags=re.DOTALL | re.IGNORECASE
         )
         instructions_path.write_text(existing.rstrip() + "\n" + section, encoding="utf-8")
     else:
