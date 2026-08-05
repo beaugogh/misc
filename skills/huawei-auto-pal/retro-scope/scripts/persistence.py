@@ -40,6 +40,89 @@ def ensure_data_dir():
         pass
 
 
+# ---------------------------------------------------------------------------
+# Legacy output migration detection (setup review finding 3).
+# After the huawei-auto-buddy → huawei-auto-pal rename, ignored state can
+# remain at the old path. These functions detect that situation without
+# reading any personal contents — existence checks only.
+# ---------------------------------------------------------------------------
+
+# The pre-rename output directory, relative to this skill's scripts dir.
+# huawei-auto-pal/retro-scope/scripts/ → huawei-auto-buddy/output/
+_LEGACY_OUTPUT_DIR = os.path.join(
+    os.path.dirname(_RETRO_SCOPE_DIR),  # huawei-auto-pal/
+    "..", "huawei-auto-buddy", "output",
+)
+_LEGACY_OUTPUT_DIR = os.path.normpath(_LEGACY_OUTPUT_DIR)
+
+
+def detect_legacy_output() -> dict:
+    """Check for legacy output at the old huawei-auto-buddy/output/ path.
+
+    Returns a dict with:
+      status: "none" | "legacy_only" | "current_only" | "both" | "conflict"
+      legacy_path: str or None
+      current_path: str
+      legacy_files: list[str] — filenames only, never contents
+
+    This function is read-only: it lists filenames for inventory but does
+    NOT read, parse, or print any personal output contents.
+    """
+    legacy_exists = os.path.isdir(_LEGACY_OUTPUT_DIR)
+    current_exists = os.path.isdir(OUTPUT_DIR)
+
+    legacy_files = []
+    if legacy_exists:
+        try:
+            legacy_files = sorted(os.listdir(_LEGACY_OUTPUT_DIR))
+        except OSError:
+            legacy_files = ["<unreadable>"]
+
+    if legacy_exists and current_exists:
+        # Both exist — don't auto-merge. Could be a migrated subset or a real conflict.
+        status = "both"
+    elif legacy_exists and not current_exists:
+        status = "legacy_only"
+    elif current_exists and not legacy_exists:
+        status = "current_only"
+    else:
+        status = "none"
+
+    return {
+        "status": status,
+        "legacy_path": _LEGACY_OUTPUT_DIR if legacy_exists else None,
+        "current_path": OUTPUT_DIR,
+        "legacy_files": legacy_files,
+    }
+
+
+def format_legacy_report(info: dict) -> str:
+    """Format a human-readable migration report. Never prints contents."""
+    status = info["status"]
+    if status == "none":
+        return "No prior output found. This is a first run."
+    if status == "current_only":
+        return "Existing output found at the current location. Not a first run."
+    lines = []
+    if status == "legacy_only":
+        lines.append("Prior output found at the OLD path (huawei-auto-buddy):")
+        lines.append(f"  {info['legacy_path']}")
+        lines.append(f"  Current destination: {info['current_path']}")
+        lines.append(f"  Files: {len(info['legacy_files'])} (names only)")
+        lines.append("")
+        lines.append("This state was left by the rename to huawei-auto-pal.")
+        lines.append("Migrate it to preserve watermarks, tasks, reports, and policy.")
+        lines.append("Ask the user for approval before moving anything.")
+    elif status == "both":
+        lines.append("Output exists at BOTH the old and new paths:")
+        lines.append(f"  Old: {info['legacy_path']}")
+        lines.append(f"  New: {info['current_path']}")
+        lines.append(f"  Old files: {len(info['legacy_files'])} (names only)")
+        lines.append("")
+        lines.append("Do NOT auto-merge. Ask the user which to keep.")
+    return "\n".join(lines)
+
+
 def _atomic_write(path: str, content: str) -> None:
     """Write a private file atomically in the destination directory."""
     ensure_data_dir()

@@ -60,12 +60,23 @@ See `skill-forge/SKILL.md` for full details.
 
 ## First-run guide
 
-When a user invokes huawei-auto-pal for the first time (no `output/` directory
-yet), guide them through setup before running the pipeline:
+When a user invokes huawei-auto-pal for the first time, guide them through
+setup before running the pipeline. First, check whether this is truly a first
+run or a renamed installation:
+
+0. **Check for legacy output.** The skill was renamed from `huawei-auto-buddy`.
+   If prior state exists at the old `skills/huawei-auto-buddy/output/` path,
+   `--check` reports it. Do not auto-merge or auto-migrate:
+   - **Old only**: explain the source and destination, ask for approval to
+     move it, then preserve watermarks, policy, backups, and timestamps.
+   - **Both old and new**: report the conflict and ask which to keep. Do not
+     silently overwrite either.
+   - Never read or print personal output contents during the inventory.
 
 1. **Run the environment check** — `python retro-scope/scripts/run.py --check`
    from the skill directory. This lists every source adapter and whether it's
-   available, with a short hint for each missing source.
+   available, with a short hint for each missing source. It does NOT collect
+   personal data — it only calls `detect()`, never `collect()`.
 
 2. **Report what works now vs. what's optional.** The core pipeline works with
    **zero setup** — just Python 3.9+. Sources that work out of the box:
