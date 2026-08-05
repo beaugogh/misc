@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.0.1
+version: 1.0.2
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -310,6 +310,12 @@ Keep third-party and marketplace skills read-only. If the user wants different
 behavior, propose a user-owned wrapper or fork instead of editing the installed copy.
 
 ### 6. Build and evaluate the change
+
+**All generated or updated skills MUST be written to `output/<skill-name>/` first —
+never directly into an agent's `skills/` directory.** The `output/` directory is the
+single staging area: `--archive` zips it, `--list` discovers from it, and `--install`
+copies from it into agent directories. Writing a skill anywhere other than `output/`
+makes it invisible to archiving, registration, and future runs.
 
 For a new or revised skill, follow skill-creator when available:
 

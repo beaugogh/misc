@@ -184,8 +184,12 @@ def cmd_archive(args, agents, output_skills):
     zip_name = f"huawei-auto-pal-output-{timestamp}.zip"
     zip_path = os.path.join(downloads, zip_name)
 
+    # Count skills (directories with SKILL.md) for the summary.
+    skill_count = len(output_skills)
+
     if args.dry_run:
         print(f"Would zip {_OUTPUT_DIR} → {zip_path}")
+        print(f"  ({skill_count} skill(s), {len(agents)} agent(s) detected)")
         return
 
     # Create the zip, excluding __pycache__ and .skill-forge-backups.
@@ -205,6 +209,11 @@ def cmd_archive(args, agents, output_skills):
     size_str = f"{zip_size / 1024:.0f} KB" if zip_size < 1024 * 1024 else f"{zip_size / 1024 / 1024:.1f} MB"
     print(f"✓ Output archived to: {zip_path}")
     print(f"  {file_count} files, {size_str}")
+    if skill_count == 0:
+        print(f"  ⚠ No skills found in output/ — only reports and session records were archived.")
+        print(f"    Generated skills should be written to output/<skill-name>/ before archiving.")
+    else:
+        print(f"  {skill_count} skill(s) included: {', '.join(output_skills)}")
 
 
 # --- Skill folder root for --dist. ---

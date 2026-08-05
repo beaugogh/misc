@@ -254,6 +254,31 @@ class TestCmdArchive(unittest.TestCase):
                 type("Args", (), {"dry_run": False})(), [], []
             )
 
+    def test_archive_reports_skill_count(self):
+        """Archive output should report how many skills were included."""
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            register.cmd_archive(
+                type("Args", (), {"dry_run": False})(), [], ["npm-corporate-proxy"]
+            )
+        out = buf.getvalue()
+        self.assertIn("1 skill(s) included", out)
+        self.assertIn("npm-corporate-proxy", out)
+
+    def test_archive_warns_when_no_skills(self):
+        """Archive should warn when output/ has no skills (only reports/records)."""
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            register.cmd_archive(
+                type("Args", (), {"dry_run": False})(), [], []
+            )
+        out = buf.getvalue()
+        self.assertIn("No skills found", out)
+
 
 class TestCmdDist(unittest.TestCase):
     """Test the --dist command — zips the whole skill folder for sharing."""
