@@ -45,9 +45,19 @@ class TestProvisionWelinkCli(unittest.TestCase):
     @patch("subprocess.run")
     def test_installs_welink_when_missing(self, mock_subproc, mock_which):
         """When welink-cli is not in PATH, npm install is called."""
-        # First which() call: node → found. Second: welink-cli → not found.
-        # Third (verify): welink-cli → found after install.
-        mock_which.side_effect = ["/usr/bin/node", None, "/usr/bin/welink-cli"]
+        # _resolve_cmd may call shutil.which("npm") on Windows, consuming an
+        # extra side_effect slot. Use a function that returns per-command.
+        wlk_count = [0]
+        def which_mock(name):
+            if "node" in name:
+                return "/usr/bin/node"
+            if "welink-cli" in name:
+                wlk_count[0] += 1
+                return "/usr/bin/welink-cli" if wlk_count[0] > 1 else None
+            if "npm" in name:
+                return "/usr/bin/npm"
+            return None
+        mock_which.side_effect = which_mock
         # node --version returns v22
         mock_subproc.return_value = MagicMock(
             returncode=0, stdout="v22.23.1\n", stderr="")
@@ -60,10 +70,78 @@ class TestProvisionWelinkCli(unittest.TestCase):
             with redirect_stdout(io.StringIO()):
                 result = run_mod._provision_welink_cli(dry_run=False)
         self.assertTrue(result)
-        # Verify npm install was called (at least one subprocess call with "npm")
+        # Verify npm install was called (cmd[0] may be a full path to npm.cmd
+        # on Windows, so check for "install" and the welink package name).
         calls = [c.args[0] for c in mock_subproc.call_args_list]
-        npm_calls = [c for c in calls if "npm" in c]
-        self.assertTrue(len(npm_calls) > 0, "npm install should be called")
+        install_calls = [c for c in calls if "install" in c and
+                         any("@welink" in str(arg) for arg in c)]
+        self.assertTrue(len(install_calls) > 0, "npm install should be called")
+
+    @patch("shutil.which")
+    @patch("subprocess.run")
+    def test_npm_install_passes_ignore_scripts(self, mock_subproc, mock_which):
+        """npm install must pass --ignore-scripts to avoid the welink-cli
+        postinstall PowerShell crash on Windows (see welink_cli_adapter.py
+        docstring: 'install with --ignore-scripts')."""
+        # _resolve_cmd may call shutil.which("npm") on Windows, consuming an
+        # extra side_effect slot. Use a function that returns the right value
+        # per command name so the mock doesn't run out.
+        def which_mock(name):
+            if "node" in name:
+                return "/usr/bin/node"
+            if "welink-cli" in name:
+                return "/usr/bin/welink-cli"
+            if "npm" in name:
+                return "/usr/bin/npm"  # or npm.cmd path on Windows
+            return None
+        mock_which.side_effect = which_mock
+        # But the first welink-cli check should return None (not installed yet).
+        # Track call count for welink-cli.
+        wlk_count = [0]
+        def which_mock_v2(name):
+            if "node" in name:
+                return "/usr/bin/node"
+            if "welink-cli" in name:
+                wlk_count[0] += 1
+                return "/usr/bin/welink-cli" if wlk_count[0] > 1 else None
+            if "npm" in name:
+                return "/usr/bin/npm"
+            return None
+        mock_which.side_effect = which_mock_v2
+        mock_subproc.return_value = MagicMock(
+            returncode=0, stdout="v22.23.1\n", stderr="")
+        run_mod = self._import()
+        with patch("welink_cli_adapter.WeLinkCLIAdapter") as mock_cls:
+            mock_adapter = MagicMock()
+            mock_adapter.auth_status.return_value = ("ok", "")
+            mock_cls.return_value = mock_adapter
+            with redirect_stdout(io.StringIO()):
+                run_mod._provision_welink_cli(dry_run=False)
+        # Find the npm install call (cmd[0] may be a full path to npm.cmd on
+        # Windows, so check for "install" and the welink package name).
+        calls = [c.args[0] for c in mock_subproc.call_args_list]
+        install_calls = [c for c in calls if "install" in c and
+                         any("@welink" in str(arg) for arg in c)]
+        self.assertTrue(len(install_calls) > 0,
+                        "npm install for welink-cli should be called")
+        self.assertIn("--ignore-scripts", install_calls[0],
+                      "npm install must pass --ignore-scripts to skip the "
+                      "broken PowerShell postinstall script")
+
+    def test_resolve_cmd_finds_npm_cmd_on_windows(self):
+        """_resolve_cmd resolves .cmd shims on Windows via shutil.which."""
+        run_mod = self._import()
+        # On non-Windows, _resolve_cmd is a no-op
+        if os.name != "nt":
+            self.assertEqual(run_mod._resolve_cmd(["npm", "install"]), ["npm", "install"])
+            return
+        # On Windows, npm resolves to npm.cmd
+        import shutil
+        npm_path = shutil.which("npm")
+        if npm_path:
+            resolved = run_mod._resolve_cmd(["npm", "--version"])
+            self.assertEqual(resolved[0], npm_path)
+            self.assertEqual(resolved[1], "--version")
 
     @patch("shutil.which")
     @patch("subprocess.run")

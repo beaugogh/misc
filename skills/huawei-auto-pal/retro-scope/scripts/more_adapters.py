@@ -24,15 +24,11 @@ from typing import Iterator
 from datetime import datetime, timezone, timedelta
 
 from sources import make_event
-from platform_paths import WELINK_RECORDINGS
-
-
-# ---------------------------------------------------------------------------
-# VSCode Local History
-# ---------------------------------------------------------------------------
-
-VSCODE_HISTORY_DIR = os.path.join(
-    os.path.expanduser("~"), "AppData", "Roaming", "Code", "User", "History"
+from platform_paths import (
+    WELINK_RECORDINGS,
+    VSCODE_HISTORY as VSCODE_HISTORY_DIR,
+    WINDOWS_RECENT as WINDOWS_RECENT_DIR,
+    JUMP_LIST as JUMP_LIST_DIR,
 )
 
 
@@ -413,9 +409,7 @@ class ICalendarAdapter:
 # Windows Recent files (.lnk)
 # ---------------------------------------------------------------------------
 
-WINDOWS_RECENT_DIR = os.path.join(
-    os.path.expanduser("~"), "AppData", "Roaming", "Microsoft", "Windows", "Recent"
-)
+# WINDOWS_RECENT_DIR imported from platform_paths
 
 
 def _parse_lnk_timestamp(lnk_path: str) -> tuple[float | None, str | None]:
@@ -480,10 +474,7 @@ class WindowsRecentAdapter:
 # Jump List (.automaticDestinations-ms)
 # ---------------------------------------------------------------------------
 
-JUMP_LIST_DIR = os.path.join(
-    os.path.expanduser("~"), "AppData", "Roaming", "Microsoft", "Windows",
-    "Recent", "AutomaticDestinations"
-)
+# JUMP_LIST_DIR imported from platform_paths
 
 # Regex to find UTF-16LE-encoded file paths in binary data.
 # Matches paths containing \\ or / with a file extension.

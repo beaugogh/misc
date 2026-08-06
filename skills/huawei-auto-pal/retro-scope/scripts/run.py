@@ -186,6 +186,23 @@ _WELINK_NPM_REGISTRY = (
 _WELINK_NPM_PACKAGE = "@welink/welink-cli"
 
 
+def _resolve_cmd(cmd: list[str]) -> list[str]:
+    """Resolve the executable in cmd[0] to its full path on Windows.
+
+    Python's subprocess.run without shell=True cannot resolve .cmd shims
+    (e.g. npm → npm.cmd, which is the Node.js package manager on Windows).
+    shutil.which() finds the full path including the .cmd extension, so
+    subprocess.run can execute it directly. On non-Windows, this is a no-op.
+    """
+    if not cmd or os.name != "nt":
+        return cmd
+    import shutil as _shutil
+    resolved = _shutil.which(cmd[0])
+    if resolved and resolved.lower() != cmd[0].lower():
+        return [resolved] + cmd[1:]
+    return cmd
+
+
 def _run_command(cmd: list[str], env: dict | None = None,
                  timeout: int = 120, dry_run: bool = False) -> tuple[int, str, str]:
     """Run a command, return (returncode, stdout, stderr).
@@ -193,6 +210,7 @@ def _run_command(cmd: list[str], env: dict | None = None,
     In dry-run mode, print the command and return (0, "", "") without executing.
     """
     import shlex
+    cmd = _resolve_cmd(cmd)
     label = " ".join(shlex.quote(c) for c in cmd)
     if env:
         env_labels = [f"{k}={v}" for k, v in env.items()
@@ -231,6 +249,7 @@ def _run_interactive(cmd: list[str], timeout: int = 120,
     Returns the exit code (0 = success). On timeout, prints a message and returns 1.
     """
     import shlex
+    cmd = _resolve_cmd(cmd)
     label = " ".join(shlex.quote(c) for c in cmd)
     if dry_run:
         print(f"  [dry-run] {label}")
@@ -284,6 +303,7 @@ def _provision_welink_cli(dry_run: bool = False) -> bool:
         cmd = [
             "npm", "install", "-g", _WELINK_NPM_PACKAGE,
             "--strict-ssl=false",
+            "--ignore-scripts",
             f"--@welink:registry={_WELINK_NPM_REGISTRY}",
         ]
         rc, _, _ = _run_command(cmd, env=env, timeout=180, dry_run=dry_run)
@@ -1097,8 +1117,9 @@ def main():
                     help="fetch and analyze actual web page content for browser time sinks "
                          "(top pages per task). External pages only — Huawei internal pages "
                          "require SSO and are skipped. Uses proxy when configured.")
-    ap.add_argument("--persist", action="store_true",
-                    help="save reconstructed tasks to output/tasks.jsonl (merged with prior)")
+    ap.add_argument("--persist", action=argparse.BooleanOptionalAction, default=True,
+                    help="save reconstructed tasks + watermark for incremental collection "
+                         "(default: on; use --no-persist to disable)")
     ap.add_argument("--task", help="show full detail for a single task by id (e.g. explicit-<session_id>-<timestamp>)")
     ap.add_argument("--drill", action="store_true",
                     help="with --task: stage-by-stage root-cause analysis (Phase 10.2)")
@@ -1386,30 +1407,30 @@ def main():
         and not args.task
     )
 
-    # Warn when --format/--json/--output is set with --horizons: these flags
-    # disable multi-horizon file output and fall through to single-range mode
-    # which prints to stdout. The agent may not realize HTML files won't be
-    # written to disk. Multi-horizon mode (the default, no --format) already
-    # produces HTML files — --format html is unnecessary and counterproductive.
-    if args.horizons and not use_multi_horizon and not args.task and args.top is None:
-        reason = []
+    # Error when --format/--json/--output is set with --horizons (without
+    # --since): these flags disable multi-horizon file output and fall through
+    # to single-range mode which prints to stdout (collapsed by terminals).
+    # The agent gets no report files and doesn't know why. Rather than warn
+    # (which agents ignore), error out with a clear message.
+    # --since + --horizons is allowed (legitimate single-range scoping).
+    if args.horizons and not args.since and not args.task and args.top is None:
+        conflicting = []
         if args.format:
-            reason.append(f"--format {args.format}")
+            conflicting.append(f"--format {args.format}")
         if args.json:
-            reason.append("--json")
+            conflicting.append("--json")
         if args.output:
-            reason.append(f"--output {args.output}")
-        if args.since:
-            reason.append(f"--since {args.since}")
-        if reason:
+            conflicting.append(f"--output {args.output}")
+        if conflicting:
             print(
-                f"WARNING: --horizons is set but {'/'.join(reason)} disables "
-                f"multi-horizon file output. HTML reports will be printed to "
-                f"stdout (which terminals collapse) instead of written to files. "
-                f"Drop {'/'.join(reason)} to get HTML files in output/ via "
-                f"multi-horizon mode (the default).",
+                f"ERROR: --horizons cannot be combined with {'/'.join(conflicting)}.\n"
+                f"  --horizons writes HTML report files to output/ (multi-horizon mode).\n"
+                f"  {'/'.join(conflicting)} prints a single report to stdout, which terminals collapse.\n"
+                f"  Drop {'/'.join(conflicting)} to get HTML files in output/.\n"
+                f"  Or drop --horizons and use --since/--until for a single-range report.",
                 file=sys.stderr,
             )
+            sys.exit(2)
 
     if use_multi_horizon:
         from datetime import datetime as _dt, timezone as _tz

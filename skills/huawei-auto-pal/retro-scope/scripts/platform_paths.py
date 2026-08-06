@@ -49,6 +49,10 @@ else:
 # Windows Recent (Windows-only)
 WINDOWS_RECENT = _join("AppData", "Roaming", "Microsoft", "Windows", "Recent") if IS_WINDOWS else ""
 
+# Jump List (Windows-only)
+JUMP_LIST = _join("AppData", "Roaming", "Microsoft", "Windows", "Recent",
+                  "AutomaticDestinations") if IS_WINDOWS else ""
+
 # WeLink Meeting recordings. Prefer an explicit per-user setting; otherwise use
 # a conventional Documents location instead of embedding one machine's drive.
 WELINK_RECORDINGS = os.environ.get(

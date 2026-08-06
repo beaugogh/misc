@@ -23,20 +23,13 @@ import tempfile
 from typing import Iterator
 
 from sources import make_event
+from platform_paths import CHROME_HISTORY as DEFAULT_CHROME_HISTORY
+from platform_paths import EDGE_HISTORY as DEFAULT_EDGE_HISTORY
 
 
 # Chrome/Edge epoch: 1601-01-01 00:00:00 UTC, in microseconds.
 # Unix epoch: 1970-01-01. The difference is 11644473600 seconds.
 CHROME_EPOCH_OFFSET_US = 11644473600 * 1_000_000
-
-DEFAULT_CHROME_HISTORY = os.path.join(
-    os.path.expanduser("~"), "AppData", "Local", "Google", "Chrome",
-    "User Data", "Default", "History"
-)
-DEFAULT_EDGE_HISTORY = os.path.join(
-    os.path.expanduser("~"), "AppData", "Local", "Microsoft", "Edge",
-    "User Data", "Default", "History"
-)
 
 
 def _chrome_ts_to_epoch(ts_us: int) -> float:

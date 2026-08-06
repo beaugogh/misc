@@ -249,21 +249,20 @@ class TestMultiHorizonGate(unittest.TestCase):
         self.assertIn("not args.task", block,
                       "--task must be in the use_multi_horizon gate")
 
-    def test_format_horizons_warning_exists(self):
-        """A warning should be printed when --format disables --horizons."""
+    def test_format_horizons_error_exists(self):
+        """An error should be raised when --format disables --horizons."""
         run_path = os.path.join(SCRIPTS, "run.py")
         with open(run_path, encoding="utf-8") as f:
             source = f.read()
-        # The warning block must exist and reference both --format and --horizons.
-        self.assertIn("WARNING", source)
-        self.assertIn("disables", source)
-        self.assertIn("multi-horizon", source)
+        # The error block must exist and reference both --format and --horizons.
+        self.assertIn("ERROR: --horizons cannot be combined", source)
+        self.assertIn("sys.exit(2)", source)
         # Check it's after the use_multi_horizon block, not before.
         mh_idx = source.find("use_multi_horizon = (")
-        warn_idx = source.find("WARNING: --horizons is set")
+        err_idx = source.find("ERROR: --horizons cannot be combined")
         self.assertGreater(mh_idx, 0)
-        self.assertGreater(warn_idx, mh_idx,
-                           "Warning must appear after use_multi_horizon block")
+        self.assertGreater(err_idx, mh_idx,
+                           "Error must appear after use_multi_horizon block")
 
 
 class TestIsAllDayTruthiness(unittest.TestCase):
