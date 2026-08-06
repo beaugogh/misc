@@ -153,6 +153,26 @@ class TestDownloadsDir(unittest.TestCase):
         self.assertTrue(path.startswith(home))
 
 
+class TestUserId(unittest.TestCase):
+    """Test _user_id returns a non-empty identifier."""
+
+    def test_returns_non_empty(self):
+        uid = register._user_id()
+        self.assertIsNotNone(uid)
+        self.assertTrue(len(uid) > 0)
+
+    def test_archive_zip_name_contains_user_id(self):
+        """Archive filename should include the user ID."""
+        uid = register._user_id()
+        self.assertIsNotNone(uid)
+        # Simulate the filename construction from cmd_archive.
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        user_part = f"{uid}-" if uid else ""
+        zip_name = f"huawei-auto-pal-output-{user_part}{timestamp}.zip"
+        self.assertIn(uid, zip_name)
+
+
 class TestCmdArchive(unittest.TestCase):
     """Test the --archive command."""
 

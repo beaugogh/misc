@@ -489,6 +489,27 @@ def _downloads_dir() -> str:
         return os.path.join(home, "Downloads")
 
 
+def _user_id() -> str | None:
+    """Return the user's employee ID or username for zip file naming.
+
+    Tries, in order: $USERNAME (Windows), $USER (Linux/macOS), whoami.
+    Returns None if nothing is available — the caller falls back to omitting it.
+    """
+    for var in ("USERNAME", "USER"):
+        val = os.environ.get(var, "").strip()
+        if val:
+            return val
+    try:
+        import subprocess
+        result = subprocess.run(["whoami"], capture_output=True, text=True, timeout=3)
+        val = result.stdout.strip()
+        if val:
+            return val
+    except Exception:
+        pass
+    return None
+
+
 def cmd_archive(args, agents, output_skills):
     """Zip the output/ folder and save it to the user's Downloads directory."""
     output_path = Path(_OUTPUT_DIR)
@@ -499,9 +520,11 @@ def cmd_archive(args, agents, output_skills):
     downloads = _downloads_dir()
     os.makedirs(downloads, exist_ok=True)
 
-    # Build a timestamped filename: huawei-auto-pal-output-YYYYMMDD-HHMMSS.zip
+    # Build a timestamped filename: huawei-auto-pal-output-<user>-YYYYMMDD-HHMMSS.zip
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    zip_name = f"huawei-auto-pal-output-{timestamp}.zip"
+    user = _user_id()
+    user_part = f"{user}-" if user else ""
+    zip_name = f"huawei-auto-pal-output-{user_part}{timestamp}.zip"
     zip_path = os.path.join(downloads, zip_name)
 
     # Count skills (directories with SKILL.md) for the summary.
@@ -559,7 +582,9 @@ def cmd_dist(args, agents, output_skills):
     os.makedirs(downloads, exist_ok=True)
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    zip_name = f"huawei-auto-pal-{timestamp}.zip"
+    user = _user_id()
+    user_part = f"{user}-" if user else ""
+    zip_name = f"huawei-auto-pal-{user_part}{timestamp}.zip"
     zip_path = os.path.join(downloads, zip_name)
 
     if args.dry_run:
