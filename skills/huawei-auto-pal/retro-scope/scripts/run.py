@@ -1173,6 +1173,30 @@ def main():
         )
         sys.exit(rc)
 
+    # Early conflict check: --format/--json/--output + --horizons (without
+    # --since) is a user error that would silently disable multi-horizon file
+    # output and print to stdout (collapsed by terminals). Error out BEFORE
+    # running the collection/segmentation pipeline (which takes 30-120s) so
+    # the user gets immediate feedback.
+    if args.horizons and not args.since and not args.task and args.top is None:
+        conflicting = []
+        if args.format:
+            conflicting.append(f"--format {args.format}")
+        if args.json:
+            conflicting.append("--json")
+        if args.output:
+            conflicting.append(f"--output {args.output}")
+        if conflicting:
+            print(
+                f"ERROR: --horizons cannot be combined with {'/'.join(conflicting)}.\n"
+                f"  --horizons writes HTML report files to output/ (multi-horizon mode).\n"
+                f"  {'/'.join(conflicting)} prints a single report to stdout, which terminals collapse.\n"
+                f"  Drop {'/'.join(conflicting)} to get HTML files in output/.\n"
+                f"  Or drop --horizons and use --since/--until for a single-range report.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+
     # Two-pass collection: first collect AI-session events to discover project cwds,
     # then build the registry with those cwds so the git adapter finds the right repos.
     # Must collect from ALL AI-session adapters (Claude Code, codeagent, legacy
@@ -1407,30 +1431,8 @@ def main():
         and not args.task
     )
 
-    # Error when --format/--json/--output is set with --horizons (without
-    # --since): these flags disable multi-horizon file output and fall through
-    # to single-range mode which prints to stdout (collapsed by terminals).
-    # The agent gets no report files and doesn't know why. Rather than warn
-    # (which agents ignore), error out with a clear message.
-    # --since + --horizons is allowed (legitimate single-range scoping).
-    if args.horizons and not args.since and not args.task and args.top is None:
-        conflicting = []
-        if args.format:
-            conflicting.append(f"--format {args.format}")
-        if args.json:
-            conflicting.append("--json")
-        if args.output:
-            conflicting.append(f"--output {args.output}")
-        if conflicting:
-            print(
-                f"ERROR: --horizons cannot be combined with {'/'.join(conflicting)}.\n"
-                f"  --horizons writes HTML report files to output/ (multi-horizon mode).\n"
-                f"  {'/'.join(conflicting)} prints a single report to stdout, which terminals collapse.\n"
-                f"  Drop {'/'.join(conflicting)} to get HTML files in output/.\n"
-                f"  Or drop --horizons and use --since/--until for a single-range report.",
-                file=sys.stderr,
-            )
-            sys.exit(2)
+    # NOTE: the --format/--json/--output + --horizons conflict check is
+    # done early (before collection) — see the early-exit block above.
 
     if use_multi_horizon:
         from datetime import datetime as _dt, timezone as _tz

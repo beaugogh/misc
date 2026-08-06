@@ -86,19 +86,8 @@ class TestProvisionWelinkCli(unittest.TestCase):
         # _resolve_cmd may call shutil.which("npm") on Windows, consuming an
         # extra side_effect slot. Use a function that returns the right value
         # per command name so the mock doesn't run out.
-        def which_mock(name):
-            if "node" in name:
-                return "/usr/bin/node"
-            if "welink-cli" in name:
-                return "/usr/bin/welink-cli"
-            if "npm" in name:
-                return "/usr/bin/npm"  # or npm.cmd path on Windows
-            return None
-        mock_which.side_effect = which_mock
-        # But the first welink-cli check should return None (not installed yet).
-        # Track call count for welink-cli.
         wlk_count = [0]
-        def which_mock_v2(name):
+        def which_mock(name):
             if "node" in name:
                 return "/usr/bin/node"
             if "welink-cli" in name:
@@ -107,7 +96,7 @@ class TestProvisionWelinkCli(unittest.TestCase):
             if "npm" in name:
                 return "/usr/bin/npm"
             return None
-        mock_which.side_effect = which_mock_v2
+        mock_which.side_effect = which_mock
         mock_subproc.return_value = MagicMock(
             returncode=0, stdout="v22.23.1\n", stderr="")
         run_mod = self._import()

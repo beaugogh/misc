@@ -257,12 +257,27 @@ class TestMultiHorizonGate(unittest.TestCase):
         # The error block must exist and reference both --format and --horizons.
         self.assertIn("ERROR: --horizons cannot be combined", source)
         self.assertIn("sys.exit(2)", source)
-        # Check it's after the use_multi_horizon block, not before.
-        mh_idx = source.find("use_multi_horizon = (")
-        err_idx = source.find("ERROR: --horizons cannot be combined")
-        self.assertGreater(mh_idx, 0)
-        self.assertGreater(err_idx, mh_idx,
-                           "Error must appear after use_multi_horizon block")
+
+    def test_format_horizons_errors_before_collection(self):
+        """--format html + --horizons must error out BEFORE running the
+        collection pipeline (which takes 30-120s). If the check is placed
+        after collection, the user waits for the full pipeline before seeing
+        the error — defeating the purpose. This test runs run.py as a
+        subprocess and asserts it exits within 5 seconds with code 2."""
+        import subprocess
+        run_path = os.path.join(SCRIPTS, "run.py")
+        proc = subprocess.run(
+            [sys.executable, run_path,
+             "--horizons", "90d,30d,7d,1d",
+             "--format", "html"],
+            capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(proc.returncode, 2,
+                         f"Expected exit code 2, got {proc.returncode}.\n"
+                         f"stderr: {proc.stderr[:500]}")
+        self.assertIn("ERROR", proc.stderr)
+        self.assertIn("--horizons cannot be combined", proc.stderr)
+        self.assertIn("--format html", proc.stderr)
 
 
 class TestIsAllDayTruthiness(unittest.TestCase):

@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.0.19
+version: 1.0.20
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -140,17 +140,17 @@ retro-scope → skill-forge.
    **Run retro-scope with the default command — do not add `--format` or
    `--output`:**
    ```
-   python retro-scope/scripts/run.py --horizons 90d,30d,7d,1d --persist
+   python retro-scope/scripts/run.py --horizons 90d,30d,7d,1d
    ```
    In PowerShell, quote the horizons value to prevent comma-splitting:
    ```
-   python retro-scope/scripts/run.py --horizons '90d,30d,7d,1d' --persist
+   python retro-scope/scripts/run.py --horizons '90d,30d,7d,1d'
    ```
    The default multi-horizon mode writes HTML report files (`index.html`,
    `report_90d.html`, etc.) to `output/` automatically. Adding `--format html`
    disables multi-horizon mode and prints HTML to stdout (which terminals
-   collapse) — this now errors out. Adding `--persist` saves the watermark
-   so subsequent runs only process new activity (incremental collection).
+   collapse) — this now errors out. Incremental collection (`--persist`) is
+   on by default, so subsequent runs only process new activity.
 
    **Task labeling:** retro-scope uses a rule-based classifier for task
    categories (coding, research, meeting, etc.). You (the agent) are the LLM
