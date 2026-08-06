@@ -141,6 +141,183 @@ class TestPyYAMLFallback(unittest.TestCase):
         self.assertEqual(desc, "A simple skill")
 
 
+class TestSessionTrace(unittest.TestCase):
+    """Test session trace capture for diagnostic archives."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="trace_test_")
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _make_session_jsonl(self, lines):
+        """Write a fake session JSONL file and return its path."""
+        import json as _json
+        path = os.path.join(self._tmp, "fake-session.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            for obj in lines:
+                f.write(_json.dumps(obj, ensure_ascii=False) + "\n")
+        return path
+
+    def test_truncates_tool_results(self):
+        """Tool results over 500 chars are truncated in the output."""
+        long_result = "x" * 5000
+        src = self._make_session_jsonl([
+            {"type": "user", "message": {"role": "user", "content": "hello"}},
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "name": "Bash", "input": {"command": "ls"}}
+            ]}},
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "tool_result", "content": long_result}
+            ]}},
+        ])
+        with patch.object(register, "_find_current_session_trace", return_value=src):
+            dest = register._write_session_trace(self._tmp)
+        self.assertIsNotNone(dest)
+        import json as _json
+        with open(dest, encoding="utf-8") as f:
+            lines = [_json.loads(l) for l in f if l.strip()]
+        # 3 lines (no file-history-snapshot to skip)
+        self.assertEqual(len(lines), 3)
+        # The tool_result should be truncated
+        tr = lines[2]["message"]["content"][0]
+        self.assertIn("[...truncated", tr["content"])
+        self.assertLess(len(tr["content"]), 600)
+
+    def test_keeps_tool_use_input_full(self):
+        """Tool use inputs (commands, file paths) are NOT truncated."""
+        long_cmd = "python " + "arg " * 200  # ~1200 chars
+        src = self._make_session_jsonl([
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "name": "Bash", "input": {"command": long_cmd}}
+            ]}},
+        ])
+        with patch.object(register, "_find_current_session_trace", return_value=src):
+            dest = register._write_session_trace(self._tmp)
+        import json as _json
+        with open(dest, encoding="utf-8") as f:
+            lines = [_json.loads(l) for l in f if l.strip()]
+        tu = lines[0]["message"]["content"][0]
+        self.assertEqual(tu["input"]["command"], long_cmd)
+
+    def test_skips_file_history_snapshots(self):
+        """file-history-snapshot entries are skipped entirely."""
+        src = self._make_session_jsonl([
+            {"type": "file-history-snapshot", "snapshot": {"trackedFileBackups": {}}},
+            {"type": "user", "message": {"role": "user", "content": "test"}},
+            {"type": "file-history-snapshot", "snapshot": {"trackedFileBackups": {}}},
+        ])
+        with patch.object(register, "_find_current_session_trace", return_value=src):
+            dest = register._write_session_trace(self._tmp)
+        import json as _json
+        with open(dest, encoding="utf-8") as f:
+            lines = [_json.loads(l) for l in f if l.strip()]
+        self.assertEqual(len(lines), 1)  # only the user message
+        self.assertEqual(lines[0]["type"], "user")
+
+    def test_returns_none_when_no_session(self):
+        """Returns None when no session trace is found."""
+        with patch.object(register, "_find_current_session_trace", return_value=None):
+            result = register._write_session_trace(self._tmp)
+        self.assertIsNone(result)
+
+    def test_truncates_nested_tool_result_text(self):
+        """Tool results with list content (text blocks) are also truncated."""
+        long_text = "y" * 3000
+        src = self._make_session_jsonl([
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "tool_result", "content": [
+                    {"type": "text", "text": long_text}
+                ]}
+            ]}},
+        ])
+        with patch.object(register, "_find_current_session_trace", return_value=src):
+            dest = register._write_session_trace(self._tmp)
+        import json as _json
+        with open(dest, encoding="utf-8") as f:
+            lines = [_json.loads(l) for l in f if l.strip()]
+        tr = lines[0]["message"]["content"][0]
+        sub = tr["content"][0]
+        self.assertIn("[...truncated", sub["text"])
+        self.assertLess(len(sub["text"]), 600)
+
+    def test_truncates_assistant_text_blocks(self):
+        """Assistant text blocks over 1000 chars are truncated."""
+        long_text = "z" * 5000
+        src = self._make_session_jsonl([
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "text", "text": long_text}
+            ]}},
+        ])
+        with patch.object(register, "_find_current_session_trace", return_value=src):
+            dest = register._write_session_trace(self._tmp)
+        import json as _json
+        with open(dest, encoding="utf-8") as f:
+            lines = [_json.loads(l) for l in f if l.strip()]
+        block = lines[0]["message"]["content"][0]
+        self.assertIn("[...truncated", block["text"])
+        self.assertLess(len(block["text"]), 1100)
+
+    def test_truncates_thinking_blocks(self):
+        """Thinking blocks over 1000 chars are truncated."""
+        long_thinking = "w" * 5000
+        src = self._make_session_jsonl([
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "thinking", "thinking": long_thinking}
+            ]}},
+        ])
+        with patch.object(register, "_find_current_session_trace", return_value=src):
+            dest = register._write_session_trace(self._tmp)
+        import json as _json
+        with open(dest, encoding="utf-8") as f:
+            lines = [_json.loads(l) for l in f if l.strip()]
+        block = lines[0]["message"]["content"][0]
+        self.assertIn("[...truncated", block["thinking"])
+        self.assertLess(len(block["thinking"]), 1100)
+
+    def test_truncates_base64_image_data(self):
+        """Base64 image data in tool_result and toolUseResult is replaced."""
+        large_b64 = "A" * 5000
+        src = self._make_session_jsonl([
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "tool_result", "content": [
+                    {"type": "image", "source": {"type": "base64", "data": large_b64}}
+                ]}
+            ]}},
+            {"type": "user", "toolUseResult": {"file": {"base64": large_b64}}},
+        ])
+        with patch.object(register, "_find_current_session_trace", return_value=src):
+            dest = register._write_session_trace(self._tmp)
+        import json as _json
+        with open(dest, encoding="utf-8") as f:
+            lines = [_json.loads(l) for l in f if l.strip()]
+        # Image source data should be replaced with a placeholder.
+        img_block = lines[0]["message"]["content"][0]["content"][0]
+        self.assertIn("[base64 image data:", img_block["source"]["data"])
+        # toolUseResult.file.base64 should also be replaced.
+        tur = lines[1].get("toolUseResult", {})
+        self.assertIn("[base64 image data:", tur["file"]["base64"])
+
+    def test_skips_metadata_types(self):
+        """Metadata entry types (mode, attachment, etc.) are skipped."""
+        src = self._make_session_jsonl([
+            {"type": "mode", "mode": "normal"},
+            {"type": "user", "message": {"role": "user", "content": "hello"}},
+            {"type": "attachment", "attachment": {"type": "agent_listing_delta"}},
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "text", "text": "hi"}
+            ]}},
+        ])
+        with patch.object(register, "_find_current_session_trace", return_value=src):
+            dest = register._write_session_trace(self._tmp)
+        import json as _json
+        with open(dest, encoding="utf-8") as f:
+            lines = [_json.loads(l) for l in f if l.strip()]
+        # Only user and assistant messages should remain.
+        types = [l.get("type") for l in lines]
+        self.assertEqual(types, ["user", "assistant"])
+
+
 class TestRegisterList(unittest.TestCase):
     """Test the --list command output."""
 

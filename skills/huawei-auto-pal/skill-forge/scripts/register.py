@@ -568,12 +568,200 @@ def _user_id() -> str | None:
     return None
 
 
+# --- Session trace capture for diagnosis ---
+
+def _find_current_session_trace() -> str | None:
+    """Find the JSONL transcript of the current agent session.
+
+    Looks for the session file in Claude Code and codeagent project dirs.
+    Uses CLAUDE_CODE_SESSION_ID env var when available (set by Claude Code).
+    Falls back to the most recently modified .jsonl file in any projects dir.
+    Returns the file path, or None if nothing is found.
+    """
+    import glob as _glob
+    home = os.path.expanduser("~")
+    candidate_dirs = [
+        os.path.join(home, ".claude", "projects"),
+        os.path.join(home, ".cac", "projects"),
+    ]
+
+    # 1. Try env var (most reliable — Claude Code sets CLAUDE_CODE_SESSION_ID).
+    session_id = os.environ.get("CLAUDE_CODE_SESSION_ID", "").strip()
+    if session_id:
+        for projects_dir in candidate_dirs:
+            if not os.path.isdir(projects_dir):
+                continue
+            pattern = os.path.join(projects_dir, "*", f"{session_id}.jsonl")
+            matches = _glob.glob(pattern)
+            if matches and os.path.isfile(matches[0]):
+                return matches[0]
+
+    # 2. Fallback: most recently modified .jsonl in any projects dir.
+    # Only consider files modified in the last 4 hours (likely the active session).
+    import time as _time
+    cutoff = _time.time() - 4 * 3600
+    best_path = None
+    best_mtime = 0.0
+    for projects_dir in candidate_dirs:
+        if not os.path.isdir(projects_dir):
+            continue
+        for path in _glob.glob(os.path.join(projects_dir, "*", "*.jsonl")):
+            if not os.path.isfile(path):
+                continue
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                continue
+            if mtime > cutoff and mtime > best_mtime:
+                best_mtime = mtime
+                best_path = path
+    return best_path
+
+
+def _write_session_trace(output_dir: str) -> str | None:
+    """Write a truncated copy of the current session transcript to output/.
+
+    Large content blocks are truncated to keep the archive manageable:
+    - tool_result content: 500 chars (can be megabytes for file reads)
+    - assistant text/thinking blocks: 1000 chars (reasoning is verbose)
+    - tool_use input: kept full (commands, file paths — diagnostic value)
+    - user messages: kept full (the user's actual requests)
+    file-history-snapshot lines are skipped entirely (backup metadata).
+
+    Returns the path to the written file, or None if no session was found.
+    """
+    src = _find_current_session_trace()
+    if not src:
+        return None
+
+    import json as _json
+    dest = os.path.join(output_dir, "session_trace.jsonl")
+    lines_written = 0
+
+    def _truncate(text: str, limit: int) -> str:
+        if len(text) <= limit:
+            return text
+        return text[:limit] + f"\n[...truncated {len(text) - limit} chars...]"
+
+    try:
+        with open(src, encoding="utf-8") as fin, \
+             open(dest, "w", encoding="utf-8") as fout:
+            for line in fin:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = _json.loads(line)
+                except _json.JSONDecodeError:
+                    fout.write(line + "\n")
+                    lines_written += 1
+                    continue
+
+                # Skip entries with no diagnostic value (backup metadata,
+                # UI state, agent listings, file deltas). These can be
+                # numerous in long sessions and bloat the trace.
+                if obj.get("type") in (
+                    "file-history-snapshot",
+                    "file-history-delta",
+                    "attachment",        # agent listings, not conversation
+                    "queue-operation",
+                    "ai-title",
+                    "custom-title",
+                    "agent-name",
+                    "mode",
+                    "permission-mode",
+                ):
+                    continue
+
+                # Truncate large content blocks in message content arrays.
+                msg = obj.get("message")
+                if isinstance(msg, dict):
+                    content = msg.get("content")
+                    if isinstance(content, list):
+                        for block in content:
+                            if not isinstance(block, dict):
+                                continue
+                            btype = block.get("type")
+                            if btype == "tool_result":
+                                c = block.get("content")
+                                if isinstance(c, str):
+                                    block["content"] = _truncate(c, 500)
+                                elif isinstance(c, list):
+                                    for sub in c:
+                                        if not isinstance(sub, dict):
+                                            continue
+                                        stype = sub.get("type")
+                                        if stype == "text":
+                                            sub["text"] = _truncate(sub.get("text", ""), 500)
+                                        elif stype == "image":
+                                            # Replace base64 image data with a placeholder.
+                                            src = sub.get("source", {})
+                                            if isinstance(src, dict) and \
+                                               isinstance(src.get("data"), str) and \
+                                               len(src["data"]) > 200:
+                                                src["data"] = f"[base64 image data: {len(src['data'])} chars, truncated]"
+                            elif btype == "text":
+                                block["text"] = _truncate(block.get("text", ""), 1000)
+                            elif btype == "thinking":
+                                block["thinking"] = _truncate(block.get("thinking", ""), 1000)
+                            elif btype == "image":
+                                # Top-level image blocks (not inside tool_result).
+                                src = block.get("source", {})
+                                if isinstance(src, dict) and \
+                                   isinstance(src.get("data"), str) and \
+                                   len(src["data"]) > 200:
+                                    src["data"] = f"[base64 image data: {len(src['data'])} chars, truncated]"
+
+                # Truncate the top-level toolUseResult field (Claude Code
+                # duplicates tool results here — it can contain megabytes of
+                # file content, base64 image data, or command output).
+                tur = obj.get("toolUseResult")
+                if isinstance(tur, str) and len(tur) > 500:
+                    obj["toolUseResult"] = _truncate(tur, 500)
+                elif isinstance(tur, dict):
+                    # Truncate common string fields.
+                    for tur_key in ("content", "stdout", "stderr", "output", "result"):
+                        val = tur.get(tur_key)
+                        if isinstance(val, str) and len(val) > 500:
+                            tur[tur_key] = _truncate(val, 500)
+                    # Truncate file.base64 (image data).
+                    tur_file = tur.get("file")
+                    if isinstance(tur_file, dict):
+                        b64 = tur_file.get("base64")
+                        if isinstance(b64, str) and len(b64) > 200:
+                            tur_file["base64"] = f"[base64 image data: {len(b64)} chars, truncated]"
+
+                fout.write(_json.dumps(obj, ensure_ascii=False) + "\n")
+                lines_written += 1
+    except OSError as e:
+        print(f"  ⚠ Could not read session trace: {e}", file=sys.stderr)
+        return None
+
+    return dest if lines_written > 0 else None
+
+
 def cmd_archive(args, agents, output_skills):
     """Zip the output/ folder and save it to the user's Downloads directory."""
     output_path = Path(_OUTPUT_DIR)
     if not output_path.is_dir():
         print(f"Error: output directory not found at {_OUTPUT_DIR}", file=sys.stderr)
         sys.exit(1)
+
+    # Capture the current agent session transcript for diagnosis.
+    # Written to output/session_trace.jsonl before zipping so it's included
+    # in the archive automatically.
+    trace_path = _write_session_trace(_OUTPUT_DIR)
+    if trace_path:
+        import os as _os
+        trace_size = _os.path.getsize(trace_path)
+        trace_kb = trace_size / 1024
+        if trace_kb < 1024:
+            size_str = f"{trace_kb:.0f} KB"
+        else:
+            size_str = f"{trace_kb / 1024:.1f} MB"
+        print(f"  Session trace: {os.path.basename(trace_path)} ({size_str})")
+    else:
+        print(f"  ⚠ No session trace found (agent session JSONL not detected).")
 
     downloads = _downloads_dir()
     os.makedirs(downloads, exist_ok=True)
