@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.0.7
+version: 1.0.8
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -319,37 +319,51 @@ makes it invisible to archiving, registration, and future runs.
 
 Alongside `SKILL.md`, create a `PROPOSAL.md` in `output/<skill-name>/`. This is a
 bilingual (English + Chinese) brief that explains to the user why the skill is
-worth installing. Structure each section as English first, then Chinese:
+worth installing. Each section has two labeled blocks — `[EN]` for English,
+`[ZH]` 中文 — so the presenting agent can extract one language based on the
+user's preference:
 
 ```markdown
 # Proposal: <skill-name> / 提案：<skill-name>
 
 ## Problem / 问题
 
+[EN]
 <English: the recurring friction or problem found>
+
+[ZH]
 <Chinese: 相同内容>
 
 ## Evidence / 证据
 
+[EN]
 <English: which sessions, how much time lost, recurrence count, error fingerprints>
+
+[ZH]
 <Chinese: 相同内容>
 
 ## Why This Skill Is Proposed / 为什么提出这个技能
 
+[EN]
 <English: the intervention logic — what the skill does, why it's the right shape>
+
+[ZH]
 <Chinese: 相同内容>
 
 ## Benefit of Local Installation / 本地安装的收益
 
+[EN]
 <English: what the user gains by installing it in their agent — time saved,
 automatic triggering, no need to remember the fix manually>
+
+[ZH]
 <Chinese: 相同内容>
 ```
 
 Be specific, clear, logical, and detailed where necessary — cite session counts, time
 lost, recurrence. The user reads this to decide whether to install the skill, so the
 reasoning must be coherent and comprehensive. This file is proposal metadata: it is
-read by `register.py --describe` but is **NOT** installed into agents (the installer
+read by the agent in step 8 but is **NOT** installed into agents (the installer
 excludes it). For memory, create the same file at
 `output/personal-context/PROPOSAL.md`.
 
@@ -417,24 +431,47 @@ into their agents. Run the two-phase flow below.
 
 #### Phase 1 — Present all proposals (mandatory, do not skip)
 
-**Read each `output/<skill-name>/PROPOSAL.md` file and print its full content
-as your own message to the user.** Do NOT run `register.py --present` or
-`--describe` via Bash — terminal tool output is collapsed behind a "click to
-expand" control and the user does not see it. Instead, read the PROPOSAL.md
-file directly and output its content as agent message text, which is always
-visible in the terminal.
+**Detect the user's language preference.** Scan the user's messages in the
+current session (and any available session history) for language signals:
+
+- If the user's messages are predominantly **Chinese** (contain CJK
+  characters in most sentences), set the presentation language to `ZH`.
+- If the user's messages are predominantly **English**, set it to `EN`.
+- If the user mixes both freely, set it to `EN+ZH` (show both).
+- If unclear or no prior messages, default to `EN`.
+
+State the detected language at the top of your presentation in one line, e.g.
+"Detected language: Chinese — showing Chinese proposals." or "Detected
+language: English — showing English proposals." If the user corrects this,
+switch immediately and re-present.
+
+**Read each `output/<skill-name>/PROPOSAL.md` file and print the matching
+language block as your own message to the user.** Do NOT run `register.py
+--present` or `--describe` via Bash — terminal tool output is collapsed
+behind a "click to expand" control and the user does not see it. Instead,
+read the PROPOSAL.md file directly and output the relevant content as agent
+message text, which is always visible in the terminal.
 
 For each skill and for `output/personal-context/PROPOSAL.md` (memory), in
 order:
 
 1. Read `output/<skill-name>/PROPOSAL.md`.
-2. Print its full content verbatim in your message — do not summarize,
-   paraphrase, truncate, or replace it with a table. The user must see the
-   complete bilingual text (Problem/问题, Evidence/证据, Why This Skill Is
-   Proposed/为什么提出这个技能, Benefit of Local Installation/本地安装的收益)
-   for every skill, regardless of whether it is already installed.
-3. If a skill has no PROPOSAL.md, print its frontmatter `description` and note
-   that no detailed proposal is available.
+2. Extract the content for the detected language:
+   - If `EN`: print the heading line and the `[EN]` block from each section.
+     Skip the `[ZH]` blocks.
+   - If `ZH`: print the heading line and the `[ZH]` block from each section.
+     Skip the `[EN]` blocks. Use the Chinese heading (e.g. "## 问题" instead
+     of "## Problem").
+   - If `EN+ZH`: print both blocks in full (English first, then Chinese),
+     as written in the file.
+3. Print the content verbatim — do not summarize, paraphrase, truncate, or
+   replace it with a table. The user must see the complete reasoning (problem,
+   evidence, why proposed, benefit) for every skill, regardless of whether
+   it is already installed.
+4. If a skill has no PROPOSAL.md, print its frontmatter `description` and
+   note that no detailed proposal is available.
+5. After each skill's proposal, print its install status (e.g. "Already
+   installed in: CodeAgent, Claude Code" or "Not yet installed").
 
 This step is mandatory and must not be skipped. The user cannot make an
 informed installation decision without seeing the reasoning.

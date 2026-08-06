@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.0.7
+version: 1.0.8
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -123,15 +123,18 @@ retro-scope → skill-forge.
    optional — skill-forge works from retro-scope findings alone.
 
 6. **After skill-forge creates output**, present the proposals to the user and
-   ask which to install into which agents. **Read each
-   `output/<skill-name>/PROPOSAL.md` file and print its full content as your
-   own message** — do not run `--present` via Bash (terminal tool output is
-   collapsed and the user won't see it). The full bilingual proposal (problem,
-   evidence, why proposed, benefit of local installation) must appear as agent
-   message text in the terminal. Do not summarize or paraphrase it. Then ask
-   which skills/memory to install and into which agents (CodeAgent? Claude
-   Code? etc.), and run `register.py --install <name> --agent <id>` for each
-   approval. See skill-forge/SKILL.md §8.
+   ask which to install into which agents. First detect the user's language
+   preference by scanning their session messages (Chinese → show Chinese
+   proposals, English → show English, mixed → show both, default English).
+   Then **read each `output/<skill-name>/PROPOSAL.md` file and print the
+   matching language block as your own message** — do not run `--present` via
+   Bash (terminal tool output is collapsed and the user won't see it). The
+   proposal (problem, evidence, why proposed, benefit of local installation)
+   must appear as agent message text in the terminal, in the user's language.
+   Do not summarize or paraphrase it. Then ask which skills/memory to install
+   and into which agents (CodeAgent? Claude Code? etc.), and run
+   `register.py --install <name> --agent <id>` for each approval. See
+   skill-forge/SKILL.md §8.
 
 7. **Archive automatically.** At the end of the pipeline, run
    `python skill-forge/scripts/register.py --archive` without asking — it
