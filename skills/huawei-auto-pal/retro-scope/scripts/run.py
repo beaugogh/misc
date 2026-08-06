@@ -111,6 +111,7 @@ def render_check_output(adapters, hints=None):
     lines = [
         "# retro-scope environment check",
         "# READY = detected and collection implemented",
+        "# READY (pending) = tool installed; full data needs the collection pass",
         "# NOT AUTHENTICATED = detected but needs auth/config to produce events",
         "# DETECTOR-ONLY = tool detected, but collect() yields no events yet",
         "# NOT DETECTED = collection exists but source is absent; see README.md",

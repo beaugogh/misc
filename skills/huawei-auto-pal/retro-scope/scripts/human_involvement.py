@@ -205,12 +205,17 @@ def compute_human_involvement(events: list[dict], task: dict) -> dict:
     # Forgotten-tab detection for browser tasks: a page left open for hours with
     # very little active browsing is not a genuine time sink even if it has 5+
     # visits (5 clicks over 5 min in a 3.5h window). Override is_genuine when the
-    # active-to-wall ratio is very low.
+    # active-to-wall ratio is very low. Two conditions (must match summarize.py):
+    # 1. Near-zero activity: active < 3 min AND wall > 1h
+    # 2. Low ratio: active/wall < 15% AND wall > 2h AND active < 30 min
     wall_seconds = task.get("wall_clock_seconds") or 0.0
     forgotten_tab = False
-    if task.get("source_kind") == "browser" and wall_seconds > 7200:  # > 2h wall
+    if task.get("source_kind") == "browser" and wall_seconds > 3600:  # > 1h wall
         active_ratio = active_seconds / wall_seconds if wall_seconds > 0 else 1.0
-        if active_ratio < 0.15 and active_seconds < 1800:  # < 15% active AND < 30 min
+        if active_seconds < 180:  # < 3 min active (near-zero)
+            forgotten_tab = True
+            is_genuine = False
+        elif wall_seconds > 7200 and active_ratio < 0.15 and active_seconds < 1800:
             forgotten_tab = True
             is_genuine = False
 

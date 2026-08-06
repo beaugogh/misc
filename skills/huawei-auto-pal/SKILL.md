@@ -184,11 +184,11 @@ and continue.
   person's identity without consent, or encode one machine's inventory in the skill.
 - Detect unavailable dependencies and report them. Never install, authenticate, update,
   or weaken TLS settings without explicit user approval.
-- Never modify the skill's own source code, tests, or configuration files to work
-  around a failure. If a stage (e.g. LLM labeling) fails or is slow, report the
-  failure and continue — do not patch, edit, or sed the skill's Python files. The
-  skill's code is versioned and shared across colleagues; local edits cause silent
-  divergence and are not part of the output archive.
+- Never modify or create files in the skill's own directory to work around a
+  failure. If a stage (e.g. LLM labeling) fails or is slow, report the failure and
+  continue — do not patch, edit, sed, or create new Python files in the skill
+  directory. The skill's code is versioned and shared across colleagues; local
+  edits or additions cause silent divergence and are not part of the output archive.
 - Require explicit approval for new skills, structural edits, memories containing facts,
   configuration, dependencies, credentials, external actions, and third-party artifacts.
 - Permit automatic sedimentation only for a small behavioral-rule edit to an existing,

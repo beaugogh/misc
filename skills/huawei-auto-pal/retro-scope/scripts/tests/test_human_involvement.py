@@ -170,11 +170,21 @@ class TestComputeHumanInvolvement(unittest.TestCase):
         self.assertTrue(hd.get("forgotten_tab"))
         self.assertFalse(hd.get("is_genuine_time_sink"))
 
+    def test_forgotten_tab_near_zero_activity(self):
+        """Browser task with < 3 min active and > 1h wall is a forgotten tab (condition 1)."""
+        events = [_ev("visit", tool_input={"visit_count": 5}, timestamp=1000.0 + i * 30)
+                  for i in range(5)]
+        task = self._task(active=120, wall_clock_seconds=5400)  # 2 min active, 1.5h wall
+        task["source_kind"] = "browser"
+        hd = compute_human_involvement(events, task)
+        self.assertTrue(hd.get("forgotten_tab"))
+        self.assertFalse(hd.get("is_genuine_time_sink"))
+
     def test_forgotten_tab_not_triggered_for_short_wall(self):
-        """Short wall clock (< 2h) doesn't trigger forgotten-tab even with low active ratio."""
+        """Short wall clock (< 1h) doesn't trigger forgotten-tab."""
         events = [_ev("visit", tool_input={"visit_count": 5}, timestamp=1000.0 + i * 60)
                   for i in range(5)]
-        task = self._task(active=360, wall_clock_seconds=3600)  # 0.1h active, 1h wall
+        task = self._task(active=360, wall_clock_seconds=3600)  # 0.1h active, 1h wall (boundary)
         task["source_kind"] = "browser"
         hd = compute_human_involvement(events, task)
         self.assertFalse(hd.get("forgotten_tab"))
