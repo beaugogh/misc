@@ -1,14 +1,18 @@
 """Tests for LLM-based task labeling (Phase 7.3).
 
+After the v1.0.15 redesign:
+  - In-process LLM backends (ollama, llama_cpp, transformers) are removed.
+  - is_available always returns False; label_tasks is a no-op.
+  - The agent itself is the LLM — it can produce richer labels post-retro-scope.
+  - _build_prompt and _clean_label are retained for tests and agent-side use.
+
 Verifies that:
-  - LLMLabeler auto-detects available backends
-  - Falls back gracefully when no LLM is installed
+  - LLMLabeler.is_available is always False
+  - LLMLabeler.backend_name is always "none"
+  - label_task returns None
+  - label_tasks returns tasks unchanged (no llm_label added)
   - _build_prompt produces a grounded prompt from task content
   - _clean_label strips prefixes/quotes/periods
-  - label_task returns None when no backend (graceful skip)
-  - label_tasks doesn't modify tasks when no LLM available
-
-Run with: python -m unittest discover -s scripts/tests
 """
 
 import unittest
@@ -22,27 +26,60 @@ sys.path.insert(0, SCRIPTS)
 from llm_labeling import LLMLabeler, label_task, label_tasks, get_labeler
 
 
-class TestLLMLabelerBackendDetection(unittest.TestCase):
-    def test_detect_backend_returns_string_or_none(self):
-        labeler = LLMLabeler()
-        # On a machine without any LLM, this should be None.
-        # On a machine with ollama, it should be "ollama".
-        # We just verify it doesn't crash.
-        self.assertTrue(labeler.backend_name in ("ollama", "llama_cpp", "transformers", "none"))
+class TestLLMLabelerNoBackend(unittest.TestCase):
+    """The labeler always reports unavailable — no in-process LLM."""
 
-    def test_is_available_matches_backend(self):
+    def test_is_available_always_false(self):
         labeler = LLMLabeler()
-        if labeler.backend_name == "none":
-            self.assertFalse(labeler.is_available)
-        else:
-            self.assertTrue(labeler.is_available)
+        self.assertFalse(labeler.is_available)
+
+    def test_backend_name_always_none(self):
+        labeler = LLMLabeler()
+        self.assertEqual(labeler.backend_name, "none")
+
+    def test_label_task_returns_none(self):
+        labeler = LLMLabeler()
+        task = {"subject": "fix login bug", "source_kind": "ai_session"}
+        self.assertIsNone(labeler.label_task(task))
+
+    def test_legacy_kwargs_accepted(self):
+        """Constructor accepts legacy kwargs (ollama_model, timeout) without error."""
+        labeler = LLMLabeler(ollama_model="qwen2.5:3b", timeout=30)
+        self.assertFalse(labeler.is_available)
+
+    def test_module_level_label_task_returns_none(self):
+        task = {"subject": "fix login bug", "source_kind": "ai_session"}
+        self.assertIsNone(label_task(task))
+
+
+class TestLabelTasksNoOp(unittest.TestCase):
+    """label_tasks is a no-op — tasks returned unchanged."""
+
+    def test_tasks_unchanged(self):
+        tasks = [
+            {"subject": "task1", "source_kind": "ai_session"},
+            {"subject": "task2", "source_kind": "ai_session"},
+        ]
+        result = label_tasks(tasks)
+        self.assertEqual(len(result), 2)
+        for t in result:
+            self.assertNotIn("llm_label", t)
+
+    def test_empty_tasks(self):
+        self.assertEqual(label_tasks([]), [])
+
+    def test_preserves_existing_labels(self):
+        """If a task already has a label (e.g. from rule-based classifier), it's preserved."""
+        tasks = [{"subject": "task1", "llm_label": "existing"}]
+        result = label_tasks(tasks)
+        self.assertEqual(result[0].get("llm_label"), "existing")
 
 
 class TestBuildPrompt(unittest.TestCase):
+    """_build_prompt is retained for agent-side labeling use."""
+
     def setUp(self):
-        # Force no backend so label_task returns None (we only test prompt building).
         self.labeler = LLMLabeler()
-        self.labeler._backend = None
 
     def test_build_prompt_includes_subject(self):
         task = {"subject": "fix the login bug", "source_kind": "ai_session"}
@@ -89,9 +126,10 @@ class TestBuildPrompt(unittest.TestCase):
 
 
 class TestCleanLabel(unittest.TestCase):
+    """_clean_label is retained for agent-side labeling use."""
+
     def setUp(self):
         self.labeler = LLMLabeler()
-        self.labeler._backend = None
 
     def test_strips_label_prefix(self):
         self.assertEqual(self.labeler._clean_label("Label: debugging git proxy"), "debugging git proxy")
@@ -114,45 +152,17 @@ class TestCleanLabel(unittest.TestCase):
         self.assertLessEqual(len(result), 60)
 
 
-class TestLabelTask(unittest.TestCase):
-    def test_returns_none_when_no_backend(self):
-        labeler = LLMLabeler()
-        labeler._backend = None
-        task = {"subject": "test", "source_kind": "ai_session"}
-        self.assertIsNone(labeler.label_task(task))
+class TestGetLabeler(unittest.TestCase):
+    """Module-level singleton works correctly."""
 
-    def test_module_level_label_task(self):
-        # On a machine without LLM, this returns None.
-        # On a machine with LLM, it returns a string.
-        task = {"subject": "fix login bug", "source_kind": "ai_session"}
-        result = label_task(task)
-        # Either None (no LLM) or a string (LLM available).
-        self.assertTrue(result is None or isinstance(result, str))
+    def test_returns_same_instance(self):
+        l1 = get_labeler()
+        l2 = get_labeler()
+        self.assertIs(l1, l2)
 
-
-class TestLabelTasks(unittest.TestCase):
-    def test_no_modification_when_no_llm(self):
-        """When no LLM is available, tasks are returned unchanged."""
-        tasks = [
-            {"subject": "task1", "source_kind": "ai_session"},
-            {"subject": "task2", "source_kind": "ai_session"},
-        ]
-        labeler = LLMLabeler()
-        if not labeler.is_available:
-            result = label_tasks(tasks)
-            # No llm_label should be added.
-            for t in result:
-                self.assertNotIn("llm_label", t)
-
-    def test_adds_llm_label_when_available(self):
-        """When LLM is available, tasks get llm_label (mocked)."""
-        # We can't guarantee an LLM is present, so we mock it.
-        labeler = LLMLabeler()
-        if not labeler.is_available:
-            self.skipTest("No local LLM available — skipping integration test.")
-        tasks = [{"subject": "fix login bug", "source_kind": "ai_session"}]
-        result = label_tasks(tasks)
-        self.assertIn("llm_label", result[0])
+    def test_singleton_is_unavailable(self):
+        labeler = get_labeler()
+        self.assertFalse(labeler.is_available)
 
 
 if __name__ == "__main__":

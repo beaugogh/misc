@@ -1,43 +1,29 @@
 """LLM-based task labeling (Phase 7.3).
 
-Uses a **local LLM** to read a task's events (prompts, tool calls, file paths,
-errors) and produce a natural-language category label like "debugging corporate
-proxy authentication for git" or "writing unit tests for the summarizer module."
+**Design change (v1.0.15):** The in-process local LLM backends (ollama,
+llama-cpp-python, transformers) have been removed. They were fragile and
+redundant — the agent running auto-pal (Claude Code, codeagent, Codex,
+OpenClaw, etc.) already has an LLM. Requiring a *separate* local LLM
+installation caused real failures: a colleague with ollama running only an
+embedding model (bge-m3) hit 30s timeouts × 2347 tasks because `is_available`
+returned True but the text generation model (qwen2.5:3b) didn't exist.
 
-This is richer than the deterministic classifier (Phase 7.1, 15 fixed categories)
-because it can produce arbitrary labels grounded in the actual task content.
+Now `is_available` always returns `False` and `label_tasks` is a no-op.
+The rule-based classifier (classify_task / detect_domain in aggregate.py)
+provides labels that stand alone. The agent itself can produce richer labels
+as a post-retro-scope step — it reads the top time sinks from the report and
+generates 3-5 word labels grounded in task content, using whatever model the
+user chose. This is instructed in SKILL.md, not coded in run.py.
 
-**Constraints:**
-  - Offline only — no external API calls (personal time data stays local).
-  - No closed-source/paywalled dependencies (Constitution hard requirement).
-  - Falls back to the rule-based classifier when no local LLM is available.
-  - Non-blocking — if the LLM fails or is slow, the rule-based label stands.
-
-**Supported local LLM backends (auto-detected):**
-  1. Ollama (`ollama` in PATH) — most common local LLM server.
-     Uses `ollama run <model>` with a small prompt model (default: qwen2.5:3b).
-  2. llama-cpp-python (`llama_cpp` Python package) — direct GGUF inference.
-  3. Hugging Face transformers (`transformers` package) — pipeline inference.
-
-The first available backend is used. If none is available, `label_task()`
-returns None and the caller falls back to `classify_task()` / `detect_domain()`.
-
-**Prompt design:**
-  The prompt is minimal — task subject + top inputs + key tool calls + error
-  count — capped at ~500 tokens. The model is asked for a 3-5 word label.
-  This keeps inference fast even on small models.
+The `_build_prompt` and `_clean_label` helpers are retained for tests and
+for potential future use by the agent-side labeling step.
 """
 
 from __future__ import annotations
 
 import os
 import re
-import shutil
-import subprocess
 from typing import Optional
-
-# Default model for Ollama (small + fast + good enough for labeling).
-DEFAULT_OLLAMA_MODEL = "qwen2.5:3b"
 
 # Max prompt tokens (rough char estimate: 4 chars/token).
 MAX_PROMPT_CHARS = 2000
@@ -47,97 +33,42 @@ _LABEL_CLEANUP_RE = re.compile(r'^(label|category|task type)\s*:\s*', re.IGNOREC
 
 
 class LLMLabeler:
-    """Local LLM-based task labeler.
+    """Task labeler — always reports unavailable.
 
-    Auto-detects the best available backend. Falls back gracefully when
-    no local LLM is installed.
+    The agent running auto-pal is the LLM. In-process local LLM backends have
+    been removed (they were fragile and redundant). The rule-based classifier
+    provides labels that stand alone; the agent can enrich them post-hoc.
     """
 
-    def __init__(self, ollama_model: str = DEFAULT_OLLAMA_MODEL,
-                 timeout: int = 30):
-        self._ollama_model = ollama_model
-        self._timeout = timeout
-        self._backend = self._detect_backend()
-        # Cached model instances (loaded once, reused for all tasks).
-        self._llm: object = None        # llama_cpp.Llama instance
-        self._pipe: object = None       # transformers pipeline instance
-
-    def _detect_backend(self) -> Optional[str]:
-        """Detect the best available local LLM backend.
-
-        Returns the backend name ("ollama", "llama_cpp", "transformers")
-        or None if no local LLM is available.
-        """
-        # 1. Ollama (preferred — fastest server-based inference).
-        if shutil.which("ollama"):
-            try:
-                result = subprocess.run(
-                    ["ollama", "list"], capture_output=True, text=True,
-                    timeout=10,
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    return "ollama"
-            except (subprocess.TimeoutExpired, OSError):
-                pass
-
-        # 2. llama-cpp-python (direct GGUF inference).
-        try:
-            import llama_cpp  # noqa: F401
-            return "llama_cpp"
-        except ImportError:
-            pass
-
-        # 3. Hugging Face transformers (pipeline inference).
-        try:
-            import transformers  # noqa: F401
-            return "transformers"
-        except ImportError:
-            pass
-
-        return None
+    def __init__(self, **kwargs):
+        # Accept and ignore legacy kwargs (ollama_model, timeout) for
+        # backward compatibility with existing callers and tests.
+        pass
 
     @property
     def is_available(self) -> bool:
-        """True if a local LLM backend is available."""
-        return self._backend is not None
+        """Always False — in-process LLM backends removed.
+
+        The agent itself is the LLM. Labeling is done agent-side, not here.
+        """
+        return False
 
     @property
     def backend_name(self) -> str:
-        """The detected backend name, or 'none' if unavailable."""
-        return self._backend or "none"
+        """Always 'none'."""
+        return "none"
 
     def label_task(self, task: dict) -> Optional[str]:
-        """Produce a natural-language category label for a task.
+        """Always returns None — no in-process LLM backend.
 
-        Returns a 3-5 word label like "debugging git proxy auth", or None
-        if no LLM backend is available or the LLM fails.
-
-        The label is grounded in the task's actual content: subject, inputs,
-        tool calls, errors, and files touched.
+        The caller falls back to the rule-based classifier.
         """
-        if not self._backend:
-            return None
-
-        prompt = self._build_prompt(task)
-        if not prompt:
-            return None
-
-        try:
-            if self._backend == "ollama":
-                return self._label_with_ollama(prompt)
-            elif self._backend == "llama_cpp":
-                return self._label_with_llama_cpp(prompt)
-            elif self._backend == "transformers":
-                return self._label_with_transformers(prompt)
-        except Exception:
-            # Any LLM failure — fall back to None (caller uses rule-based label).
-            return None
-
         return None
 
     def _build_prompt(self, task: dict) -> str:
-        """Build a minimal prompt for the LLM.
+        """Build a minimal prompt for an LLM.
 
+        Retained for tests and for potential agent-side labeling use.
         Includes: task subject, source kind, key inputs, dominant tools,
         error count, files touched. Capped at MAX_PROMPT_CHARS.
         """
@@ -189,95 +120,8 @@ class LLMLabeler:
             f"Reply with ONLY the label, no explanation.\n\n{task_text}"
         )
 
-    def _label_with_ollama(self, prompt: str) -> Optional[str]:
-        """Generate a label using Ollama."""
-        try:
-            result = subprocess.run(
-                ["ollama", "run", self._ollama_model],
-                input=prompt,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=self._timeout,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                return self._clean_label(result.stdout.strip())
-        except (subprocess.TimeoutExpired, OSError):
-            pass
-        return None
-
-    def _label_with_llama_cpp(self, prompt: str) -> Optional[str]:
-        """Generate a label using llama-cpp-python.
-
-        The Llama instance is cached on first use and reused for all subsequent
-        calls (loading a GGUF model takes seconds — doing it per-task would be
-        impractical for large task sets).
-        """
-        try:
-            if self._llm is None:
-                from llama_cpp import Llama
-                # The user must download a .gguf model and set LLM_MODEL_PATH.
-                model_path = os.environ.get("LLM_MODEL_PATH")
-                if not model_path or not os.path.isfile(model_path):
-                    return None  # No model file configured.
-                self._llm = Llama(model_path=model_path, n_ctx=512, verbose=False)
-            response = self._llm(
-                prompt,
-                max_tokens=20,
-                temperature=0.3,
-                stop=["\n"],
-            )
-            text = response["choices"][0]["text"].strip()
-            return self._clean_label(text) if text else None
-        except Exception:
-            return None
-
-    def _label_with_transformers(self, prompt: str) -> Optional[str]:
-        """Generate a label using Hugging Face transformers.
-
-        The pipeline is cached on first use. IMPORTANT: the model must already
-        be cached locally — this method does NOT download models from the
-        internet (offline-only constraint). Set LLM_MODEL_NAME to a model that's
-        already in the HF cache, or pre-download with `huggingface-cli download`.
-        """
-        try:
-            if self._pipe is None:
-                from transformers import pipeline
-                model_name = os.environ.get("LLM_MODEL_NAME", "google/flan-t5-small")
-                # Check if the model is already cached locally (offline safety).
-                # transformers caches under ~/.cache/huggingface/hub/models--<org>--<name>.
-                # If not cached, pipeline() would try to download — violating the
-                # offline constraint. We check the cache and skip if not present.
-                if not self._is_model_cached(model_name):
-                    return None  # Model not cached — skip (offline constraint).
-                self._pipe = pipeline("text2text-generation", model=model_name, max_length=20)
-            result = self._pipe(prompt)
-            text = result[0]["generated_text"].strip()
-            return self._clean_label(text) if text else None
-        except Exception:
-            return None
-
-    def _is_model_cached(self, model_name: str) -> bool:
-        """Check if a Hugging Face model is already cached locally.
-
-        Returns True if the model exists in the HF cache directory, False
-        otherwise. This prevents internet downloads (offline constraint).
-        """
-        # HF cache is typically at ~/.cache/huggingface/hub/models--<org>--<name>.
-        cache_dir = os.environ.get(
-            "HF_HOME",
-            os.path.join(os.path.expanduser("~"), ".cache", "huggingface"),
-        )
-        hub_dir = os.path.join(cache_dir, "hub")
-        if not os.path.isdir(hub_dir):
-            return False
-        # Model name format: "org/name" → "models--org--name".
-        model_dir_name = "models--" + model_name.replace("/", "--")
-        return os.path.isdir(os.path.join(hub_dir, model_dir_name))
-
     def _clean_label(self, raw: str) -> str:
-        """Clean up the LLM output into a proper label.
+        """Clean up LLM output into a proper label.
 
         Strips: "Label:" prefixes, quotes, trailing periods, multi-line text
         (keep only the first line), excessive whitespace.
@@ -312,59 +156,28 @@ def get_labeler() -> LLMLabeler:
 def label_task(task: dict) -> Optional[str]:
     """Convenience: label a task using the module-level labeler.
 
-    Returns the LLM-generated label, or None if no LLM is available.
-    The caller should fall back to classify_task() / detect_domain() when None.
+    Always returns None — no in-process LLM backend. The caller should fall
+    back to classify_task() / detect_domain().
     """
     return get_labeler().label_task(task)
 
 
 def label_tasks(tasks: list[dict]) -> list[dict]:
-    """Label all tasks with LLM-generated category labels.
+    """No-op — always returns tasks unchanged.
 
-    Adds ``task["llm_label"]`` to each task. Tasks that can't be labeled
-    (no LLM, or LLM failure) are left unchanged.
-
-    This is an optional post-processing step — the existing classify_task()
-    and detect_domain() provide rule-based labels that stand alone. This adds
-    a richer, content-grounded label on top.
+    In-process LLM backends have been removed. The agent itself is the LLM
+    and can produce richer labels post-retro-scope (instructed in SKILL.md).
+    The rule-based classifier (classify_task / detect_domain) provides labels
+    that stand alone.
     """
-    labeler = get_labeler()
-    if not labeler.is_available:
-        # No LLM available — skip silently (rule-based labels stand).
-        return tasks
-
-    for t in tasks:
-        label = labeler.label_task(t)
-        if label:
-            t["llm_label"] = label
-
     return tasks
 
 
 if __name__ == "__main__":
-    # Quick self-test.
     import sys
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     labeler = LLMLabeler()
     print(f"Backend: {labeler.backend_name}")
     print(f"Available: {labeler.is_available}")
-
-    if labeler.is_available:
-        # Test with a synthetic task.
-        task = {
-            "subject": "sync local main branch with remote",
-            "source_kind": "ai_session",
-            "tool_names": ["Bash", "Read", "Edit"],
-            "errors": 46,
-            "inputs": ["prompt: sync local main branch with remote",
-                       "read: .git/config"],
-            "context": {
-                "narrative": "Goal: sync local main with remote. Git fetch failed with 407 proxy auth.",
-                "files_touched": [".git/config", "MEMORY.md"],
-            },
-        }
-        label = labeler.label_task(task)
-        print(f"Label: {label}")
-    else:
-        print("No local LLM detected. Install ollama or llama-cpp-python to enable.")
-        print("Falling back to rule-based classification (classify_task/detect_domain).")
+    print("In-process LLM backends removed — the agent itself is the LLM.")
+    print("Rule-based labels (classify_task/detect_domain) stand alone.")

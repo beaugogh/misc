@@ -1257,15 +1257,15 @@ def main():
         print(f"[refine_success] stage failed: {e}", file=sys.stderr)
         print("[refine_success] continuing with pre-refined success values.", file=sys.stderr)
 
-    # --- Optional LLM labeling (Phase 7.3) ---
+    # --- LLM labeling (Phase 7.3) ---
+    # In-process local LLM backends have been removed (v1.0.15). The agent
+    # running auto-pal is the LLM — it can produce richer labels post-retro-scope
+    # using whatever model the user chose. The rule-based classifier
+    # (classify_task / detect_domain) provides labels that stand alone.
+    # label_tasks() is now a no-op, kept for interface compatibility.
     try:
-        from llm_labeling import label_tasks, get_labeler
-        labeler = get_labeler()
-        if labeler.is_available:
-            print(f"[llm_labeling] backend: {labeler.backend_name} — labeling tasks...", file=sys.stderr)
-            tasks = label_tasks(tasks)
-            labeled = sum(1 for t in tasks if t.get("llm_label"))
-            print(f"[llm_labeling] labeled {labeled}/{len(tasks)} tasks.", file=sys.stderr)
+        from llm_labeling import label_tasks
+        tasks = label_tasks(tasks)
     except Exception as e:
         print(f"[llm_labeling] stage skipped: {e}", file=sys.stderr)
 

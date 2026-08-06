@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.0.15
+version: 1.0.16
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -136,6 +136,14 @@ retro-scope → skill-forge.
    This is optional and adds network latency, but produces much richer narratives
    for browser-heavy sessions: what each page was about, how pages relate, and
    why the user spent time cross-referencing them.
+
+   **Task labeling:** retro-scope uses a rule-based classifier for task
+   categories (coding, research, meeting, etc.). You (the agent) are the LLM
+   — after retro-scope completes, read the top 10 time sinks from the report
+   or `--top` output and generate a 3-5 word label for each, grounded in the
+   task's actual content (subject, errors, files, tool calls). Do NOT call a
+   separate local LLM (ollama, etc.) — use your own model. This is optional
+   and only enriches the report; the rule-based labels stand alone if skipped.
 
 5. **Then proceed automatically to skill-forge.** If `README.md` has a
    step-by-step credential guide with screenshots for the CodeHub token,
