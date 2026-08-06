@@ -178,6 +178,15 @@ def segment_implicit_advanced(events: list[dict], counter: list[int],
     # Detect boundaries via PELT
     boundary_indices = detect_boundaries_pelt(events, gap_threshold)
 
+    # Safety net: if PELT returned 0 boundaries but the data has gaps exceeding
+    # the threshold, fall back to the naive gap heuristic. PELT's penalty can be
+    # too high for certain data distributions (e.g., comm messages spanning days
+    # with sparse bursts), causing it to return no change points at all.
+    if not boundary_indices:
+        naive = _naive_gap_boundaries(events, gap_threshold)
+        if naive:
+            boundary_indices = naive
+
     # Build tasks by splitting at boundaries
     tasks: list[dict] = []
     boundary_set = set(boundary_indices)

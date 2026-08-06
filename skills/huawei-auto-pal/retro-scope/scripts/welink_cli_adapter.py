@@ -581,8 +581,12 @@ class WeLinkCLIAdapter:
                 else:
                     continue
             messages = self._run_json(msg_args, timeout=60)
+            # For P2P chats, group_id is None — use target_account as the conv_id
+            # so messages from different P2P conversations don't get lumped together
+            # under session_id=None.
+            conv_id = group_id if is_group else (target_account or group_id)
             for msg in messages:
-                ev = self._im_to_event(msg, group_id, group_name, is_group)
+                ev = self._im_to_event(msg, conv_id, group_name, is_group)
                 if ev and ev["timestamp"] >= start_ts:
                     yield ev
 
