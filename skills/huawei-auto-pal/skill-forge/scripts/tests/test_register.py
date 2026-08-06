@@ -96,6 +96,51 @@ class TestIsInstalled(unittest.TestCase):
         self.assertFalse(register._is_installed("my-skill", agent))
 
 
+class TestPyYAMLFallback(unittest.TestCase):
+    """Test that register.py works without PyYAML installed.
+
+    register.py uses import yaml inside _read_skill_version and
+    _read_frontmatter_description. If PyYAML is not installed, the import
+    must fail gracefully and fall back to line-scraping.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="yaml_test_")
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _hide_yaml(self):
+        """Return a context manager that makes 'import yaml' raise ImportError."""
+        import builtins
+        real_import = builtins.__import__
+        def mock_import(name, *args, **kwargs):
+            if name == "yaml":
+                raise ImportError("No module named 'yaml' (simulated)")
+            return real_import(name, *args, **kwargs)
+        return patch("builtins.__import__", side_effect=mock_import)
+
+    def test_read_skill_version_without_yaml(self):
+        """_read_skill_version falls back to line-scrape without PyYAML."""
+        skill_md = os.path.join(self._tmp, "SKILL.md")
+        with open(skill_md, "w", encoding="utf-8") as f:
+            f.write("---\nname: test\nversion: 1.2.3\n---\n# test\n")
+        with patch.object(register, "_SKILL_ROOT", self._tmp):
+            with self._hide_yaml():
+                ver = register._read_skill_version()
+        self.assertEqual(ver, "1.2.3")
+
+    def test_read_frontmatter_description_without_yaml(self):
+        """_read_frontmatter_description falls back to line-scrape without PyYAML."""
+        skill_dir = self._tmp
+        skill_md = os.path.join(skill_dir, "SKILL.md")
+        with open(skill_md, "w", encoding="utf-8") as f:
+            f.write("---\nname: test\ndescription: A simple skill\n---\n# test\n")
+        with self._hide_yaml():
+            desc = register._read_frontmatter_description(skill_dir)
+        self.assertEqual(desc, "A simple skill")
+
+
 class TestRegisterList(unittest.TestCase):
     """Test the --list command output."""
 

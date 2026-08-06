@@ -279,6 +279,20 @@ class TestMultiHorizonGate(unittest.TestCase):
         self.assertIn("--horizons cannot be combined", proc.stderr)
         self.assertIn("--format html", proc.stderr)
 
+    def test_version_flag_prints_version(self):
+        """--version prints the skill version and exits 0."""
+        import subprocess
+        run_path = os.path.join(SCRIPTS, "run.py")
+        proc = subprocess.run(
+            [sys.executable, run_path, "--version"],
+            capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("huawei-auto-pal", proc.stdout)
+        # Should contain a version-like string (e.g. "1.0.20")
+        import re
+        self.assertRegex(proc.stdout, r"\d+\.\d+\.\d+")
+
 
 class TestIsAllDayTruthiness(unittest.TestCase):
     """Tests that is_all_day='true' (string from API) is treated the same as

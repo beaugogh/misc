@@ -100,7 +100,6 @@ def _read_skill_version() -> str:
     Returns the version string (e.g. '1.0.11') for use in dist zip naming.
     Falls back to 'unknown' if the file or field is missing.
     """
-    import yaml
     skill_md = os.path.join(_SKILL_ROOT, "SKILL.md")
     if not os.path.isfile(skill_md):
         return "unknown"
@@ -117,14 +116,25 @@ def _read_skill_version() -> str:
         if line.strip() == "---":
             break
         fm_lines.append(line)
+    # Try PyYAML first (handles folded scalars, quoted values).
     try:
+        import yaml
         fm = yaml.safe_load("\n".join(fm_lines))
         if isinstance(fm, dict):
             ver = fm.get("version")
             if isinstance(ver, str) and ver.strip():
                 return ver.strip()
-    except yaml.YAMLError:
-        pass
+    except ImportError:
+        pass  # PyYAML not installed — fall through to line-scrape.
+    except Exception:
+        pass  # YAML parse error — fall through to line-scrape.
+    # Fallback: line-scrape the version value (handles simple "version: X.Y.Z").
+    for line in fm_lines:
+        stripped = line.strip()
+        if stripped.startswith("version:"):
+            ver = stripped[len("version:"):].strip()
+            if ver:
+                return ver
     return "unknown"
 
 
@@ -160,15 +170,17 @@ def _read_frontmatter_description(skill_dir: str) -> str | None:
     fm_text = "\n".join(fm_lines)
 
     # Try strict YAML first (handles folded/block scalars, quoted values).
-    import yaml
     try:
+        import yaml
         fm = yaml.safe_load(fm_text)
         if isinstance(fm, dict):
             desc = fm.get("description")
             if isinstance(desc, str) and desc.strip():
                 return desc.strip()
-    except yaml.YAMLError:
-        pass  # Fall through to line-scrape for loose plain-text values.
+    except ImportError:
+        pass  # PyYAML not installed — fall through to line-scrape.
+    except Exception:
+        pass  # YAML parse error — fall through to line-scrape.
 
     # Fallback: line-scrape the description value. This handles plain-text
     # descriptions with unquoted colons (common in skill frontmatter).

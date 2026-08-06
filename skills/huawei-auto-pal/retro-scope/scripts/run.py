@@ -46,6 +46,15 @@ Flags:
 from __future__ import annotations
 
 import sys
+
+# Python 3.9+ required: argparse.BooleanOptionalAction (used for --persist)
+# and str.removeprefix (used in several adapters) were added in 3.9.
+if sys.version_info < (3, 9):
+    print(f"ERROR: Python 3.9+ required. You have {sys.version_info.major}."
+          f"{sys.version_info.minor}.{sys.version_info.micro}.",
+          file=sys.stderr)
+    sys.exit(1)
+
 import os
 import json
 import re
@@ -1083,6 +1092,8 @@ def main():
         prog="run.py",
         description="retro-scope: retrospective task & time reconstruction.",
     )
+    ap.add_argument("--version", action="store_true",
+                    help="print skill version and exit")
     ap.add_argument("--horizons", default=DEFAULT_HORIZONS,
                     help=f"multi-horizon mode (DEFAULT): comma-separated horizon specs "
                          f"like '90d,30d,7d,1d'. Generates one HTML report per horizon "
@@ -1140,6 +1151,24 @@ def main():
     _exclusive.add_argument("--eval", action="store_true",
                             help="run segmentation evaluation against the labeled benchmark (Phase 9.8)")
     args = ap.parse_args()
+
+    if args.version:
+        # Read version from the root SKILL.md frontmatter.
+        skill_md = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "SKILL.md")
+        ver = "unknown"
+        if os.path.isfile(skill_md):
+            try:
+                with open(skill_md, encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip().startswith("version:"):
+                            ver = line.strip()[len("version:"):].strip()
+                            break
+            except OSError:
+                pass
+        print(f"huawei-auto-pal {ver}")
+        sys.exit(0)
 
     # --check and --eval are detection/evaluation-only modes that must NOT
     # collect personal session data. Handle them before the two-pass AI
