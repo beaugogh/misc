@@ -164,6 +164,19 @@ class TestRenderCheckOutput(unittest.TestCase):
         fake_line = [l for l in out.splitlines() if "fake_absent" in l][0]
         self.assertNotIn("(", fake_line)
 
+    @unittest.skipUnless(
+        __import__("shutil").which("git"),
+        "git not on PATH"
+    )
+    def test_git_shows_ready_pending_when_not_detected(self):
+        """When git is on PATH but no repos discovered, show READY (pending)."""
+        git_adapter = _FakeAdapter(name="git", detect_result=False)
+        out = self._render([git_adapter])
+        line = self._adapter_line(out, "git")
+        self.assertIn("READY (pending)", line)
+        self.assertNotIn("NOT DETECTED", line)
+        self.assertIn("repos discovered", line)
+
     def test_error_branch(self):
         out = self._render([_FakeErrorAdapter()])
         self.assertIn("ERROR", out)

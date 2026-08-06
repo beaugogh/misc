@@ -158,6 +158,36 @@ class TestComputeHumanInvolvement(unittest.TestCase):
         self.assertAlmostEqual(hd["human_engaged_seconds"], 600.0, delta=1.0)
         self.assertAlmostEqual(hd["machine_autonomous_seconds"], 6600.0, delta=1.0)
 
+    def test_forgotten_tab_browser(self):
+        """Browser task with 3.5h wall but only 0.1h active is a forgotten tab."""
+        # 5 visits (enough to pass the normal genuine threshold), but all within
+        # 5 minutes, in a 3.5h wall-clock window.
+        events = [_ev("visit", tool_input={"visit_count": 5}, timestamp=1000.0 + i * 60)
+                  for i in range(5)]
+        task = self._task(active=360, wall_clock_seconds=12600)  # 0.1h active, 3.5h wall
+        task["source_kind"] = "browser"
+        hd = compute_human_involvement(events, task)
+        self.assertTrue(hd.get("forgotten_tab"))
+        self.assertFalse(hd.get("is_genuine_time_sink"))
+
+    def test_forgotten_tab_not_triggered_for_short_wall(self):
+        """Short wall clock (< 2h) doesn't trigger forgotten-tab even with low active ratio."""
+        events = [_ev("visit", tool_input={"visit_count": 5}, timestamp=1000.0 + i * 60)
+                  for i in range(5)]
+        task = self._task(active=360, wall_clock_seconds=3600)  # 0.1h active, 1h wall
+        task["source_kind"] = "browser"
+        hd = compute_human_involvement(events, task)
+        self.assertFalse(hd.get("forgotten_tab"))
+
+    def test_forgotten_tab_not_triggered_for_non_browser(self):
+        """Forgotten-tab detection only applies to browser tasks."""
+        events = [_ev("user_message", text="msg", timestamp=1000.0 + i * 60)
+                  for i in range(5)]
+        task = self._task(active=360, wall_clock_seconds=12600)  # 0.1h active, 3.5h wall
+        task["source_kind"] = "ai_session"
+        hd = compute_human_involvement(events, task)
+        self.assertFalse(hd.get("forgotten_tab"))
+
 
 class TestComputeActualWorkingHours(unittest.TestCase):
     def test_no_human_activity_returns_zero(self):

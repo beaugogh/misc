@@ -693,10 +693,16 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
             parts.append(f"Goal: 浏览 {top_page_title[:40]}。")
 
     # Struggle: distinguish genuine interaction from forgotten tabs.
-    if active_h < 0.05 and wall_h > 1:
+    # A forgotten tab has low active time relative to wall clock — the page was
+    # left open but the user wasn't actually browsing. Two conditions:
+    # 1. Near-zero activity (active < 0.05h = 3 min) with long wall clock (>1h)
+    # 2. Low activity ratio (active/wall < 15%) with long wall clock (>2h)
+    active_ratio = active_h / wall_h if wall_h > 0 else 1.0
+    is_forgotten = (active_h < 0.05 and wall_h > 1) or (active_ratio < 0.15 and wall_h > 2 and active_h < 0.5)
+    if is_forgotten:
         # No measurable activity — forgotten tab, NOT a time sink.
         first_page = top_page_title[:40] if top_page_title else (titles[0][:40] if titles else "browsing")
-        parts.append(f"Struggle: 标签页在 {first_page} 上停留 {wall_h:.1f}h 但无可测量活动——被遗忘，非活跃使用，不属于人工时间消耗。")
+        parts.append(f"Struggle: 标签页在 {first_page} 上停留 {wall_h:.1f}h 但仅 {active_h:.2f}h 活跃（{active_ratio*100:.0f}%）——被遗忘，非活跃使用，不属于人工时间消耗。")
     elif revisit_total > 20 and active_h > 0.5:
         # Genuine heavy interaction — many revisits = clicks.
         # Describe WHAT the user was doing on each top page (rubric 62).

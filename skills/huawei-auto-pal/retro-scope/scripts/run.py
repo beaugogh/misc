@@ -125,10 +125,25 @@ def render_check_output(adapters, hints=None):
             lines.append(f"  {adapter.name:20s} ERROR: {e}")
             continue
         if not ok:
-            status = "NOT DETECTED"
-            line = f"  {adapter.name:20s} {status}"
-            if hint:
-                line += f"  ({hint})"
+            # Special case: git is on PATH but no repos discovered yet (session_cwds
+            # is empty during --check). Show READY (pending) instead of NOT DETECTED
+            # so the user knows git will work during full analysis.
+            if adapter.name == "git":
+                import shutil as _shutil
+                if _shutil.which("git"):
+                    status = "READY (pending)"
+                    line = f"  {adapter.name:20s} {status}"
+                    line += "  (git installed; repos discovered during full analysis from AI session working dirs)"
+                else:
+                    status = "NOT DETECTED"
+                    line = f"  {adapter.name:20s} {status}"
+                    if hint:
+                        line += f"  ({hint})"
+            else:
+                status = "NOT DETECTED"
+                line = f"  {adapter.name:20s} {status}"
+                if hint:
+                    line += f"  ({hint})"
         elif is_detector_only:
             status = "DETECTOR-ONLY"
             line = f"  {adapter.name:20s} {status}"
@@ -1134,14 +1149,35 @@ def main():
 
     # Two-pass collection: first collect AI-session events to discover project cwds,
     # then build the registry with those cwds so the git adapter finds the right repos.
-    from claude_code_adapter import ClaudeCodeAdapter
+    # Must collect from ALL AI-session adapters (Claude Code, codeagent, legacy
+    # codeagent, Codex, etc.) — not just ClaudeCodeAdapter — otherwise users who
+    # only have legacy codeagent sessions get zero git roots discovered.
+    from claude_code_adapter import ClaudeCodeAdapter, CodeagentAdapter
     from git_adapter import GitAdapter, discover_git_roots
 
-    ai_adapter = ClaudeCodeAdapter()
     session_cwds: list[str] = []
-    if ai_adapter.detect():
-        ai_events = list(ai_adapter.collect())
-        session_cwds = sorted({e.get("cwd") for e in ai_events if e.get("cwd")})
+    for ai_adapter_cls in (ClaudeCodeAdapter, CodeagentAdapter):
+        try:
+            ai_adapter = ai_adapter_cls()
+            if ai_adapter.detect():
+                ai_events = list(ai_adapter.collect())
+                session_cwds.extend({e.get("cwd") for e in ai_events if e.get("cwd")})
+        except Exception as e:
+            print(f"[cwd-discovery] {ai_adapter_cls.__name__} failed: {e}", file=sys.stderr)
+
+    # Also collect cwds from the legacy codeagent SQLite adapter.
+    try:
+        from legacy_codeagent_adapter import LegacyCodeagentAdapter
+        legacy_adapter = LegacyCodeagentAdapter()
+        if legacy_adapter.detect():
+            legacy_events = list(legacy_adapter.collect())
+            session_cwds.extend({e.get("cwd") for e in legacy_events if e.get("cwd")})
+    except Exception as e:
+        print(f"[cwd-discovery] LegacyCodeagentAdapter failed: {e}", file=sys.stderr)
+
+    session_cwds = sorted(set(session_cwds))
+    if session_cwds:
+        print(f"[cwd-discovery] found {len(session_cwds)} distinct cwd(s) from AI sessions", file=sys.stderr)
 
     reg = default_registry(session_cwds=session_cwds)
 

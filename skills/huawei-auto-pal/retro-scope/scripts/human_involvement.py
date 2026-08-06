@@ -202,6 +202,18 @@ def compute_human_involvement(events: list[dict], task: dict) -> dict:
     # Tasks below this threshold are likely forgotten/abandoned, not genuine pain points.
     is_genuine = human_action_count >= 5 and human_engaged >= 300.0
 
+    # Forgotten-tab detection for browser tasks: a page left open for hours with
+    # very little active browsing is not a genuine time sink even if it has 5+
+    # visits (5 clicks over 5 min in a 3.5h window). Override is_genuine when the
+    # active-to-wall ratio is very low.
+    wall_seconds = task.get("wall_clock_seconds") or 0.0
+    forgotten_tab = False
+    if task.get("source_kind") == "browser" and wall_seconds > 7200:  # > 2h wall
+        active_ratio = active_seconds / wall_seconds if wall_seconds > 0 else 1.0
+        if active_ratio < 0.15 and active_seconds < 1800:  # < 15% active AND < 30 min
+            forgotten_tab = True
+            is_genuine = False
+
     return {
         "human_action_count": human_action_count,
         "human_engaged_seconds": round(human_engaged, 1),
@@ -209,6 +221,7 @@ def compute_human_involvement(events: list[dict], task: dict) -> dict:
         "human_involvement": involvement,
         "human_action_types": action_types,
         "is_genuine_time_sink": is_genuine,
+        "forgotten_tab": forgotten_tab,
     }
 
 
