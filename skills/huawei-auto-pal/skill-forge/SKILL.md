@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.0.6
+version: 1.0.7
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -417,22 +417,35 @@ into their agents. Run the two-phase flow below.
 
 #### Phase 1 — Present all proposals (mandatory, do not skip)
 
-Run this single command and show its full output to the user verbatim:
+**Read each `output/<skill-name>/PROPOSAL.md` file and print its full content
+as your own message to the user.** Do NOT run `register.py --present` or
+`--describe` via Bash — terminal tool output is collapsed behind a "click to
+expand" control and the user does not see it. Instead, read the PROPOSAL.md
+file directly and output its content as agent message text, which is always
+visible in the terminal.
 
-```bash
-python skill-forge/scripts/register.py --present
-```
+For each skill and for `output/personal-context/PROPOSAL.md` (memory), in
+order:
 
-This prints the full bilingual `PROPOSAL.md` for every skill and memory in
-`output/` — the problem, the evidence, why each skill is proposed, and the
-benefit of installing it locally — in both Chinese and English, regardless of
-whether the skill is already installed. The user must see the reasoning for
-everything before any installation decision.
+1. Read `output/<skill-name>/PROPOSAL.md`.
+2. Print its full content verbatim in your message — do not summarize,
+   paraphrase, truncate, or replace it with a table. The user must see the
+   complete bilingual text (Problem/问题, Evidence/证据, Why This Skill Is
+   Proposed/为什么提出这个技能, Benefit of Local Installation/本地安装的收益)
+   for every skill, regardless of whether it is already installed.
+3. If a skill has no PROPOSAL.md, print its frontmatter `description` and note
+   that no detailed proposal is available.
 
-**Do not skip this step. Do not summarize or paraphrase the output — print it
-in full so the user sees the complete bilingual reasoning.** If a skill has no
-PROPOSAL.md, the command prints its frontmatter description as a fallback and
-notes the gap.
+This step is mandatory and must not be skipped. The user cannot make an
+informed installation decision without seeing the reasoning.
+
+#### Phase 2 — Ask and install
+
+After the user has seen all proposals, ask: "Which of these would you like to
+install, and into which agents?" Present the detected agents by name (Claude
+Code, CodeAgent, etc.). The user may choose to install into one agent,
+several, or none. If the user declines or selects none, skip to step 9. Then
+run:
 
 #### Phase 2 — Ask and install
 

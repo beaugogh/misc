@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.0.6
+version: 1.0.7
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -48,12 +48,13 @@ credentials, structural edits). Optional sources are detected and reported, not
 gated behind a user choice.
 
 **Do not present a menu of end-of-run options either (archive, distribute,
-register, etc.).** After skill-forge finishes, present the bilingual proposals
-(problem, evidence, why proposed, benefit) for each new skill or memory, ask
-which to install into which agents (Tier 3 — explicit approval per skill per
-agent), then archive automatically — run `register.py --archive` without
-asking. Distribution (`--dist`) is manual and on-demand only, never offered as
-an end-of-run choice.
+register, etc.).** After skill-forge finishes, read each
+`output/<skill-name>/PROPOSAL.md` and print its full bilingual content as
+agent message text (not via Bash — terminal tool output is collapsed and the
+user won't see it), ask which to install into which agents (Tier 3 — explicit
+approval per skill per agent), then archive automatically — run
+`register.py --archive` without asking. Distribution (`--dist`) is manual and
+on-demand only, never offered as an end-of-run choice.
 
 The pipeline is: **find the waste → eliminate the waste going forward.**
 
@@ -122,14 +123,15 @@ retro-scope → skill-forge.
    optional — skill-forge works from retro-scope findings alone.
 
 6. **After skill-forge creates output**, present the proposals to the user and
-   ask which to install into which agents. Run
-   `python skill-forge/scripts/register.py --present` and show its full output
-   verbatim — it prints the complete bilingual proposal (problem, evidence, why
-   proposed, benefit of local installation) for every skill and memory in
-   `output/`, in both Chinese and English. Do not summarize or paraphrase it.
-   Then ask which skills/memory to install and into which agents (CodeAgent?
-   Claude Code? etc.), and run `register.py --install <name> --agent <id>` for
-   each approval. See skill-forge/SKILL.md §8.
+   ask which to install into which agents. **Read each
+   `output/<skill-name>/PROPOSAL.md` file and print its full content as your
+   own message** — do not run `--present` via Bash (terminal tool output is
+   collapsed and the user won't see it). The full bilingual proposal (problem,
+   evidence, why proposed, benefit of local installation) must appear as agent
+   message text in the terminal. Do not summarize or paraphrase it. Then ask
+   which skills/memory to install and into which agents (CodeAgent? Claude
+   Code? etc.), and run `register.py --install <name> --agent <id>` for each
+   approval. See skill-forge/SKILL.md §8.
 
 7. **Archive automatically.** At the end of the pipeline, run
    `python skill-forge/scripts/register.py --archive` without asking — it
