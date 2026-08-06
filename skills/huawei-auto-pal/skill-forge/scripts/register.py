@@ -771,9 +771,12 @@ def _write_session_trace(output_dir: str) -> str | None:
     - Legacy codeagent: ngagent.db SQLite (exported as JSONL)
 
     Large content blocks are truncated to keep the archive manageable.
+    Secrets (API keys, tokens, JWTs, passwords) are redacted to match the
+    privacy model in run.py's _export_session_records.
     Returns the path to the written file, or None if no session was found.
     """
     import json as _json
+    import re as _re
 
     # Try JSONL-based agents first (Claude Code, codeagent).
     jsonl_result = _find_jsonl_session()
@@ -785,6 +788,21 @@ def _write_session_trace(output_dir: str) -> str | None:
 
     dest = os.path.join(output_dir, "session_trace.jsonl")
     lines_written = 0
+
+    # Secret redaction patterns — same as run.py _export_session_records.
+    # Applied to the full JSON string after truncation so secrets anywhere
+    # (user messages, tool inputs, tool results, thinking) are caught.
+    _secret_patterns = (
+        (_re.compile(r"(?i)((?:api[_-]?key|access[_-]?token|password|passwd|secret|cookie|token)\s*[:=]\s*)[^\s,;]+"), r"\1[REDACTED]"),
+        (_re.compile(r"(?i)(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;]+"), r"\1[REDACTED]"),
+        (_re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b"), "[REDACTED_JWT]"),
+        (_re.compile(r"(?i)(?:--strict-ssl\s+false|--strict-ssl=false)"), "[REDACTED_SSL_FLAG]"),
+    )
+
+    def _redact_str(s: str) -> str:
+        for pattern, replacement in _secret_patterns:
+            s = pattern.sub(replacement, s)
+        return s
 
     def _truncate(text: str, limit: int) -> str:
         if len(text) <= limit:
@@ -916,7 +934,8 @@ def _write_session_trace(output_dir: str) -> str | None:
                         result = _process_obj(obj)
                         if result is None:
                             continue
-                        fout.write(_json.dumps(result, ensure_ascii=False) + "\n")
+                        raw = _json.dumps(result, ensure_ascii=False)
+                        fout.write(_redact_str(raw) + "\n")
                         lines_written += 1
             elif legacy_result:
                 db_path, session_id = legacy_result
@@ -931,7 +950,8 @@ def _write_session_trace(output_dir: str) -> str | None:
                     result = _process_obj(obj)
                     if result is None:
                         continue
-                    fout.write(_json.dumps(result, ensure_ascii=False) + "\n")
+                    raw = _json.dumps(result, ensure_ascii=False)
+                    fout.write(_redact_str(raw) + "\n")
                     lines_written += 1
     except OSError as e:
         print(f"  ⚠ Could not write session trace: {e}", file=sys.stderr)

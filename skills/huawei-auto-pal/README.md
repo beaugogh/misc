@@ -116,8 +116,15 @@ the QR code. See the `--provision` section above.
 NO_PROXY=cmc.centralrepo.rnd.huawei.com \
   npm install -g @welink/welink-cli \
   --strict-ssl=false \
+  --ignore-scripts \
   --@welink:registry=https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/
 ```
+
+> **`--ignore-scripts`**: The welink-cli npm package has a postinstall
+> PowerShell script that crashes on some Windows machines (a type-cast bug
+> in the installer). `--ignore-scripts` skips it — the `welink-cli` CLI
+> itself works fine without it. This flag is automatically passed by
+> `--provision`.
 
 - Verify / 验证: `welink-cli --version`
 - Login / 登录: `welink-cli auth login` (connects to WeLink PC client, non-interactive refresh, token valid ~30 min)

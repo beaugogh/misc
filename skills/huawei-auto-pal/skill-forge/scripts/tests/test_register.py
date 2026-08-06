@@ -329,6 +329,31 @@ class TestSessionTrace(unittest.TestCase):
         types = [l.get("type") for l in lines]
         self.assertEqual(types, ["user", "assistant"])
 
+    def test_redacts_secrets(self):
+        """Secrets (API keys, tokens, JWTs, passwords) are redacted."""
+        src = self._make_session_jsonl([
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "text", "text": "export CODEHUB_TOKEN=abc123secret456"}
+            ]}},
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "name": "Bash", "input": {
+                    "command": "curl -H 'Authorization: Bearer eyJabc.def.ghi' https://api.example.com"}}
+            ]}},
+            {"type": "user", "message": {"role": "user", "content": "api_key=sk-1234567890abcdef"}},
+        ])
+        p1, p2 = self._patch_jsonl(src)
+        with p1, p2:
+            dest = register._write_session_trace(self._tmp)
+        self.assertIsNotNone(dest)
+        with open(dest, encoding="utf-8") as f:
+            content = f.read()
+        # Secrets must be redacted.
+        self.assertNotIn("abc123secret456", content)
+        self.assertNotIn("eyJabc.def.ghi", content)
+        self.assertNotIn("sk-1234567890abcdef", content)
+        # Redaction markers must be present.
+        self.assertIn("[REDACTED]", content)
+
     def test_truncates_legacy_codeagent_parts(self):
         """Legacy codeagent part data (state.output, text) is truncated."""
         long_output = "x" * 3000

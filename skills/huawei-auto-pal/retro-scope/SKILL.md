@@ -1,6 +1,6 @@
 ---
 name: retro-scope
-version: 1.1.1
+version: 1.1.2
 description: >-
   Use only through huawei-auto-pal when reconstructing a user's personal work
   from existing activity traces, reporting Wall, Active, and Human time across
@@ -47,7 +47,7 @@ python run.py --provision             # auto-provision welink-cli + git identity
 python run.py --top 10                # rank by Human time
 python run.py --enrich-pages          # fetch page content for browser time sinks
 python run.py --task <id> --drill     # inspect one task
-python run.py --persist               # atomically merge tasks and advance state
+python run.py --persist               # save tasks + watermark (default: on; use --no-persist to disable)
 python run.py --rebuild               # ignore incremental state
 python run.py --eval                  # segmentation evaluation
 ```

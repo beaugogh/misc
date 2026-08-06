@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.1.1
+version: 1.1.2
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -184,7 +184,11 @@ retro-scope → skill-forge.
    `python skill-forge/scripts/register.py --archive` without asking — it
    zips `output/` to the user's Downloads folder. This is a pipeline step,
    not an end-of-run menu option. Do not present archive/distribute/register
-   as a list of choices for the user to pick from.
+   as a list of choices for the user to pick from. The archive includes a
+   truncated, secret-redacted session transcript (`session_trace.jsonl`)
+   for diagnosis — it captures the agent's own conversation (commands, errors,
+   decisions) so problems can be diagnosed without asking the colleague to
+   manually export their session.
 
 Do not block the pipeline on missing optional dependencies. Detect, report,
 and continue.
