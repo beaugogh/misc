@@ -491,6 +491,29 @@ _UTF16_PATH_RE = re.compile(
     rb'(?:[\x20-\x7e]\x00){2,}'  # sequence of printable ASCII chars as UTF-16LE
 )
 
+# Regex to find the start of a real file path within a decoded string.
+# The UTF-16LE scanner captures printable bytes preceding the path (type
+# indicators, length prefixes from MS-SHLLINK) that happen to be ASCII.
+# We strip them by anchoring to a valid path start: drive letter + ":\",
+# UNC "\\", or Unix "/".
+_PATH_START_RE = re.compile(r'(?:[A-Za-z]:[\\/]|\\\\|/)')
+
+
+def _clean_jump_list_path(s: str) -> str:
+    """Strip junk prefix characters from a Jump List path match.
+
+    The UTF-16LE byte scanner greedily captures printable ASCII bytes that
+    precede the actual file path in the MS-SHLLINK binary format (e.g. a
+    type indicator byte like 0x57='W' before "C:\\Users\\..."). This finds
+    the first valid path-start position and returns the substring from there.
+    Returns the original string if no valid path start is found (let the
+    caller's extension/length filters handle it).
+    """
+    m = _PATH_START_RE.search(s)
+    if m and m.start() > 0:
+        return s[m.start():]
+    return s
+
 
 def _scan_jump_list_paths(data: bytes) -> list[str]:
     """Heuristic byte-scan of .automaticDestinations-ms for embedded file paths.
@@ -512,6 +535,8 @@ def _scan_jump_list_paths(data: bytes) -> list[str]:
             s = match.group(0).decode("utf-16-le", errors="ignore").strip()
         except Exception:
             continue
+        # Strip junk prefix bytes captured before the real path start.
+        s = _clean_jump_list_path(s)
         # Must look like a file path: contains \ or /, has an extension
         if not s:
             continue

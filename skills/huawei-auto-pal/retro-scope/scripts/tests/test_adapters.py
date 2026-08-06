@@ -498,6 +498,49 @@ class TestJumpListScan(unittest.TestCase):
         result = _scan_jump_list_paths(data)
         self.assertIsInstance(result, list)
 
+    def test_strips_junk_prefix_before_drive_letter(self):
+        """A printable ASCII byte before a drive-letter path is stripped.
+
+        The MS-SHLLINK binary format often has a type indicator or length
+        byte (printable ASCII) immediately before the UTF-16LE path string.
+        The regex captures it as part of the match, producing e.g.
+        'WD:\\Projects\\file.txt' instead of 'D:\\Projects\\file.txt'.
+        """
+        # Encode a junk byte 'W' (0x57) as UTF-16LE, then the real path.
+        junk = "W".encode("utf-16-le")
+        path = "D:\\Projects\\report.docx"
+        data = b"\x00\x01" + junk + path.encode("utf-16-le") + b"\x03\x04"
+        result = _scan_jump_list_paths(data)
+        self.assertIn(path, result)
+        self.assertNotIn("W" + path, result)
+
+    def test_strips_multiple_junk_prefixes(self):
+        """Multiple junk chars before different paths are all stripped."""
+        cases = [
+            ("IC:\\Users\\debug\\file.txt", "C:\\Users\\debug\\file.txt"),     # I=0x49
+            (")C:\\Users\\login.txt", "C:\\Users\\login.txt"),                 # )=0x29
+            ("-D:\\Maven\\settings.xml", "D:\\Maven\\settings.xml"),           # -=0x2d
+            ("3D:\\Maven\\settings4Java8.xml", "D:\\Maven\\settings4Java8.xml"),  # 3=0x33
+        ]
+        for corrupted, expected in cases:
+            data = b"\x00" + corrupted.encode("utf-16-le") + b"\x00"
+            result = _scan_jump_list_paths(data)
+            self.assertIn(expected, result, f"Expected {expected!r} from {corrupted!r}")
+            self.assertNotIn(corrupted, result, f"Should have stripped prefix from {corrupted!r}")
+
+    def test_normal_paths_not_modified(self):
+        """Paths without junk prefix are returned unchanged."""
+        paths = [
+            "C:\\Users\\test\\file.docx",
+            "D:\\Projects\\code.py",
+            "\\\\server\\share\\file.xlsx",
+            "/home/user/file.txt",
+        ]
+        for path in paths:
+            data = b"\x00" + path.encode("utf-16-le") + b"\x00"
+            result = _scan_jump_list_paths(data)
+            self.assertIn(path, result)
+
 
 class TestJumpListAdapter(unittest.TestCase):
     """Test the JumpListAdapter class."""

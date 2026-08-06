@@ -762,6 +762,10 @@ def _export_session_records(tasks: list[dict], events: list[dict], output_dir: s
             "id": tid,
             "subject": t.get("subject"),
             "source_kind": t.get("source_kind"),
+            "source": t.get("source"),
+            "session_id": t.get("session_id"),
+            "cwd": t.get("cwd"),
+            "git_branch": t.get("git_branch"),
             "start": t.get("start"),
             "end": t.get("end"),
             "active_seconds": t.get("active_seconds"),
@@ -1381,6 +1385,31 @@ def main():
         and args.top is None
         and not args.task
     )
+
+    # Warn when --format/--json/--output is set with --horizons: these flags
+    # disable multi-horizon file output and fall through to single-range mode
+    # which prints to stdout. The agent may not realize HTML files won't be
+    # written to disk. Multi-horizon mode (the default, no --format) already
+    # produces HTML files — --format html is unnecessary and counterproductive.
+    if args.horizons and not use_multi_horizon and not args.task and args.top is None:
+        reason = []
+        if args.format:
+            reason.append(f"--format {args.format}")
+        if args.json:
+            reason.append("--json")
+        if args.output:
+            reason.append(f"--output {args.output}")
+        if args.since:
+            reason.append(f"--since {args.since}")
+        if reason:
+            print(
+                f"WARNING: --horizons is set but {'/'.join(reason)} disables "
+                f"multi-horizon file output. HTML reports will be printed to "
+                f"stdout (which terminals collapse) instead of written to files. "
+                f"Drop {'/'.join(reason)} to get HTML files in output/ via "
+                f"multi-horizon mode (the default).",
+                file=sys.stderr,
+            )
 
     if use_multi_horizon:
         from datetime import datetime as _dt, timezone as _tz

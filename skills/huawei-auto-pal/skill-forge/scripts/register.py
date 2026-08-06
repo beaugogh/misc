@@ -30,6 +30,18 @@ import zipfile
 import datetime
 from pathlib import Path
 
+# Windows console defaults to the system codepage (e.g. cp936/GBK on Chinese
+# Windows), which cannot encode the ✓/✗/⚠ characters used in status output —
+# causing UnicodeEncodeError that crashes --list and --archive even when the
+# underlying operation succeeded. Reconfigure stdout/stderr to UTF-8 so the
+# skill just works on Windows without requiring PYTHONUTF8=1. This matches
+# the pattern in retro-scope/scripts/run.py.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass  # stream doesn't support reconfigure (e.g. redirected/closed)
+
 # Make sibling modules importable.
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)

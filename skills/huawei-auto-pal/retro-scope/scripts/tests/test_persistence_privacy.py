@@ -58,7 +58,10 @@ class TestPrivateEvidenceExport(unittest.TestCase):
             "id": "task-1",
             "subject": "contact person@example.com",
             "source_kind": "ai_session",
+            "source": "claude_code",
             "session_id": "session-1",
+            "cwd": "D:\\Projects\\myproject",
+            "git_branch": "main",
             "start": 1000.0,
             "end": 1010.0,
             "human_data": {
@@ -78,11 +81,18 @@ class TestPrivateEvidenceExport(unittest.TestCase):
             paths = [os.path.join(records_dir, name) for name in os.listdir(records_dir)]
             self.assertEqual(len(paths), 1)
             with open(paths[0], encoding="utf-8") as f:
-                content = f.read()
-            self.assertNotIn("super-secret", content)
-            self.assertNotIn("person@example.com", content)
-            self.assertIn("[REDACTED]", content)
-            self.assertIn("[REDACTED_EMAIL]", content)
+                import json as _json
+                record = _json.load(f)
+            # Secret redaction
+            self.assertNotIn("super-secret", _json.dumps(record))
+            self.assertNotIn("person@example.com", _json.dumps(record))
+            self.assertIn("[REDACTED]", _json.dumps(record))
+            self.assertIn("[REDACTED_EMAIL]", _json.dumps(record))
+            # Identity fields present (rubric 12: self-describing records)
+            self.assertEqual(record["source"], "claude_code")
+            self.assertEqual(record["session_id"], "session-1")
+            self.assertEqual(record["cwd"], "D:\\Projects\\myproject")
+            self.assertEqual(record["git_branch"], "main")
             if os.name != "nt":
                 self.assertEqual(stat.S_IMODE(os.stat(paths[0]).st_mode), 0o600)
 
