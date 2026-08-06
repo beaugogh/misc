@@ -471,6 +471,43 @@ def _filter_tasks_by_watermark(tasks: list[dict], watermark: float) -> list[dict
     return result
 
 
+def _resolve_proxy() -> str | None:
+    """Resolve proxy URL for page enrichment.
+
+    Precedence (same as webpage-to-markdown skill):
+    1. HTTPS_PROXY / HTTP_PROXY env vars (and lowercase variants).
+    2. git config --get http.proxy.
+    3. npm config get proxy / https-proxy.
+
+    Returns None if no proxy is configured.
+    """
+    import os as _os
+    for var in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy"):
+        val = _os.environ.get(var)
+        if val:
+            return val
+    # Git config.
+    try:
+        import subprocess as _sp
+        r = _sp.run(["git", "config", "--get", "http.proxy"],
+                     capture_output=True, text=True, timeout=5)
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
+    except Exception:
+        pass
+    # npm config.
+    try:
+        import subprocess as _sp
+        for key in ("proxy", "https-proxy"):
+            r = _sp.run(["npm", "config", "get", key],
+                         capture_output=True, text=True, timeout=5)
+            if r.returncode == 0 and r.stdout.strip() and "null" not in r.stdout.lower():
+                return r.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
 def _events_for_task(task: dict, all_events: list[dict]) -> list[dict]:
     """Reconstruct the events belonging to a task.
 
@@ -976,6 +1013,10 @@ def main():
                     help="with --provision: print commands without executing")
     ap.add_argument("--rebuild", action="store_true",
                     help="ignore watermark, do full reparse (overrides incremental)")
+    ap.add_argument("--enrich-pages", action="store_true",
+                    help="fetch and analyze actual web page content for browser time sinks "
+                         "(top pages per task). External pages only — Huawei internal pages "
+                         "require SSO and are skipped. Uses proxy when configured.")
     ap.add_argument("--persist", action="store_true",
                     help="save reconstructed tasks to output/tasks.jsonl (merged with prior)")
     ap.add_argument("--task", help="show full detail for a single task by id (e.g. explicit-<session_id>-<timestamp>)")
@@ -1167,6 +1208,48 @@ def main():
             print(f"[llm_labeling] labeled {labeled}/{len(tasks)} tasks.", file=sys.stderr)
     except Exception as e:
         print(f"[llm_labeling] stage skipped: {e}", file=sys.stderr)
+
+    # --- Optional page content enrichment (Phase 11) ---
+    # Fetches actual web page content for browser time sinks, enabling deeper
+    # narratives: what each page was about, how pages relate, why time was spent.
+    # External pages only — Huawei internal pages (CloudDevOps, CodeHub, W3, etc.)
+    # require SSO and are skipped gracefully. Cached in output/page_cache/.
+    _default_out = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "output")
+    _output_dir = args.output_dir or os.environ.get("RETRO_SCOPE_OUTPUT_DIR", _default_out)
+
+    if args.enrich_pages:
+        try:
+            from page_enricher import enrich_tasks
+            # Resolve proxy: CLI flag > env > git config (same as webpage-to-markdown).
+            proxy = _resolve_proxy()
+            browser_tasks = [t for t in tasks if t.get("source_kind") == "browser"]
+            if browser_tasks:
+                print(f"[page_enricher] enriching top pages for {len(browser_tasks)} browser tasks...",
+                      file=sys.stderr)
+                enrichment = enrich_tasks(tasks, events, _output_dir, proxy=proxy)
+                if enrichment:
+                    # Attach enrichment data to task context, then re-generate
+                    # narratives for enriched browser tasks so they use page content.
+                    from summarize import summarize_root_cause
+                    enriched_count = 0
+                    for t in tasks:
+                        tid = t.get("id") or ""
+                        if tid in enrichment:
+                            ctx = t.setdefault("context", {})
+                            ctx["page_enrichment"] = enrichment[tid]
+                            # Re-generate narrative with enrichment data.
+                            task_events = _events_for_task(t, events)
+                            new_narrative = summarize_root_cause(t, task_events)
+                            if new_narrative:
+                                ctx["narrative"] = new_narrative
+                            enriched_count += 1
+                    print(f"[page_enricher] enriched {enriched_count} tasks with page content.",
+                          file=sys.stderr)
+        except Exception as e:
+            print(f"[page_enricher] stage failed: {e}", file=sys.stderr)
+            print("[page_enricher] continuing with title-based narratives.", file=sys.stderr)
 
     # --- Export detailed session records as evidence (rubric 66) ---
     # Extracts detailed session records for later inspection.

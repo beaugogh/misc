@@ -64,6 +64,32 @@ Name"` to pre-supply your git display name.
 
 ---
 
+## Deep browser analysis / 深度浏览分析
+
+By default, retro-scope analyzes browser history using page titles and visit
+counts. For deeper analysis, add `--enrich-pages` to fetch and analyze the
+actual content of top-visited external web pages:
+
+```bash
+python retro-scope/scripts/run.py --enrich-pages
+```
+
+This produces richer narratives for browser-heavy sessions: what each page was
+about (from content, not just title), how pages relate (shared US tickets, MR
+numbers, project names), and why the user spent time cross-referencing them.
+Huawei internal pages (CloudDevOps, CodeHub, W3, etc.) require SSO and are
+skipped gracefully — only external pages are fetched. Fetched content is cached
+in `output/page_cache/` and rate-limited (1s between fetches).
+
+默认情况下，retro-scope 仅根据页面标题和访问次数分析浏览历史。添加
+`--enrich-pages` 可抓取并分析高频访问的外部网页的实际内容，生成更深入的叙述：
+每个页面的内容主题、页面之间的关联（共享需求号、MR 号、项目名）、以及用户为何
+花时间交叉查阅。华为内网页面（CloudDevOps、CodeHub、W3 等）需要 SSO 登录，
+会被自动跳过——仅抓取外部页面。抓取内容缓存在 `output/page_cache/`，
+请求间隔 1 秒。
+
+---
+
 ## Optional tools / 可选工具
 
 These tools enhance the analysis but are **not required**. Install them only if

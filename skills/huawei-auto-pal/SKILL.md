@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.0.13
+version: 1.0.14
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -130,7 +130,12 @@ retro-scope → skill-forge.
 
 4. **Proceed automatically to retro-scope.** The first run is useful even with
    only the default sources. Optional tools can be added later — re-running
-   `--check` after setup confirms they're detected.
+   `--check` after setup confirms they're detected. For deeper browser analysis,
+   pass `--enrich-pages` to fetch and analyze the actual content of top-visited
+   external web pages (Huawei internal pages are skipped — they require SSO).
+   This is optional and adds network latency, but produces much richer narratives
+   for browser-heavy sessions: what each page was about, how pages relate, and
+   why the user spent time cross-referencing them.
 
 5. **Then proceed automatically to skill-forge.** If `README.md` has a
    step-by-step credential guide with screenshots for the CodeHub token,

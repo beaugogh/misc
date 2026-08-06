@@ -1,6 +1,6 @@
 ---
 name: retro-scope
-version: 1.0.13
+version: 1.0.14
 description: >-
   Use only through huawei-auto-pal when reconstructing a user's personal work
   from existing activity traces, reporting Wall, Active, and Human time across
@@ -45,6 +45,7 @@ python run.py --sources               # source coverage only
 python run.py --check                 # environment + adapter auth-status checks
 python run.py --provision             # auto-provision welink-cli + git identity
 python run.py --top 10                # rank by Human time
+python run.py --enrich-pages          # fetch page content for browser time sinks
 python run.py --task <id> --drill     # inspect one task
 python run.py --persist               # atomically merge tasks and advance state
 python run.py --rebuild               # ignore incremental state
@@ -156,6 +157,14 @@ eight hours as observed fact.
 For genuine time sinks, use redacted evidence to explain the observable goal,
 difficulty, retries, and output. Avoid generic count-only explanations. Do not include
 credentials, full correspondence, unnecessary identities, or machine-specific paths.
+
+For browser time sinks, `--enrich-pages` fetches the actual content of top-visited
+external pages (not just titles) and analyzes: what each page was about, how pages
+relate (shared US tickets, MR numbers, project names), and why the user spent time
+cross-referencing them. Huawei internal pages (CloudDevOps, CodeHub, W3, etc.)
+require SSO and are skipped gracefully with a note. Fetched content is cached in
+`output/page_cache/` (gitignored), rate-limited (1s between fetches), and only text
+excerpts appear in session records — never full page content.
 
 Session evidence exports are capped, redacted, atomically written, and created with
 restrictive permissions where the platform supports them. Warn the user before sharing

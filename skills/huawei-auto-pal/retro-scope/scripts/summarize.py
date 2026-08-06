@@ -485,18 +485,147 @@ def _infer_page_topic(title: str) -> str:
     return "用户在浏览网页内容"
 
 
+def _classify_page_content(title: str, text_excerpt: str, headings: list[str]) -> str:
+    """Classify what a page is about using its actual content, not just title.
+
+    When enrichment data is available (text_excerpt + headings), this produces
+    a much more specific description than _infer_page_topic(title).
+    """
+    combined = f"{title} {' '.join(headings)} {text_excerpt[:300]}".lower()
+
+    # Code repository / MR
+    if "merge request" in combined or "合并请求" in combined or "pull request" in combined:
+        if "diff" in combined or "改动" in combined:
+            return "用户在审查代码合并请求的改动内容"
+        return "用户在查看代码合并请求"
+    if "codehub" in combined or "github" in combined:
+        if "commit" in combined or "提交" in combined:
+            return "用户在查看代码提交记录"
+        if "file" in combined or "文件" in combined or "tree" in combined:
+            return "用户在浏览代码仓库的文件目录"
+        return "用户在浏览代码仓库"
+
+    # Wiki / documentation
+    if "wiki" in combined or "clouddevops" in combined:
+        if "api" in combined or "接口" in combined:
+            return "用户在阅读API技术文档"
+        if "架构" in combined or "architecture" in combined:
+            return "用户在阅读架构设计文档"
+        return "用户在阅读技术Wiki文档"
+
+    # Sprint / project tracking
+    if "sprint" in combined or "迭代" in combined or "看板" in combined:
+        return "用户在查看迭代/冲刺进度"
+    if "task" in combined and ("assign" in combined or "分配" in combined):
+        return "用户在查看任务分配情况"
+
+    # Build / CI
+    if "build" in combined or "构建" in combined or "pipeline" in combined:
+        if "fail" in combined or "失败" in combined:
+            return "用户在排查构建失败"
+        return "用户在查看构建/流水线状态"
+
+    # Search results
+    if "search" in combined and ("result" in combined or "结果" in combined):
+        return "用户在查看搜索结果页"
+
+    # AI tools
+    if "chatgpt" in combined or "gemini" in combined or "claude" in combined:
+        return "用户在使用AI工具对话"
+
+    # Tech tutorials / blogs
+    if any(k in combined for k in ("tutorial", "教程", "guide", "指南")):
+        return "用户在阅读技术教程"
+    if any(k in combined for k in ("blog", "博客", "article", "文章")):
+        return "用户在阅读技术博客文章"
+
+    # Fallback: use title-based inference
+    return _infer_page_topic(title)
+
+
+def _format_relationships(relationships: list[dict]) -> str:
+    """Format page relationship clusters into a human-readable Chinese string."""
+    if not relationships:
+        return ""
+
+    parts: list[str] = []
+    for rel in relationships[:3]:  # cap at 3 clusters
+        entity_type = rel.get("entity_type", "")
+        value = rel.get("entity_value", "")
+        n_pages = len(rel.get("pages", []))
+
+        if entity_type == "us_tickets":
+            parts.append(f"多个页面（{n_pages}个）关联同一需求 {value}")
+        elif entity_type == "mr_numbers":
+            parts.append(f"多个页面（{n_pages}个）关联同一合并请求 #{value}")
+        elif entity_type == "wiki_ids":
+            parts.append(f"多个页面（{n_pages}个）关联同一Wiki文档 {value}")
+        elif entity_type == "projects":
+            parts.append(f"多个页面（{n_pages}个）关联同一项目 {value}")
+        else:
+            parts.append(f"多个页面（{n_pages}个）关联同一实体 {value}")
+
+    if parts:
+        return "页面关联：" + "；".join(parts) + "。"
+    return ""
+
+
+def _infer_goal_from_content(enrichment: dict, queries: list[str]) -> str:
+    """Infer the user's research goal from page content + relationships."""
+    pages = enrichment.get("pages", [])
+    relationships = enrichment.get("relationships", [])
+
+    # If there are relationships, the goal is likely about that shared entity.
+    if relationships:
+        rel = relationships[0]
+        entity_type = rel.get("entity_type", "")
+        value = rel.get("entity_value", "")
+        n_pages = len(rel.get("pages", []))
+
+        if entity_type == "us_tickets":
+            return f"围绕需求 {value} 在 {n_pages} 个相关页面间交叉查阅"
+        elif entity_type == "mr_numbers":
+            return f"围绕合并请求 #{value} 在 {n_pages} 个相关页面间追踪进度"
+        elif entity_type == "wiki_ids":
+            return f"围绕Wiki文档 {value} 在 {n_pages} 个相关页面间阅读和参考"
+        elif entity_type == "projects":
+            return f"围绕项目 {value} 在 {n_pages} 个相关页面间查阅不同方面"
+
+    # No relationships — try to infer from the top page content.
+    if pages:
+        top = pages[0]
+        title = top.get("title", "")
+        text = top.get("text_excerpt", "")[:200]
+        headings = top.get("headings", [])
+
+        # Check for common patterns in content
+        combined = f"{title} {' '.join(headings)} {text}".lower()
+        if any(k in combined for k in ("fix", "修复", "bug", "缺陷")):
+            return "排查和修复问题"
+        if any(k in combined for k in ("deploy", "部署", "release", "发布")):
+            return "跟踪部署或发布进度"
+        if any(k in combined for k in ("learn", "学习", "tutorial", "教程")):
+            return "学习新技术或方案"
+        if any(k in combined for k in ("design", "设计", "architecture", "架构")):
+            return "研究架构或设计方案"
+
+    return ""
+
+
 def _summarize_browser(events: list[dict], task: dict) -> str:
     """Produce a grounded narrative for a browser/research session.
 
     Analyzes page interaction depth (revisits, visit_count) to distinguish
-    genuine engagement from forgotten tabs. For high-interaction pages,
-    explains WHY the user likely interacted so much based on the page titles.
+    genuine engagement from forgotten tabs. When page enrichment data is
+    available (task["context"]["page_enrichment"]), uses actual page content
+    to explain what each page was about and how pages relate.
     """
     ctx = task.get("context") or {}
     titles = ctx.get("top_titles") or []
     queries = ctx.get("queries") or []
     downloads = ctx.get("downloads") or 0
     n_visits = ctx.get("n_visits") or 0
+    enrichment = ctx.get("page_enrichment")  # None if not enriched
 
     active_h = (task.get("active_seconds") or 0) / 3600
     wall_h = (task.get("wall_clock_seconds") or 0) / 3600
@@ -523,14 +652,34 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
     revisit_total = sum(1 for ev in events if ev.get("kind") == "visit"
                         and (ev.get("tool_input") or {}).get("visit_count", 0) > 1)
 
+    # Build a title→enriched-page lookup for content-based descriptions.
+    enriched_by_title: dict[str, dict] = {}
+    if enrichment:
+        for ep in enrichment.get("pages", []):
+            et = ep.get("title", "").strip()
+            if et:
+                enriched_by_title[et] = ep
+
     parts: list[str] = []
 
     # Goal: what was the user researching?
-    # Use the MOST-INTERACTED page (top_pages[0]), not titles[0] (chronologically
-    # first), so the goal matches the detail/pages sections that follow (rubric 72).
+    # When enrichment is available, infer goal from page content + relationships.
     top_page_title = top_pages[0][0] if top_pages else (titles[0] if titles else "")
     if queries:
         parts.append(f"Goal: 搜索 '{queries[0][:50]}'。")
+    elif enrichment:
+        # Use content-based goal inference.
+        goal = _infer_goal_from_content(enrichment, queries)
+        if goal:
+            parts.append(f"Goal: {goal}。")
+        elif top_page_title:
+            n_top = len(top_pages)
+            if n_top >= 3 and top_pages[2][1] >= 10:
+                parts.append(
+                    f"Goal: 浏览多个页面（以「{top_page_title[:30]}」为主，共 {n_visits} 次访问）。"
+                )
+            else:
+                parts.append(f"Goal: 浏览 {top_page_title[:40]}。")
     elif top_page_title:
         # When multiple distinct pages were heavily interacted with, broaden
         # the goal to reflect the session's overall scope rather than naming
@@ -554,7 +703,14 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
         top_page = top_pages[0] if top_pages else ("", 0)
         top_title = top_page[0][:40]
         top_count = top_page[1]
-        topic = _infer_page_topic(top_title)
+        # Use content-based classification when available.
+        if top_page_title in enriched_by_title:
+            ep = enriched_by_title[top_page_title]
+            topic = _classify_page_content(
+                top_page_title, ep.get("text_excerpt", ""), ep.get("headings", [])
+            )
+        else:
+            topic = _infer_page_topic(top_title)
         parts.append(
             f"Struggle: 用户在 {active_h:.1f}h 内进行了 {n_visits} 次页面访问（{revisit_total} 次重复点击），"
             f"属于活跃交互。最常访问的「{top_title}」({top_count}次)：{topic}。"
@@ -569,14 +725,30 @@ def _summarize_browser(events: list[dict], task: dict) -> str:
         parts.append("Struggle: 浏览活动较少，无明显困难。")
 
     # Per-page content description (rubric 62: describe what was on each page).
+    # When enrichment is available, use content-based classification.
     if top_pages and revisit_total > 10:
         page_descs: list[str] = []
         for title, count in top_pages[:4]:
             short_title = title[:30]
-            action = _infer_page_topic(title)
+            if title in enriched_by_title:
+                ep = enriched_by_title[title]
+                action = _classify_page_content(
+                    title, ep.get("text_excerpt", ""), ep.get("headings", [])
+                )
+                # Note auth-required pages that couldn't be enriched.
+                if ep.get("status") == "auth_required":
+                    action += "（内容需登录访问，仅根据标题推断）"
+            else:
+                action = _infer_page_topic(title)
             page_descs.append(f"「{short_title}」{count}次——{action}")
         if page_descs:
             parts.append(f"Detail: 主要浏览内容：{'；'.join(page_descs)}。")
+
+    # Page relationships (from enrichment).
+    if enrichment:
+        rel_str = _format_relationships(enrichment.get("relationships", []))
+        if rel_str:
+            parts.append(f"Relations: {rel_str}")
 
     # What was visited — show more pages for longer sessions.
     if titles:

@@ -107,6 +107,11 @@ are folded into the rule they inspired, not kept as separate entries.
 19. **Investigate content for each activity type.** When an activity is a
     genuine time sink, investigate its content and explain *why* it took time:
     - **Web browsing:** what pages, what topic, what was the user looking for.
+      When `--enrich-pages` is enabled, fetch actual page content for top-visited
+      external pages and analyze: what each page was about (from content, not
+      just title), how pages relate (shared US tickets, MR numbers, project
+      names), and why the user spent time cross-referencing them. Huawei internal
+      pages (CloudDevOps, CodeHub, W3) require SSO and are skipped gracefully.
     - **Chat:** what was discussed, how many participants, message volume.
     - **Coding:** what was the goal, what errors occurred, what was retried.
     - **File editing:** what file, what type, what was added/removed/modified.
