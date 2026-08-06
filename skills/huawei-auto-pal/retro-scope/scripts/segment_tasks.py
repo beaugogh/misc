@@ -402,6 +402,8 @@ def _extract_context(events: list[dict], source_kind: str) -> dict:
         directions = set()
         im_conversations: list[str] = []
         im_senders: list[str] = []
+        im_sender_names: dict[str, str] = {}  # account → name
+        im_is_group: bool | None = None
         im_message_count = 0
         for ev in events:
             kind = ev.get("kind")
@@ -424,6 +426,13 @@ def _extract_context(events: list[dict], source_kind: str) -> dict:
                 sender = ti.get("sender")
                 if sender:
                     im_senders.append(str(sender)[:60])
+                # Capture resolved sender name if available.
+                sender_name = ti.get("sender_name")
+                if sender and sender_name:
+                    im_sender_names[str(sender)] = str(sender_name)
+                # Track whether this is a group or P2P chat.
+                if im_is_group is None:
+                    im_is_group = ti.get("is_group")
         ctx["senders"] = _dedupe(senders)[:5]
         ctx["subjects"] = _dedupe(subjects)[:5]
         ctx["comm_directions"] = sorted(directions)
@@ -432,6 +441,15 @@ def _extract_context(events: list[dict], source_kind: str) -> dict:
             ctx["im_message_count"] = im_message_count
             ctx["im_conversations"] = _dedupe(im_conversations)[:5]
             ctx["im_senders"] = _dedupe(im_senders)[:5]
+            # Participants with resolved names: [{account, name}].
+            participants = []
+            for acct in _dedupe(im_senders)[:10]:
+                participants.append({
+                    "account": acct,
+                    "name": im_sender_names.get(acct, acct),
+                })
+            ctx["im_participants"] = participants
+            ctx["im_is_group"] = im_is_group
         return ctx
 
     if source_kind == "ai_session":

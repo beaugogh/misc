@@ -555,6 +555,9 @@ class WeLinkCLIAdapter:
             "im", "query-recent-conversation",
             "--count", str(IM_MAX_CONVERSATIONS),
         ], timeout=60)
+
+        # Collect all events first, then resolve sender names in batch.
+        collected: list[dict] = []
         for conv in convs[:IM_MAX_CONVERSATIONS]:
             group_id = _first_key(conv, ["group_id", "groupId", "id", "Id"])
             group_name = _first_key(conv, ["group_name", "groupName", "name", "Name"])
@@ -565,6 +568,12 @@ class WeLinkCLIAdapter:
             # A group chat has a group_id and CHAT_TYPE_GROUP_MSG; a P2P chat has a
             # target_account and CHAT_TYPE_P2P_MSG.
             is_group = bool(group_id) and conv_type != "CHAT_TYPE_P2P_MSG"
+            # For P2P chats, use the peer's staff_name as the conversation name
+            # so the subject shows "与 崔少攀 的私聊" instead of "(no subject)".
+            if not is_group and not group_name and target_account:
+                staff_name = _first_key(conv, ["staff_name", "staffName"])
+                if staff_name:
+                    group_name = staff_name
 
             # Step 2: fetch recent messages for this conversation
             msg_args = ["im", "query-history-message",
@@ -588,7 +597,16 @@ class WeLinkCLIAdapter:
             for msg in messages:
                 ev = self._im_to_event(msg, conv_id, group_name, is_group)
                 if ev and ev["timestamp"] >= start_ts:
-                    yield ev
+                    collected.append(ev)
+
+        # Step 3: resolve sender account IDs to human-readable names (batch).
+        name_map = self._resolve_sender_names(collected)
+        for ev in collected:
+            ti = ev.get("tool_input") or {}
+            sender = ti.get("sender")
+            if sender and sender in name_map:
+                ti["sender_name"] = name_map[sender]
+            yield ev
 
     def _im_to_event(self, msg: dict, conv_id: Any, conv_name: Any,
                      is_group: bool) -> dict | None:
@@ -663,6 +681,42 @@ class WeLinkCLIAdapter:
         except (AttributeError, TypeError):
             pass
         return f"({ct})"
+
+    def _resolve_sender_names(self, events: list[dict]) -> dict[str, str]:
+        """Resolve sender account IDs to human-readable names via welink-cli contact detail.
+
+        Batch-looks up all unique sender accounts in one call. Returns a mapping
+        {account_id: name}. If the contact API fails, returns an empty mapping —
+        callers fall back to using the raw account ID.
+        """
+        # Collect unique sender account IDs.
+        sender_ids: set[str] = set()
+        for ev in events:
+            ti = ev.get("tool_input") or {}
+            sender = ti.get("sender")
+            if sender and isinstance(sender, str):
+                sender_ids.add(sender)
+        if not sender_ids:
+            return {}
+
+        # Batch lookup via 'welink-cli contact detail <id1> <id2> ...'.
+        # The CLI accepts multiple accounts as positional args.
+        accounts = sorted(sender_ids)
+        result = self._run_json(["contact", "detail"] + accounts, timeout=30)
+        if not isinstance(result, dict):
+            return {}
+
+        name_map: dict[str, str] = {}
+        users = result.get("users") or result.get("data") or []
+        if isinstance(users, list):
+            for u in users:
+                if not isinstance(u, dict):
+                    continue
+                account = u.get("personAccount") or u.get("account") or u.get("welinkId")
+                name = u.get("chineseName") or u.get("englishName") or u.get("name")
+                if account and name:
+                    name_map[str(account)] = str(name)
+        return name_map
 
     # -- top-level collect --------------------------------------------------
 

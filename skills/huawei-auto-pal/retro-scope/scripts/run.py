@@ -763,13 +763,22 @@ def _export_session_records(tasks: list[dict], events: list[dict], output_dir: s
         task_events = _events_for_task(t)
         timeline = []
         for ev in task_events[:200]:
-            timeline.append({
+            entry = {
                 "timestamp": ev.get("timestamp"),
                 "kind": ev.get("kind"),
                 "text": (ev.get("text") or "")[:200],
                 "tool_name": ev.get("tool_name"),
                 "tool_is_error": ev.get("tool_is_error"),
-            })
+            }
+            # Enrich chat_message entries with comm-specific fields so the
+            # timeline is self-describing: who sent it, in which conversation.
+            if ev.get("kind") == "chat_message":
+                ti = ev.get("tool_input") or {}
+                entry["sender"] = ti.get("sender")
+                entry["sender_name"] = ti.get("sender_name")
+                entry["conversation_name"] = ti.get("conversation_name")
+                entry["is_group"] = ti.get("is_group")
+            timeline.append(entry)
         record["event_timeline"] = timeline
         record["event_count_total"] = len(task_events)
         record = _redact(record)

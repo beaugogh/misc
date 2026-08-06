@@ -890,8 +890,24 @@ def _summarize_comm(events: list[dict], task: dict) -> str:
     # IM.
     if im_count:
         active_h = (task.get("active_seconds") or 0) / 3600
-        conv = im_conversations[0][:40] if im_conversations else "一段对话"
-        parts.append(f"Goal: 参与 WeLink 聊天（{conv}）。")
+        is_group = ctx.get("im_is_group")
+        participants = ctx.get("im_participants") or []
+        # Build participant name list (prefer names over account IDs).
+        participant_names = [p.get("name", p.get("account", "?")) for p in participants]
+        participant_str = "、".join(participant_names[:5])
+        if len(participant_names) > 5:
+            participant_str += f" 等{len(participant_names)}人"
+
+        # Conversation label: group name for group chats, peer name for P2P.
+        if is_group:
+            conv = im_conversations[0][:40] if im_conversations else "群聊"
+            parts.append(f"Goal: 参与群聊「{conv}」。")
+        else:
+            # P2P: use the peer's name (first participant who isn't the user,
+            # or just the conversation name / first participant).
+            conv = im_conversations[0][:40] if im_conversations else (participant_names[0] if participant_names else "私聊")
+            parts.append(f"Goal: 与 {conv} 的私聊。")
+
         # Extract sample message texts and synthesize a topic (rubric 58).
         sample_msgs: list[str] = []
         for ev in events:
@@ -904,11 +920,11 @@ def _summarize_comm(events: list[dict], task: dict) -> str:
         # Synthesize chat topic from message keywords.
         topic = _synthesize_chat_topic(sample_msgs)
         if im_count > 50:
-            parts.append(f"Struggle: 大量消息（{im_count} 条，{len(im_senders)} 位参与者）——长时间讨论，需要大量人工参与。{topic}")
+            parts.append(f"Struggle: 大量消息（{im_count} 条，参与者：{participant_str}）——长时间讨论，需要大量人工参与。{topic}")
         elif im_count > 10:
-            parts.append(f"Struggle: 中等量消息（{im_count} 条）——来回讨论。{topic}")
+            parts.append(f"Struggle: 中等量消息（{im_count} 条，参与者：{participant_str}）——来回讨论。{topic}")
         else:
-            parts.append(f"Struggle: {im_count} 条消息交换。{topic}")
+            parts.append(f"Struggle: {im_count} 条消息（参与者：{participant_str}）。{topic}")
         # Show content evidence (rubric 58: verifiable evidence).
         if sample_msgs:
             parts.append(f"Evidence: {'；'.join(sample_msgs[:2])}。")
