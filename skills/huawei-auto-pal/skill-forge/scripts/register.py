@@ -82,6 +82,40 @@ def _safe_output_subpath(name: str) -> str:
     return resolved
 
 
+def _read_skill_version() -> str:
+    """Read the `version` field from the root SKILL.md frontmatter.
+
+    Returns the version string (e.g. '1.0.11') for use in dist zip naming.
+    Falls back to 'unknown' if the file or field is missing.
+    """
+    import yaml
+    skill_md = os.path.join(_SKILL_ROOT, "SKILL.md")
+    if not os.path.isfile(skill_md):
+        return "unknown"
+    try:
+        with open(skill_md, "r", encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return "unknown"
+    if not text.startswith("---"):
+        return "unknown"
+    lines = text.split("\n")
+    fm_lines = []
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        fm_lines.append(line)
+    try:
+        fm = yaml.safe_load("\n".join(fm_lines))
+        if isinstance(fm, dict):
+            ver = fm.get("version")
+            if isinstance(ver, str) and ver.strip():
+                return ver.strip()
+    except yaml.YAMLError:
+        pass
+    return "unknown"
+
+
 def _read_frontmatter_description(skill_dir: str) -> str | None:
     """Read the `description` field from a skill's SKILL.md frontmatter.
 
@@ -581,8 +615,8 @@ def cmd_dist(args, agents, output_skills):
     downloads = _downloads_dir()
     os.makedirs(downloads, exist_ok=True)
 
-    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    zip_name = f"huawei-auto-pal-{timestamp}.zip"
+    version = _read_skill_version()
+    zip_name = f"huawei-auto-pal-{version}.zip"
     zip_path = os.path.join(downloads, zip_name)
 
     if args.dry_run:
