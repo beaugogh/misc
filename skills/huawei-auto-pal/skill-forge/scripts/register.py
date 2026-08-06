@@ -28,6 +28,7 @@ import platform
 import argparse
 import zipfile
 import datetime
+import tempfile
 from pathlib import Path
 
 # Windows console defaults to the system codepage (e.g. cp936/GBK on Chinese
@@ -570,41 +571,49 @@ def _user_id() -> str | None:
 
 # --- Session trace capture for diagnosis ---
 
-def _find_current_session_trace() -> str | None:
-    """Find the JSONL transcript of the current agent session.
+# Known session-store directories for each supported agent.
+# Each entry: (agent_name, projects_dir_path, env_var_for_session_id)
+# The env var is optional — if set, we search for a file matching that ID.
+# If not set, we fall back to the most recently modified .jsonl.
+_JSONL_SESSION_SOURCES = [
+    ("claude_code", os.path.expanduser("~/.claude/projects"), "CLAUDE_CODE_SESSION_ID"),
+    ("codeagent",   os.path.expanduser("~/.cac/projects"),    None),
+]
 
-    Looks for the session file in Claude Code and codeagent project dirs.
-    Uses CLAUDE_CODE_SESSION_ID env var when available (set by Claude Code).
-    Falls back to the most recently modified .jsonl file in any projects dir.
-    Returns the file path, or None if nothing is found.
+# Legacy codeagent SQLite DB paths (checked in order).
+_LEGACY_DB_PATHS = [
+    os.path.expanduser("~/.local/share/opencode/db/ngagent.db"),
+    os.path.expanduser("~/.cac/ngagent.db"),
+    os.path.expanduser("~/.ngagent/ngagent.db"),
+    os.path.join(os.path.expanduser("~"), "AppData", "Local", "ngagent", "ngagent.db"),
+    os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "ngagent", "ngagent.db"),
+]
+
+
+def _find_jsonl_session() -> tuple[str, str] | None:
+    """Find the current session's JSONL file across all JSONL-based agents.
+
+    Returns (agent_name, file_path) or None.
     """
     import glob as _glob
-    home = os.path.expanduser("~")
-    candidate_dirs = [
-        os.path.join(home, ".claude", "projects"),
-        os.path.join(home, ".cac", "projects"),
-    ]
+    import time as _time
+    cutoff = _time.time() - 6 * 3600  # last 6 hours
 
-    # 1. Try env var (most reliable — Claude Code sets CLAUDE_CODE_SESSION_ID).
-    session_id = os.environ.get("CLAUDE_CODE_SESSION_ID", "").strip()
-    if session_id:
-        for projects_dir in candidate_dirs:
-            if not os.path.isdir(projects_dir):
-                continue
+    for agent_name, projects_dir, env_var in _JSONL_SESSION_SOURCES:
+        if not os.path.isdir(projects_dir):
+            continue
+
+        # 1. Try env var if available (exact match).
+        session_id = os.environ.get(env_var, "").strip() if env_var else ""
+        if session_id:
             pattern = os.path.join(projects_dir, "*", f"{session_id}.jsonl")
             matches = _glob.glob(pattern)
             if matches and os.path.isfile(matches[0]):
-                return matches[0]
+                return (agent_name, matches[0])
 
-    # 2. Fallback: most recently modified .jsonl in any projects dir.
-    # Only consider files modified in the last 4 hours (likely the active session).
-    import time as _time
-    cutoff = _time.time() - 4 * 3600
-    best_path = None
-    best_mtime = 0.0
-    for projects_dir in candidate_dirs:
-        if not os.path.isdir(projects_dir):
-            continue
+        # 2. Fallback: most recently modified .jsonl in this agent's dir.
+        best_path = None
+        best_mtime = 0.0
         for path in _glob.glob(os.path.join(projects_dir, "*", "*.jsonl")):
             if not os.path.isfile(path):
                 continue
@@ -615,26 +624,165 @@ def _find_current_session_trace() -> str | None:
             if mtime > cutoff and mtime > best_mtime:
                 best_mtime = mtime
                 best_path = path
-    return best_path
+        if best_path:
+            return (agent_name, best_path)
+
+    return None
+
+
+def _find_legacy_codeagent_session() -> tuple[str, str] | None:
+    """Find the most recent session in the legacy codeagent SQLite DB.
+
+    Returns (db_path, session_id) or None.
+    """
+    import sqlite3
+    import shutil as _shutil
+    db_path = None
+    for p in _LEGACY_DB_PATHS:
+        if os.path.isfile(p):
+            db_path = p
+            break
+    if not db_path:
+        return None
+
+    # Copy to temp (DB may be locked by the running codeagent).
+    try:
+        fd, tmp = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        _shutil.copy2(db_path, tmp)
+    except OSError:
+        return None
+
+    try:
+        conn = sqlite3.connect(f"file:{tmp}?mode=ro", uri=True)
+        c = conn.cursor()
+        # Get the most recently updated session.
+        c.execute(
+            "SELECT id FROM session ORDER BY time_updated DESC LIMIT 1"
+        )
+        row = c.fetchone()
+        conn.close()
+    except Exception:
+        os.unlink(tmp)
+        return None
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+    if row and row[0]:
+        return (db_path, row[0])
+    return None
+
+
+def _export_legacy_codeagent_session(db_path: str, session_id: str) -> list[str]:
+    """Export a legacy codeagent session from SQLite as JSONL lines.
+
+    Queries the message and part tables for the given session_id and
+    reconstructs a JSONL stream similar to the Claude Code format so the
+    same truncation logic can process it.
+    """
+    import sqlite3
+    import json as _json
+    import shutil as _shutil
+
+    # Copy to temp (DB may be locked).
+    try:
+        fd, tmp = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        _shutil.copy2(db_path, tmp)
+    except OSError:
+        return []
+
+    lines = []
+    try:
+        conn = sqlite3.connect(f"file:{tmp}?mode=ro", uri=True)
+        c = conn.cursor()
+
+        # Fetch messages for this session, ordered by time.
+        c.execute(
+            "SELECT message_id, session_id, time_created, data "
+            "FROM message WHERE session_id = ? ORDER BY time_created",
+            (session_id,)
+        )
+        messages = c.fetchall()
+
+        # Fetch all parts for this session, ordered by time.
+        c.execute(
+            "SELECT id, message_id, session_id, time_created, data "
+            "FROM part WHERE session_id = ? ORDER BY time_created",
+            (session_id,)
+        )
+        parts = c.fetchall()
+        conn.close()
+
+        # Build a lookup: message_id -> list of parts
+        parts_by_msg = {}
+        for pid, mid, sid, ts, data_json in parts:
+            parts_by_msg.setdefault(mid, []).append((pid, ts, data_json))
+
+        # Emit one JSONL line per message, with parts embedded.
+        for mid, sid, ts_ms, data_json in messages:
+            try:
+                data = _json.loads(data_json) if data_json else {}
+            except _json.JSONDecodeError:
+                data = {}
+
+            role = data.get("role", "unknown")
+            obj = {
+                "type": role,
+                "session_id": sid,
+                "message_id": mid,
+                "timestamp": ts_ms,
+                "data": data,
+                "parts": [],
+            }
+            for pid, pts, pdata_json in parts_by_msg.get(mid, []):
+                try:
+                    pdata = _json.loads(pdata_json) if pdata_json else {}
+                except _json.JSONDecodeError:
+                    pdata = {}
+                obj["parts"].append({
+                    "id": pid,
+                    "time_created": pts,
+                    "data": pdata,
+                })
+            lines.append(_json.dumps(obj, ensure_ascii=False))
+
+    except Exception:
+        pass
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+    return lines
 
 
 def _write_session_trace(output_dir: str) -> str | None:
     """Write a truncated copy of the current session transcript to output/.
 
-    Large content blocks are truncated to keep the archive manageable:
-    - tool_result content: 500 chars (can be megabytes for file reads)
-    - assistant text/thinking blocks: 1000 chars (reasoning is verbose)
-    - tool_use input: kept full (commands, file paths — diagnostic value)
-    - user messages: kept full (the user's actual requests)
-    file-history-snapshot lines are skipped entirely (backup metadata).
+    Supports multiple agent session formats:
+    - Claude Code / codeagent: JSONL files in ~/.claude/projects/ or ~/.cac/projects/
+    - Legacy codeagent: ngagent.db SQLite (exported as JSONL)
 
+    Large content blocks are truncated to keep the archive manageable.
     Returns the path to the written file, or None if no session was found.
     """
-    src = _find_current_session_trace()
-    if not src:
+    import json as _json
+
+    # Try JSONL-based agents first (Claude Code, codeagent).
+    jsonl_result = _find_jsonl_session()
+    # Also try legacy codeagent SQLite.
+    legacy_result = _find_legacy_codeagent_session()
+
+    if not jsonl_result and not legacy_result:
         return None
 
-    import json as _json
     dest = os.path.join(output_dir, "session_trace.jsonl")
     lines_written = 0
 
@@ -643,98 +791,150 @@ def _write_session_trace(output_dir: str) -> str | None:
             return text
         return text[:limit] + f"\n[...truncated {len(text) - limit} chars...]"
 
+    def _process_obj(obj: dict) -> dict | None:
+        """Process one JSON object: skip metadata, truncate large fields.
+        Returns the modified object, or None to skip the line entirely."""
+        # Skip entries with no diagnostic value.
+        if obj.get("type") in (
+            "file-history-snapshot",
+            "file-history-delta",
+            "attachment",
+            "queue-operation",
+            "ai-title",
+            "custom-title",
+            "agent-name",
+            "mode",
+            "permission-mode",
+        ):
+            return None
+
+        # --- Claude Code / codeagent JSONL format ---
+        # (message.content is a list of blocks with type/text/tool_use/etc.)
+        msg = obj.get("message")
+        if isinstance(msg, dict):
+            content = msg.get("content")
+            if isinstance(content, list):
+                for block in content:
+                    if not isinstance(block, dict):
+                        continue
+                    btype = block.get("type")
+                    if btype == "tool_result":
+                        c = block.get("content")
+                        if isinstance(c, str):
+                            block["content"] = _truncate(c, 500)
+                        elif isinstance(c, list):
+                            for sub in c:
+                                if not isinstance(sub, dict):
+                                    continue
+                                stype = sub.get("type")
+                                if stype == "text":
+                                    sub["text"] = _truncate(sub.get("text", ""), 500)
+                                elif stype == "image":
+                                    src = sub.get("source", {})
+                                    if isinstance(src, dict) and \
+                                       isinstance(src.get("data"), str) and \
+                                       len(src["data"]) > 200:
+                                        src["data"] = f"[base64 image data: {len(src['data'])} chars, truncated]"
+                    elif btype == "text":
+                        block["text"] = _truncate(block.get("text", ""), 1000)
+                    elif btype == "thinking":
+                        block["thinking"] = _truncate(block.get("thinking", ""), 1000)
+                    elif btype == "image":
+                        src = block.get("source", {})
+                        if isinstance(src, dict) and \
+                           isinstance(src.get("data"), str) and \
+                           len(src["data"]) > 200:
+                            src["data"] = f"[base64 image data: {len(src['data'])} chars, truncated]"
+
+        # Truncate top-level toolUseResult (Claude Code duplicate).
+        tur = obj.get("toolUseResult")
+        if isinstance(tur, str) and len(tur) > 500:
+            obj["toolUseResult"] = _truncate(tur, 500)
+        elif isinstance(tur, dict):
+            for tur_key in ("content", "stdout", "stderr", "output", "result"):
+                val = tur.get(tur_key)
+                if isinstance(val, str) and len(val) > 500:
+                    tur[tur_key] = _truncate(val, 500)
+            tur_file = tur.get("file")
+            if isinstance(tur_file, dict):
+                b64 = tur_file.get("base64")
+                if isinstance(b64, str) and len(b64) > 200:
+                    tur_file["base64"] = f"[base64 image data: {len(b64)} chars, truncated]"
+
+        # --- Legacy codeagent format ---
+        # (data JSON has role/model/path; parts[] have type/text/tool/etc.)
+        data = obj.get("data")
+        if isinstance(data, dict):
+            # Truncate large string fields in data.
+            for dk in ("content", "output", "error"):
+                dv = data.get(dk)
+                if isinstance(dv, str) and len(dv) > 500:
+                    data[dk] = _truncate(dv, 500)
+
+        parts = obj.get("parts")
+        if isinstance(parts, list):
+            for part in parts:
+                if not isinstance(part, dict):
+                    continue
+                pdata = part.get("data")
+                if isinstance(pdata, dict):
+                    # Truncate tool state.output and text content.
+                    state = pdata.get("state")
+                    if isinstance(state, dict):
+                        so = state.get("output")
+                        if isinstance(so, str) and len(so) > 500:
+                            state["output"] = _truncate(so, 500)
+                        si = state.get("input")
+                        if isinstance(si, str) and len(si) > 1000:
+                            state["input"] = _truncate(si, 1000)
+                    # Truncate text content in parts.
+                    text = pdata.get("text")
+                    if isinstance(text, str) and len(text) > 1000:
+                        pdata["text"] = _truncate(text, 1000)
+                    # Truncate reasoning.
+                    reasoning = pdata.get("reasoning")
+                    if isinstance(reasoning, str) and len(reasoning) > 1000:
+                        pdata["reasoning"] = _truncate(reasoning, 1000)
+
+        return obj
+
     try:
-        with open(src, encoding="utf-8") as fin, \
-             open(dest, "w", encoding="utf-8") as fout:
-            for line in fin:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = _json.loads(line)
-                except _json.JSONDecodeError:
-                    fout.write(line + "\n")
+        with open(dest, "w", encoding="utf-8") as fout:
+            if jsonl_result:
+                agent_name, src = jsonl_result
+                with open(src, encoding="utf-8") as fin:
+                    for line in fin:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            obj = _json.loads(line)
+                        except _json.JSONDecodeError:
+                            fout.write(line + "\n")
+                            lines_written += 1
+                            continue
+                        result = _process_obj(obj)
+                        if result is None:
+                            continue
+                        fout.write(_json.dumps(result, ensure_ascii=False) + "\n")
+                        lines_written += 1
+            elif legacy_result:
+                db_path, session_id = legacy_result
+                lines = _export_legacy_codeagent_session(db_path, session_id)
+                for line in lines:
+                    try:
+                        obj = _json.loads(line)
+                    except _json.JSONDecodeError:
+                        fout.write(line + "\n")
+                        lines_written += 1
+                        continue
+                    result = _process_obj(obj)
+                    if result is None:
+                        continue
+                    fout.write(_json.dumps(result, ensure_ascii=False) + "\n")
                     lines_written += 1
-                    continue
-
-                # Skip entries with no diagnostic value (backup metadata,
-                # UI state, agent listings, file deltas). These can be
-                # numerous in long sessions and bloat the trace.
-                if obj.get("type") in (
-                    "file-history-snapshot",
-                    "file-history-delta",
-                    "attachment",        # agent listings, not conversation
-                    "queue-operation",
-                    "ai-title",
-                    "custom-title",
-                    "agent-name",
-                    "mode",
-                    "permission-mode",
-                ):
-                    continue
-
-                # Truncate large content blocks in message content arrays.
-                msg = obj.get("message")
-                if isinstance(msg, dict):
-                    content = msg.get("content")
-                    if isinstance(content, list):
-                        for block in content:
-                            if not isinstance(block, dict):
-                                continue
-                            btype = block.get("type")
-                            if btype == "tool_result":
-                                c = block.get("content")
-                                if isinstance(c, str):
-                                    block["content"] = _truncate(c, 500)
-                                elif isinstance(c, list):
-                                    for sub in c:
-                                        if not isinstance(sub, dict):
-                                            continue
-                                        stype = sub.get("type")
-                                        if stype == "text":
-                                            sub["text"] = _truncate(sub.get("text", ""), 500)
-                                        elif stype == "image":
-                                            # Replace base64 image data with a placeholder.
-                                            src = sub.get("source", {})
-                                            if isinstance(src, dict) and \
-                                               isinstance(src.get("data"), str) and \
-                                               len(src["data"]) > 200:
-                                                src["data"] = f"[base64 image data: {len(src['data'])} chars, truncated]"
-                            elif btype == "text":
-                                block["text"] = _truncate(block.get("text", ""), 1000)
-                            elif btype == "thinking":
-                                block["thinking"] = _truncate(block.get("thinking", ""), 1000)
-                            elif btype == "image":
-                                # Top-level image blocks (not inside tool_result).
-                                src = block.get("source", {})
-                                if isinstance(src, dict) and \
-                                   isinstance(src.get("data"), str) and \
-                                   len(src["data"]) > 200:
-                                    src["data"] = f"[base64 image data: {len(src['data'])} chars, truncated]"
-
-                # Truncate the top-level toolUseResult field (Claude Code
-                # duplicates tool results here — it can contain megabytes of
-                # file content, base64 image data, or command output).
-                tur = obj.get("toolUseResult")
-                if isinstance(tur, str) and len(tur) > 500:
-                    obj["toolUseResult"] = _truncate(tur, 500)
-                elif isinstance(tur, dict):
-                    # Truncate common string fields.
-                    for tur_key in ("content", "stdout", "stderr", "output", "result"):
-                        val = tur.get(tur_key)
-                        if isinstance(val, str) and len(val) > 500:
-                            tur[tur_key] = _truncate(val, 500)
-                    # Truncate file.base64 (image data).
-                    tur_file = tur.get("file")
-                    if isinstance(tur_file, dict):
-                        b64 = tur_file.get("base64")
-                        if isinstance(b64, str) and len(b64) > 200:
-                            tur_file["base64"] = f"[base64 image data: {len(b64)} chars, truncated]"
-
-                fout.write(_json.dumps(obj, ensure_ascii=False) + "\n")
-                lines_written += 1
     except OSError as e:
-        print(f"  ⚠ Could not read session trace: {e}", file=sys.stderr)
+        print(f"  ⚠ Could not write session trace: {e}", file=sys.stderr)
         return None
 
     return dest if lines_written > 0 else None
