@@ -31,7 +31,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
-from typing import Iterator
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -203,14 +202,15 @@ def is_auth_required_domain(url: str) -> bool:
 # ---------------------------------------------------------------------------
 
 class _TextExtractor(HTMLParser):
-    """Minimal HTML-to-text extractor. Collects visible text and headings."""
+    """Minimal HTML-to-text extractor. Collects visible text and links.
+
+    Headings are extracted separately by ``_extract_heading_texts`` (regex-based).
+    """
 
     def __init__(self):
         super().__init__()
         self._skip_depth = 0  # inside script/style/noscript
-        self._heading_depth = 0  # inside h1-h6
         self._text_parts: list[str] = []
-        self._headings: list[str] = []
         self._links: list[tuple[str, str]] = []  # (text, href)
         self._current_link_href: str | None = None
         self._current_link_text: list[str] = []
@@ -219,8 +219,6 @@ class _TextExtractor(HTMLParser):
         if tag in ("script", "style", "noscript", "svg", "form", "nav", "footer"):
             self._skip_depth += 1
             return
-        if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
-            self._heading_depth += 1
         if tag == "a":
             href = None
             for k, v in attrs:
@@ -234,9 +232,6 @@ class _TextExtractor(HTMLParser):
             if self._skip_depth > 0:
                 self._skip_depth -= 1
             return
-        if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
-            if self._heading_depth > 0:
-                self._heading_depth -= 1
         if tag == "a" and self._current_link_href is not None:
             link_text = " ".join(self._current_link_text).strip()
             if link_text and self._current_link_href:
@@ -251,9 +246,6 @@ class _TextExtractor(HTMLParser):
         if not text:
             return
         self._text_parts.append(text)
-        if self._heading_depth > 0:
-            self._heading_text_parts = getattr(self, "_heading_text_parts", [])
-            self._heading_text_parts.append(text)
         if self._current_link_href is not None:
             self._current_link_text.append(text)
 
@@ -263,10 +255,6 @@ class _TextExtractor(HTMLParser):
 
     def get_text(self) -> str:
         return " ".join(self._text_parts)
-
-    def get_headings(self) -> list[str]:
-        # Re-parse for headings — simpler approach: collect h1-h6 text
-        return self._headings
 
     def get_links(self) -> list[tuple[str, str]]:
         return self._links[:20]  # cap at 20 links
@@ -287,8 +275,14 @@ def _extract_heading_texts(html_source: str) -> list[str]:
 
 def _is_login_redirect(html_source: str, final_url: str, original_url: str) -> bool:
     """Detect if the fetched page is a login/SSO redirect rather than content."""
-    # URL changed to a login domain
-    if "login" in final_url.lower():
+    # URL changed to a known login/SSO domain (not just any URL containing "login")
+    _LOGIN_DOMAINS = (
+        "login.huawei.com", "login.microsoftonline.com",
+        "accounts.google.com", "github.com/login",
+        "login.microsoftonline", "logon.huawei.com",
+    )
+    final_lower = final_url.lower()
+    if any(d in final_lower for d in _LOGIN_DOMAINS):
         return True
     # HTML contains login form indicators
     lower = html_source[:2000].lower()

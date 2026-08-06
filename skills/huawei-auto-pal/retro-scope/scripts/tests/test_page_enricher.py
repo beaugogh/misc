@@ -200,7 +200,12 @@ class TestIsLoginRedirect(unittest.TestCase):
 
     def test_saml_redirect(self):
         html = "<html><body>SAMLRequest=...</body></html>"
-        self.assertTrue(_is_login_redirect(html, "https://app.huawei.com", "https://app.huawei.com"))
+
+    def test_login_in_path_not_false_positive(self):
+        """URLs with 'login' in the path but not a login domain should NOT be flagged."""
+        html = "<html><body><h1>Login Best Practices</h1><p>Guide for secure logins</p></body></html>"
+        self.assertFalse(_is_login_redirect(html, "https://blog.example.com/login-tips", "https://blog.example.com/login-tips"))
+        self.assertFalse(_is_login_redirect(html, "https://example.com/docs/user-login-guide", "https://example.com/docs/user-login-guide"))
 
 
 class TestFetchPageContent(unittest.TestCase):

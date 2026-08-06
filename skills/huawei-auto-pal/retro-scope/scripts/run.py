@@ -501,8 +501,9 @@ def _resolve_proxy() -> str | None:
         for key in ("proxy", "https-proxy"):
             r = _sp.run(["npm", "config", "get", key],
                          capture_output=True, text=True, timeout=5)
-            if r.returncode == 0 and r.stdout.strip() and "null" not in r.stdout.lower():
-                return r.stdout.strip()
+            val = r.stdout.strip()
+            if r.returncode == 0 and val and val.lower() not in ("null", "undefined", "false"):
+                return val
     except Exception:
         pass
     return None
