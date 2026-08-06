@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.0.8
+version: 1.0.9
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -460,8 +460,8 @@ order:
    - If `EN`: print the heading line and the `[EN]` block from each section.
      Skip the `[ZH]` blocks.
    - If `ZH`: print the heading line and the `[ZH]` block from each section.
-     Skip the `[EN]` blocks. Use the Chinese heading (e.g. "## 问题" instead
-     of "## Problem").
+     Skip the `[EN]` blocks. Print the heading as-is (it's bilingual:
+     `## Problem / 问题`).
    - If `EN+ZH`: print both blocks in full (English first, then Chinese),
      as written in the file.
 3. Print the content verbatim — do not summarize, paraphrase, truncate, or
@@ -475,14 +475,6 @@ order:
 
 This step is mandatory and must not be skipped. The user cannot make an
 informed installation decision without seeing the reasoning.
-
-#### Phase 2 — Ask and install
-
-After the user has seen all proposals, ask: "Which of these would you like to
-install, and into which agents?" Present the detected agents by name (Claude
-Code, CodeAgent, etc.). The user may choose to install into one agent,
-several, or none. If the user declines or selects none, skip to step 9. Then
-run:
 
 #### Phase 2 — Ask and install
 

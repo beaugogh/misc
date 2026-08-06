@@ -475,6 +475,21 @@ class TestProposalSummary(unittest.TestCase):
         self.assertTrue(has_proposal)
         self.assertIn("npm hangs", summary)
 
+    def test_skips_en_zh_markers(self):
+        """With the new [EN]/[ZH] format, the marker must not be returned as the summary."""
+        d = Path(self._tmp, "marker-skill")
+        d.mkdir()
+        (d / "SKILL.md").write_text("---\nname: marker\n---\n# marker\n", encoding="utf-8")
+        (d / "PROPOSAL.md").write_text(
+            "# Proposal: marker\n\n## Problem\n\n[EN]\nThe real problem text.\n\n[ZH]\n真正的问题。\n",
+            encoding="utf-8",
+        )
+        summary, has_proposal = register._proposal_summary("marker-skill")
+        self.assertTrue(has_proposal)
+        self.assertNotIn("[EN]", summary)
+        self.assertNotIn("[ZH]", summary)
+        self.assertIn("real problem", summary)
+
     def test_falls_back_to_description_without_proposal(self):
         self._make_skill("legacy-skill", with_proposal=False)
         summary, has_proposal = register._proposal_summary("legacy-skill")

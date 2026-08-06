@@ -165,6 +165,10 @@ def _proposal_summary(skill_name: str) -> tuple[str, bool]:
                     in_problem = stripped.lower().startswith("## problem")
                     continue
                 if in_problem and stripped and not stripped.startswith("#"):
+                    # Skip [EN]/[ZH] language markers — they're structural
+                    # labels, not content. The actual problem text follows.
+                    if stripped in ("[EN]", "[ZH]"):
+                        continue
                     return stripped, True
     # Fallback: frontmatter description.
     skill_dir = os.path.join(_OUTPUT_DIR, skill_name)
@@ -282,11 +286,15 @@ def cmd_describe(args, agents, output_skills):
 def cmd_present(args, agents, output_skills):
     """Print the full bilingual proposals for ALL skills + memory in one command.
 
-    This is the single command the agent runs to present every proposal to the
-    user before asking about installation. It prints each skill's full
-    PROPOSAL.md (or frontmatter description fallback) regardless of install
-    status — the user should see the reasoning for everything in output/, not
-    just uninstalled skills. Memory (personal-context) is included last.
+    Primarily for manual CLI debugging. The agent reads PROPOSAL.md files
+    directly per step 8 (not via this command) because Bash tool output is
+    collapsed in the terminal and the user won't see it. This command remains
+    useful for checking proposals from the command line.
+
+    Prints each skill's full PROPOSAL.md (or frontmatter description fallback)
+    regardless of install status — the user should see the reasoning for
+    everything in output/, not just uninstalled skills. Memory
+    (personal-context) is included last.
     """
     if not output_skills and not os.path.isfile(
         os.path.join(_OUTPUT_DIR, "personal-context", "SKILL.md")
