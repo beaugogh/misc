@@ -64,11 +64,25 @@ are folded into the rule they inspired, not kept as separate entries.
 11. **Per-period table includes all three time columns.** Wall, Active, Human —
     not just Wall and Active.
 
-12. **Session records exported as minimized evidence.** Redacted JSON records per
-    genuine time sink task may include a capped event timeline, prompts, messages,
-    page titles, commit subjects, and file names when needed to support the finding.
-    Store them in `output/session_records/` with restrictive permissions. Never
-    export credentials, unnecessary identity, or full correspondence.
+12. **Session records must be self-describing and human-readable.** Each record
+    is a JSON file in `output/session_records/` with restrictive permissions.
+    Every event in the timeline must carry enough context to understand *what
+    happened, when, and who was involved* without cross-referencing external data.
+    - **Chat messages:** each timeline entry must include `timestamp`, `text`,
+      `sender` (employee account ID), `sender_name` (resolved human-readable name),
+      `conversation_name`, and `is_group` (group vs P2P). Sender account IDs are
+      resolved to names via `welink-cli contact detail` (batch lookup, one call
+      for all unique senders); if resolution fails, the account ID is kept.
+    - **Group chats:** the task context must list `im_participants` as
+      `[{account, name}]` so the reader can see who was in the conversation.
+    - **P2P chats:** the conversation name is the peer's name (from `staff_name`),
+      not blank — the task subject should read "与 崔少攀 的私聊", not "(no subject)".
+    - **All activity types:** timeline entries include the fields relevant to
+      their kind (page title + URL for browser, commit subject for git, etc.).
+    - Never export credentials, unnecessary identity, or full correspondence.
+      Redaction patterns strip API keys, JWTs, and emails. Sender names of
+      colleagues are not secrets — they are visible in the WeLink client — and
+      are retained so the record is understandable.
 
 ## Language and Readability
 
@@ -112,7 +126,11 @@ are folded into the rule they inspired, not kept as separate entries.
       just title), how pages relate (shared US tickets, MR numbers, project
       names), and why the user spent time cross-referencing them. Huawei internal
       pages (CloudDevOps, CodeHub, W3) require SSO and are skipped gracefully.
-    - **Chat:** what was discussed, how many participants, message volume.
+    - **Chat:** what was discussed, who participated (names, not just account
+      IDs), whether it was a group chat or one-on-one, message volume, and the
+      conversation topic synthesized from message content. The narrative must
+      distinguish "参与群聊「IT 智能体小分队」（参与者：高博、崔少攀）" from
+      "与 崔少攀 的私聊" — group vs P2P, with named participants.
     - **Coding:** what was the goal, what errors occurred, what was retried.
     - **File editing:** what file, what type, what was added/removed/modified.
     - **Meetings:** subject, organizer, whether decisions were followed up.
