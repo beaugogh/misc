@@ -26,7 +26,11 @@ sys.path.insert(0, SCRIPTS)
 # ---------------------------------------------------------------------------
 
 class _FakeAdapter:
-    """Minimal adapter stub for testing render_check_output."""
+    """Minimal adapter stub for testing render_check_output.
+
+    Does NOT have auth_status() — simulates adapters that don't implement it.
+    Use _FakeAuthAdapter for auth_status testing.
+    """
 
     def __init__(self, name, detect_result, detector_only=False, raises=None):
         self.name = name
@@ -64,6 +68,18 @@ class _FakeAbsentAdapter(_FakeAdapter):
 class _FakeErrorAdapter(_FakeAdapter):
     def __init__(self, name="fake_error"):
         super().__init__(name, detect_result=False, raises=RuntimeError("boom"))
+
+
+class _FakeAuthAdapter(_FakeAdapter):
+    """Adapter stub that implements auth_status()."""
+
+    def __init__(self, name="fake_auth", detect_result=True,
+                 auth_result=None, detector_only=False):
+        super().__init__(name, detect_result=detect_result, detector_only=detector_only)
+        self._auth_result = auth_result  # tuple[str, str] | None
+
+    def auth_status(self):
+        return self._auth_result
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +210,252 @@ class TestRenderCheckOutput(unittest.TestCase):
         adapter.collect = tracking_collect
         self._render([adapter])
         self.assertFalse(adapter.collect_called)
+
+
+# ---------------------------------------------------------------------------
+# auth_status() — NOT AUTHENTICATED rendering
+# ---------------------------------------------------------------------------
+
+class TestAuthStatus(unittest.TestCase):
+    """Test that auth_status() produces the NOT AUTHENTICATED status line."""
+
+    def _render(self, adapters, hints=None):
+        import run as run_mod
+        return run_mod.render_check_output(adapters, hints=hints)
+
+    def _adapter_line(self, out, name):
+        for line in out.splitlines():
+            if line.strip().startswith(name):
+                return line
+        return ""
+
+    def test_not_authenticated_status(self):
+        a = _FakeAuthAdapter(
+            name="welink_cli",
+            auth_result=("not_authenticated", "run 'welink-cli auth login'"),
+        )
+        out = self._render([a])
+        line = self._adapter_line(out, "welink_cli")
+        self.assertIn("NOT AUTHENTICATED", line)
+        self.assertIn("welink-cli auth login", line)
+
+    def test_auth_ok_shows_ready(self):
+        a = _FakeAuthAdapter(name="welink_cli", auth_result=("ok", ""))
+        out = self._render([a])
+        line = self._adapter_line(out, "welink_cli")
+        self.assertIn("READY", line)
+        self.assertNotIn("NOT AUTHENTICATED", line)
+
+    def test_no_auth_status_method_shows_ready(self):
+        """Adapters without auth_status() must still render as READY."""
+        a = _FakeReadyAdapter(name="chrome")
+        out = self._render([a])
+        line = self._adapter_line(out, "chrome")
+        self.assertIn("READY", line)
+
+    def test_auth_status_not_called_when_detect_false(self):
+        """auth_status() must not be called when detect() returns False."""
+        a = _FakeAuthAdapter(
+            name="welink_cli",
+            detect_result=False,
+            auth_result=("not_authenticated", "should not be reached"),
+        )
+        out = self._render([a])
+        # Should show NOT DETECTED, not NOT AUTHENTICATED
+        line = self._adapter_line(out, "welink_cli")
+        self.assertIn("NOT DETECTED", line)
+        self.assertNotIn("NOT AUTHENTICATED", line)
+
+    def test_auth_status_not_called_when_detector_only(self):
+        """auth_status() must not be called for detector-only adapters."""
+        a = _FakeAuthAdapter(
+            name="3ms",
+            detect_result=True,
+            detector_only=True,
+            auth_result=("not_authenticated", "should not be reached"),
+        )
+        out = self._render([a])
+        line = self._adapter_line(out, "3ms")
+        self.assertIn("DETECTOR-ONLY", line)
+
+    def test_auth_hint_overrides_adapter_hint(self):
+        """When NOT AUTHENTICATED, the auth hint takes precedence over the
+        generic _ADAPTER_HINTS hint."""
+        hints = {"welink_cli": "generic hint from _ADAPTER_HINTS"}
+        a = _FakeAuthAdapter(
+            name="welink_cli",
+            auth_result=("not_authenticated", "specific auth hint"),
+        )
+        out = self._render([a], hints=hints)
+        line = self._adapter_line(out, "welink_cli")
+        self.assertIn("specific auth hint", line)
+        self.assertNotIn("generic hint", line)
+
+    def test_auth_status_empty_hint_falls_back_to_adapter_hint(self):
+        """When auth hint is empty, the generic hint is used."""
+        hints = {"welink_cli": "generic hint"}
+        a = _FakeAuthAdapter(
+            name="welink_cli",
+            auth_result=("not_authenticated", ""),
+        )
+        out = self._render([a], hints=hints)
+        line = self._adapter_line(out, "welink_cli")
+        self.assertIn("generic hint", line)
+
+    def test_auth_status_exception_treated_as_ready(self):
+        """If auth_status() raises, treat as READY (don't block the user)."""
+        class _BoomAdapter(_FakeAdapter):
+            def __init__(self):
+                super().__init__("boom", detect_result=True)
+
+            def auth_status(self):
+                raise RuntimeError("auth probe crashed")
+
+        out = self._render([_BoomAdapter()])
+        line = self._adapter_line(out, "boom")
+        self.assertIn("READY", line)
+
+    def test_legend_contains_not_authenticated(self):
+        out = self._render([])
+        self.assertIn("NOT AUTHENTICATED", out)
+
+    def test_auth_status_never_calls_collect(self):
+        """render_check_output must never call collect() even with auth_status."""
+        a = _FakeAuthAdapter(
+            name="welink_cli",
+            auth_result=("not_authenticated", "hint"),
+        )
+        a.collect_called = False
+
+        def tracking_collect():
+            a.collect_called = True
+            return
+            yield  # pragma: no cover
+
+        a.collect = tracking_collect
+        self._render([a])
+        self.assertFalse(a.collect_called)
+
+
+# ---------------------------------------------------------------------------
+# Real adapter auth_status() implementations
+# ---------------------------------------------------------------------------
+
+class TestWeLinkAuthStatus(unittest.TestCase):
+    """WeLinkCLIAdapter.auth_status() — mocked _run()."""
+
+    def _adapter_with_run(self, run_output, detect=True):
+        from welink_cli_adapter import WeLinkCLIAdapter
+        a = WeLinkCLIAdapter.__new__(WeLinkCLIAdapter)
+        a._binary = "welink-cli"
+        a._lookback_days = 90
+        a._enable_im = False
+        a._mock_detect = detect
+        a._mock_run_output = run_output
+        return a
+
+    def test_detect_false_returns_none(self):
+        a = self._adapter_with_run(None, detect=False)
+        a.detect = lambda: False
+        self.assertIsNone(a.auth_status())
+
+    def test_expired_token(self):
+        a = self._adapter_with_run(
+            "Configuration:\n  Environment:  pro\n\n"
+            "Credentials:\n  User Token:   EXPIRED\n  UID:          b00563677\n")
+        a.detect = lambda: True
+        a._run = lambda args, timeout=60: a._mock_run_output
+        result = a.auth_status()
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "not_authenticated")
+
+    def test_valid_token(self):
+        a = self._adapter_with_run(
+            "Configuration:\n  Environment:  pro\n\n"
+            "Credentials:\n  User Token:   valid (expires in 22m25s)\n"
+            "  UID:          b00563677\n")
+        a.detect = lambda: True
+        a._run = lambda args, timeout=60: a._mock_run_output
+        result = a.auth_status()
+        self.assertEqual(result, ("ok", ""))
+
+    def test_no_uid_never_logged_in(self):
+        a = self._adapter_with_run(
+            "Configuration:\n  Environment:  pro\n\n"
+            "Credentials:\n  User Token:   none\n")
+        a.detect = lambda: True
+        a._run = lambda args, timeout=60: a._mock_run_output
+        result = a.auth_status()
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "not_authenticated")
+
+    def test_run_returns_none(self):
+        a = self._adapter_with_run(None, detect=True)
+        a.detect = lambda: True
+        a._run = lambda args, timeout=60: None
+        result = a.auth_status()
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "not_authenticated")
+
+
+class TestGitAuthStatus(unittest.TestCase):
+    """GitAdapter.auth_status() — mocked _repo_author_email and _effective_roots."""
+
+    def _adapter(self, roots, emails):
+        """Create a GitAdapter with mocked roots and per-root email lookup."""
+        from git_adapter import GitAdapter
+        a = GitAdapter.__new__(GitAdapter)
+        a._roots = roots
+        a._since = "90 days ago"
+        a._mock_roots = roots
+        a._mock_emails = emails  # list of emails per root index
+        return a
+
+    def test_detect_false_returns_none(self):
+        a = self._adapter([], [])
+        a.detect = lambda: False
+        self.assertIsNone(a.auth_status())
+
+    def test_email_configured(self):
+        a = self._adapter(["/fake/repo"], ["bo.gao@huawei.com"])
+        a.detect = lambda: True
+        a._effective_roots = lambda: a._mock_roots
+        import git_adapter
+        orig = git_adapter._repo_author_email
+        git_adapter._repo_author_email = lambda cwd: a._mock_emails[0]
+        try:
+            result = a.auth_status()
+        finally:
+            git_adapter._repo_author_email = orig
+        self.assertEqual(result, ("ok", ""))
+
+    def test_no_email_configured(self):
+        a = self._adapter(["/fake/repo"], [None])
+        a.detect = lambda: True
+        a._effective_roots = lambda: a._mock_roots
+        import git_adapter
+        orig = git_adapter._repo_author_email
+        git_adapter._repo_author_email = lambda cwd: None
+        try:
+            result = a.auth_status()
+        finally:
+            git_adapter._repo_author_email = orig
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "not_authenticated")
+
+    def test_multiple_roots_one_has_email(self):
+        a = self._adapter(["/fake/a", "/fake/b"], [None, "bo.gao@huawei.com"])
+        a.detect = lambda: True
+        a._effective_roots = lambda: a._mock_roots
+        import git_adapter
+        orig = git_adapter._repo_author_email
+        email_map = {"/fake/a": None, "/fake/b": "bo.gao@huawei.com"}
+        git_adapter._repo_author_email = lambda cwd: email_map.get(cwd)
+        try:
+            result = a.auth_status()
+        finally:
+            git_adapter._repo_author_email = orig
+        self.assertEqual(result, ("ok", ""))
 
 
 # ---------------------------------------------------------------------------

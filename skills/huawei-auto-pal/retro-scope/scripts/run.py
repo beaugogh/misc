@@ -14,6 +14,7 @@ Usage:
     python run.py --granularity week --output report.html   # format inferred from .html
     python run.py --sources          # list detected + skipped sources
     python run.py --check            # verify environment + adapters, no analysis
+    python run.py --provision        # auto-provision welink-cli + git identity
     python run.py --top 10           # biggest time sinks by active time (prints task IDs for --drill)
     python run.py --task <id> --drill  # root-cause drill-down on one task (Phase 10.2)
 
@@ -34,6 +35,7 @@ Flags:
                                           In single-range: only tasks starting on/before this date.
     --sources                             report which sources were found/used/skipped, then exit
     --check                               environment + adapter check, then exit
+    --provision                           auto-provision welink-cli (install + auth login) and git identity
     --rebuild                             ignore any watermark, do full reparse (Phase 2 placeholder)
     --eval                                run segmentation evaluation against the labeled benchmark (Phase 9.8)
     --task <id>                           show full detail for a single task
@@ -50,6 +52,7 @@ import re
 import argparse
 import time
 import tempfile
+import subprocess
 from bisect import bisect_left, bisect_right
 from datetime import datetime, timezone
 
@@ -72,7 +75,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 _ADAPTER_HINTS = {
     "claude_code": "AI sessions — works with zero setup if Claude Code is installed",
     "codeagent": "AI sessions — works with zero setup if Codeagent is installed",
-    "git": "commits — works with zero setup if git is on PATH",
+    "git": "commits — ensure git is on PATH and 'git config user.email' is set; see README.md",
     "chrome": "browser history — works with zero setup if Chrome is installed",
     "edge": "browser history — works with zero setup if Edge is installed",
     "vscode_history": "file edits — works with zero setup if VS Code is used",
@@ -80,10 +83,9 @@ _ADAPTER_HINTS = {
     "windows_recent": "recent files — works with zero setup on Windows",
     "jump_list": "app/doc history — works with zero setup on Windows",
     "welink_recordings": "meeting recordings — uses default Windows folder; set WELINK_RECORDINGS_DIR to override; see README.md",
-    "welink_cli": "WeLink meetings/chat/mail/calendar — install welink-cli; see README.md §welink-cli",
+    "welink_cli": "WeLink meetings/chat/mail/calendar — install welink-cli and run 'welink-cli auth login'; see README.md §welink-cli",
     "legacy_codeagent": "legacy Codeagent sessions — works with zero setup if nga.db exists",
     "outlook": "email/calendar via Outlook — requires pywin32 + Outlook; see README.md",
-    "3ms": "3ms doc authoring — requires OpenCLI plugin; see README.md",
     "codex": "Codex AI sessions — works with zero setup if Codex is installed",
     "openclaw": "OpenClaw AI sessions — works with zero setup if OpenClaw is installed",
     "hermes_agent": "Hermes AI sessions — works with zero setup if Hermes is installed",
@@ -100,14 +102,16 @@ def render_check_output(adapters, hints=None):
     """Render the --check status report as a string.
 
     Pure function: takes an iterable of adapter objects (each with .name,
-    .detect(), and optional .detector_only) and an optional hints dict.
-    Does NOT call collect() on any adapter. Used by --check and by tests.
+    .detect(), optional .detector_only, and optional .auth_status()) and an
+    optional hints dict. Does NOT call collect() on any adapter. Used by
+    --check and by tests.
     """
     if hints is None:
         hints = _ADAPTER_HINTS
     lines = [
         "# retro-scope environment check",
         "# READY = detected and collection implemented",
+        "# NOT AUTHENTICATED = detected but needs auth/config to produce events",
         "# DETECTOR-ONLY = tool detected, but collect() yields no events yet",
         "# NOT DETECTED = collection exists but source is absent; see README.md",
         "",
@@ -120,21 +124,280 @@ def render_check_output(adapters, hints=None):
         except Exception as e:
             lines.append(f"  {adapter.name:20s} ERROR: {e}")
             continue
-        if ok and is_detector_only:
-            status = "DETECTOR-ONLY"
-            line = f"  {adapter.name:20s} {status}"
-            if hint:
-                line += f"  ({hint})"
-        elif ok:
-            status = "READY"
-            line = f"  {adapter.name:20s} {status}"
-        else:
+        if not ok:
             status = "NOT DETECTED"
             line = f"  {adapter.name:20s} {status}"
             if hint:
                 line += f"  ({hint})"
+        elif is_detector_only:
+            status = "DETECTOR-ONLY"
+            line = f"  {adapter.name:20s} {status}"
+            if hint:
+                line += f"  ({hint})"
+        else:
+            # Detected and not detector-only — probe auth status.
+            auth_fn = getattr(adapter, "auth_status", None)
+            if auth_fn is not None:
+                try:
+                    result = auth_fn()
+                except Exception:
+                    result = None  # auth probe failed — treat as READY, don't block
+            else:
+                result = None
+            if result is not None and result[0] != "ok":
+                status = "NOT AUTHENTICATED"
+                auth_hint = result[1] if result[1] else hint
+                line = f"  {adapter.name:20s} {status}"
+                if auth_hint:
+                    line += f"  ({auth_hint})"
+            else:
+                status = "READY"
+                line = f"  {adapter.name:20s} {status}"
         lines.append(line)
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# --provision: auto-provision welink-cli and git identity
+# ---------------------------------------------------------------------------
+
+# Approved Huawei intranet npm registry for welink-cli.  --strict-ssl=false is
+# permitted for this single command only when TLS interception blocks the
+# approved intranet registry; never persist it or use it for public hosts.
+_WELINK_NPM_REGISTRY = (
+    "https://cmc.centralrepo.rnd.huawei.com/artifactory/api/npm/product_npm/"
+)
+_WELINK_NPM_PACKAGE = "@welink/welink-cli"
+
+
+def _run_command(cmd: list[str], env: dict | None = None,
+                 timeout: int = 120, dry_run: bool = False) -> tuple[int, str, str]:
+    """Run a command, return (returncode, stdout, stderr).
+
+    In dry-run mode, print the command and return (0, "", "") without executing.
+    """
+    import shlex
+    label = " ".join(shlex.quote(c) for c in cmd)
+    if env:
+        env_labels = [f"{k}={v}" for k, v in env.items()
+                      if k not in ("PATH", "PATHEXT", "SYSTEMROOT", "TEMP", "TMP",
+                                   "APPDATA", "LOCALAPPDATA", "USERPROFILE",
+                                   "HOMEDRIVE", "HOMEPATH", "OS", "COMPUTERNAME",
+                                   "USERNAME", "USERDOMAIN", "PROCESSOR_ARCHITECTURE")]
+        if env_labels:
+            label = " ".join(env_labels) + " " + label
+    if dry_run:
+        print(f"  [dry-run] {label}")
+        return (0, "", "")
+    print(f"  $ {label}")
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        env=env or os.environ.copy(),
+    )
+    if result.stdout.strip():
+        print(result.stdout.rstrip())
+    if result.stderr.strip():
+        print(result.stderr.rstrip(), file=sys.stderr)
+    return (result.returncode, result.stdout, result.stderr)
+
+
+def _provision_welink_cli(dry_run: bool = False) -> bool:
+    """Install welink-cli if missing, then run auth login.
+
+    Returns True if welink-cli is installed and authenticated after provisioning.
+    """
+    import shutil as _shutil
+
+    # Step 1: check Node.js
+    node = _shutil.which("node")
+    if not node:
+        print("  ERROR: Node.js not found on PATH. Install Node.js >= 18 first:")
+        print("    https://nodejs.org/ (or your corporate package manager)")
+        return False
+    # Verify version >= 18
+    rc, out, _ = _run_command([node, "--version"], timeout=10, dry_run=False)
+    if rc != 0:
+        print("  ERROR: 'node --version' failed.")
+        return False
+    version_str = out.strip().lstrip("v")
+    try:
+        major = int(version_str.split(".")[0])
+    except (ValueError, IndexError):
+        print(f"  ERROR: cannot parse Node.js version '{version_str}'.")
+        return False
+    if major < 18:
+        print(f"  ERROR: Node.js {version_str} is too old. welink-cli requires >= 18.")
+        return False
+    print(f"  Node.js v{version_str} — OK")
+
+    # Step 2: install welink-cli if not in PATH
+    if _shutil.which("welink-cli"):
+        print("  welink-cli already installed.")
+    else:
+        print("  Installing welink-cli from Huawei intranet registry...")
+        env = os.environ.copy()
+        # Intranet registry must bypass the corporate proxy.
+        env["NO_PROXY"] = "cmc.centralrepo.rnd.huawei.com"
+        cmd = [
+            "npm", "install", "-g", _WELINK_NPM_PACKAGE,
+            "--strict-ssl=false",
+            f"--@welink:registry={_WELINK_NPM_REGISTRY}",
+        ]
+        rc, _, _ = _run_command(cmd, env=env, timeout=180, dry_run=dry_run)
+        if rc != 0:
+            print("  ERROR: welink-cli installation failed.")
+            return False
+        if not dry_run:
+            # Verify install
+            if not _shutil.which("welink-cli"):
+                print("  ERROR: welink-cli installed but not found on PATH.")
+                print("    You may need to restart your terminal or add the npm global bin to PATH.")
+                return False
+        print("  welink-cli installed.")
+
+    # Step 3: check auth status
+    from welink_cli_adapter import WeLinkCLIAdapter
+    adapter = WeLinkCLIAdapter()
+    status = adapter.auth_status()
+    if status is None or status[0] == "ok":
+        print("  welink-cli authenticated — OK")
+        return True
+
+    # Step 4: run auth login (interactive — QR code or WeLink PC client)
+    print("  Starting welink-cli auth login...")
+    print("  (Scan the QR code in your terminal, or approve in WeLink PC client.)")
+    rc, _, _ = _run_command(["welink-cli", "auth", "login"], timeout=120, dry_run=dry_run)
+    if rc != 0:
+        print("  ERROR: 'welink-cli auth login' failed.")
+        return False
+
+    # Step 5: re-check auth
+    if dry_run:
+        print("  [dry-run] would re-check auth status")
+        return True
+    status = adapter.auth_status()
+    if status is None or status[0] == "ok":
+        print("  welink-cli authenticated — OK")
+        return True
+    print(f"  ERROR: welink-cli auth still not ready: {status[1]}")
+    return False
+
+
+def _provision_git(email: str | None, name: str | None,
+                   dry_run: bool = False) -> bool:
+    """Set git user.email and user.name globally if not configured.
+
+    Returns True if git identity is configured after provisioning.
+    """
+    import shutil as _shutil
+
+    if not _shutil.which("git"):
+        print("  ERROR: git not found on PATH. Install git first:")
+        print("    https://git-scm.com/ (or your corporate package manager)")
+        return False
+
+    # Check current global email
+    rc, current_email, _ = _run_command(
+        ["git", "config", "--global", "user.email"], timeout=10, dry_run=False)
+    current_email = current_email.strip()
+    effective_email = current_email if (rc == 0 and current_email) else email
+    if rc == 0 and current_email:
+        print(f"  git user.email already set: {current_email}")
+    else:
+        if not email:
+            print("  ERROR: git user.email is not set and no --git-email was provided.")
+            print("    The agent should ask the user for their email and pass it via --git-email.")
+            return False
+        rc, _, _ = _run_command(
+            ["git", "config", "--global", "user.email", email], timeout=10, dry_run=dry_run)
+        if rc != 0:
+            print(f"  ERROR: failed to set git user.email to '{email}'.")
+            return False
+        print(f"  git user.email set to: {email}")
+
+    # Check current global name
+    rc, current_name, _ = _run_command(
+        ["git", "config", "--global", "user.name"], timeout=10, dry_run=False)
+    current_name = current_name.strip()
+    if rc == 0 and current_name:
+        print(f"  git user.name already set: {current_name}")
+    elif name:
+        rc, _, _ = _run_command(
+            ["git", "config", "--global", "user.name", name], timeout=10, dry_run=dry_run)
+        if rc != 0:
+            print(f"  ERROR: failed to set git user.name to '{name}'.")
+            return False
+        print(f"  git user.name set to: {name}")
+    else:
+        # Derive name from email if possible (e.g. "bo.gao@huawei.com" → "Bo Gao")
+        if effective_email and "@" in effective_email:
+            local = effective_email.split("@")[0]
+            if "." in local:
+                derived = " ".join(part.capitalize() for part in local.split("."))
+            else:
+                derived = local
+            rc, _, _ = _run_command(
+                ["git", "config", "--global", "user.name", derived], timeout=10, dry_run=dry_run)
+            if rc == 0:
+                print(f"  git user.name set to: {derived} (derived from email)")
+            else:
+                print(f"  WARNING: could not set git user.name. Set it manually if needed.")
+        else:
+            print("  NOTE: git user.name not set. Set it manually if needed: "
+                  "'git config --global user.name <Your Name>'")
+
+    return True
+
+
+def cmd_provision(git_email: str | None = None,
+                  git_name: str | None = None,
+                  only: str | None = None,
+                  dry_run: bool = False) -> int:
+    """Auto-provision welink-cli and git identity.
+
+    Called by --provision. Prints progress to stdout. Returns exit code
+    (0 = success, 1 = any failure).
+    """
+    print("# huawei-auto-pal — auto-provisioning")
+    print("# This installs welink-cli (from the approved Huawei intranet registry)")
+    print("# and configures git identity (user.email / user.name).")
+    if dry_run:
+        print("# [DRY RUN] — commands will be printed but not executed.")
+    print()
+
+    success = True
+
+    if only != "git":
+        print("== welink-cli ==")
+        if not _provision_welink_cli(dry_run=dry_run):
+            success = False
+        print()
+
+    if only != "welink":
+        print("== git identity ==")
+        if not _provision_git(email=git_email, name=git_name, dry_run=dry_run):
+            success = False
+        print()
+
+    # Re-run --check to show updated status
+    print("== updated environment check ==")
+    from sources import default_registry as _reg
+    reg = _reg(session_cwds=[])
+    print(render_check_output(reg._adapters))
+
+    if success:
+        print()
+        print("# Provisioning complete. Re-run huawei-auto-pal to use the new sources.")
+        return 0
+    else:
+        print()
+        print("# Provisioning completed with errors. See messages above.")
+        return 1
 
 
 def _parse_date(s: str) -> float:
@@ -683,6 +946,19 @@ def main():
                     help="report which sources were found/used/skipped, then exit")
     ap.add_argument("--check", action="store_true",
                     help="verify environment + adapters, then exit (no analysis)")
+    ap.add_argument("--provision", action="store_true",
+                    help="auto-provision welink-cli (install + auth login) and git identity "
+                         "(user.email/user.name). Requires Node.js >= 18 for welink-cli. "
+                         "Use --git-email/--git-name to pre-supply git identity, "
+                         "--only welink/git to scope, --dry-run to preview.")
+    ap.add_argument("--git-email", default=None,
+                    help="with --provision: set git user.email to this value (skips prompt)")
+    ap.add_argument("--git-name", default=None,
+                    help="with --provision: set git user.name to this value (optional)")
+    ap.add_argument("--only", choices=["welink", "git"], default=None,
+                    help="with --provision: only provision the specified source")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="with --provision: print commands without executing")
     ap.add_argument("--rebuild", action="store_true",
                     help="ignore watermark, do full reparse (overrides incremental)")
     ap.add_argument("--persist", action="store_true",
@@ -718,6 +994,16 @@ def main():
         metrics = run_eval()
         print(format_metrics_report(metrics))
         sys.exit(0)
+
+    if args.provision:
+        do_provision = cmd_provision
+        rc = do_provision(
+            git_email=args.git_email,
+            git_name=args.git_name,
+            only=args.only,
+            dry_run=args.dry_run,
+        )
+        sys.exit(rc)
 
     # Two-pass collection: first collect AI-session events to discover project cwds,
     # then build the registry with those cwds so the git adapter finds the right repos.

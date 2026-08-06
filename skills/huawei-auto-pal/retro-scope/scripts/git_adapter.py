@@ -261,6 +261,20 @@ class GitAdapter:
     def detect(self) -> bool:
         return len(self._effective_roots()) > 0
 
+    def auth_status(self) -> tuple[str, str] | None:
+        """Check git identity (user.email) is configured on at least one repo.
+
+        Without user.email, --author filtering is skipped and the user's commits
+        can't be isolated from other contributors in the same repo.
+        """
+        if not self.detect():
+            return None
+        for root in self._effective_roots():
+            if _repo_author_email(root):
+                return ("ok", "")
+        return ("not_authenticated",
+                "git user.email not set — run 'git config --global user.email <your_email>'")
+
     def _effective_roots(self) -> list[str]:
         if self._roots is not None:
             return [r for r in self._roots if os.path.isdir(os.path.join(r, ".git"))]

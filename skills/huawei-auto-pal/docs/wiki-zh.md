@@ -47,11 +47,19 @@ python --version
 └── README.md             ← 详细文档
 ```
 
-### 3.（可选）配置凭据
+### 3.（可选）配置数据源
 
 **不配置也能用**——开箱即用的数据源有：AI 编码会话、git、浏览器历史、VS Code 历史、Windows 最近文件。
 
-如果你想接入更多数据源（WeLink 会议/邮件/日历、CodeHub 代码评审等），复制凭据模板并填写：
+**想接入 WeLink 会议/邮件/日历和 git 提交历史？** 一条命令自动配置：
+
+```bash
+python retro-scope/scripts/run.py --provision --git-email 你的邮箱@huawei.com
+```
+
+这会自动安装 welink-cli 并启动登录（扫码即可），同时配置 git 身份。整个过程不到 1 分钟。
+
+其他可选凭据（CodeHub 代码评审 token 等），复制凭据模板并填写：
 
 ```bash
 cd ~/.cac/skills/huawei-auto-pal

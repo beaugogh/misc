@@ -33,6 +33,35 @@ To check which sources are available on your machine:
 python retro-scope/scripts/run.py --check
 ```
 
+`--check` reports four statuses: `READY` (detected and working), `NOT
+AUTHENTICATED` (detected but needs auth/config — e.g. welink-cli token
+expired or git `user.email` not set), `DETECTOR-ONLY` (tool detected but
+no collection yet), and `NOT DETECTED` (source absent). For sources that
+show `NOT AUTHENTICATED` or `NOT DETECTED`, you can auto-provision
+welink-cli and git identity with a single command (requires Node.js ≥ 18
+for welink-cli):
+
+`--check` 报告四种状态：`READY`（已检测且可用）、`NOT AUTHENTICATED`（已检测但
+需认证/配置——如 welink-cli token 过期或 git `user.email` 未设置）、
+`DETECTOR-ONLY`（工具已检测但尚无数据收集）、`NOT DETECTED`（数据源不存在）。
+对于显示 `NOT AUTHENTICATED` 或 `NOT DETECTED` 的数据源，可以用一条命令自动
+配置 welink-cli 和 git 身份（welink-cli 需要 Node.js ≥ 18）：
+
+```bash
+python retro-scope/scripts/run.py --provision --git-email your_email@huawei.com
+```
+
+This installs welink-cli (from the approved Huawei intranet registry), runs
+`welink-cli auth login` (scan QR code or approve in WeLink PC client), and
+sets `git config --global user.email` / `user.name`. Use `--dry-run` to
+preview, `--only welink` or `--only git` to scope, or `--git-name "Your
+Name"` to pre-supply your git display name.
+
+该命令会从华为内网 registry 安装 welink-cli，运行 `welink-cli auth login`
+（扫码或在 WeLink PC 客户端确认），并设置 `git config --global user.email` /
+`user.name`。使用 `--dry-run` 预览、`--only welink` 或 `--only git` 单独配置、
+或 `--git-name "你的名字"` 预设 git 显示名。
+
 ---
 
 ## Optional tools / 可选工具
@@ -47,6 +76,15 @@ coverage note if missing — it never blocks the pipeline.
 
 **Adds / 增加数据**: WeLink chat history, meeting records, calendar events, email.
 **Prerequisite / 前置条件**: Node.js ≥ v18 (`node -v`), WeLink PC client installed.
+
+**Easy way / 简易方式**: Run `python retro-scope/scripts/run.py --provision` —
+it installs welink-cli and starts `auth login` automatically. You just scan
+the QR code. See the `--provision` section above.
+
+**简易方式**：运行 `python retro-scope/scripts/run.py --provision`——
+自动安装 welink-cli 并启动 `auth login`，你只需扫码。见上方 `--provision` 说明。
+
+**Manual way / 手动方式**:
 
 ```bash
 NO_PROXY=cmc.centralrepo.rnd.huawei.com \

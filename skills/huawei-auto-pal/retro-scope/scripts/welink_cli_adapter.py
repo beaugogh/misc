@@ -234,6 +234,23 @@ class WeLinkCLIAdapter:
         """True if welink-cli is in PATH."""
         return shutil.which("welink-cli") is not None
 
+    def auth_status(self) -> tuple[str, str] | None:
+        """Probe welink-cli auth state without collecting personal data.
+
+        Runs `welink-cli auth status` (exits 0, prints token state + UID).
+        Returns ("not_authenticated", hint) if the token is expired or no UID
+        is present (never logged in), ("ok", "") if a valid token exists.
+        """
+        if not self.detect():
+            return None
+        out = self._run(["auth", "status"], timeout=10)
+        if out is None:
+            return ("not_authenticated", "welink-cli installed but 'auth status' failed")
+        # "User Token: EXPIRED" or missing "UID:" line = not logged in
+        if "EXPIRED" in out or "UID:" not in out:
+            return ("not_authenticated", "run 'welink-cli auth login' to enable WeLink data")
+        return ("ok", "")
+
     # -- subprocess helper --------------------------------------------------
 
     def _run(self, args: list[str], timeout: int = 60) -> str | None:

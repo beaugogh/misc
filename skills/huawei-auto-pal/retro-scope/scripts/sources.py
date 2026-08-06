@@ -108,6 +108,22 @@ class SourceAdapter(Protocol):
         """Default: ignore watermark, do full collect. Override for incremental."""
         yield from self.collect()
 
+    def auth_status(self) -> tuple[str, str] | None:
+        """Probe whether this source is authenticated and ready to produce events.
+
+        Returns:
+            None — adapter doesn't need auth (default; backwards-compatible).
+            ("ok", "") — authenticated, collect() will produce events.
+            ("not_authenticated", hint) — detected but won't produce events
+                without user action (e.g. run `welink-cli auth login`,
+                set `git config user.email`).
+
+        Only called by --check / --provision after detect() returns True.
+        Must NOT call collect() or read personal data — detection-only.
+        Adapters that don't implement this are treated as "ok" if detected.
+        """
+        return None
+
 
 class SourceRegistry:
     """Holds all registered adapters and runs collection across them."""

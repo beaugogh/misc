@@ -1,6 +1,6 @@
 ---
 name: retro-scope
-version: 1.0.12
+version: 1.0.13
 description: >-
   Use only through huawei-auto-pal when reconstructing a user's personal work
   from existing activity traces, reporting Wall, Active, and Human time across
@@ -32,7 +32,9 @@ never install live tracking, analyze a team, or infer employee performance.
 
 Use Python 3.9 or newer. The core pipeline uses the standard library; individual
 adapters may need optional platform tools. Detect optional dependencies and skip
-them with an explicit coverage note. Never install or authenticate automatically.
+them with an explicit coverage note. Never install or authenticate without
+explicit user approval — `--provision` automates welink-cli and git identity
+setup but must be offered, not run silently.
 
 Run from `retro-scope/scripts/`:
 
@@ -40,7 +42,8 @@ Run from `retro-scope/scripts/`:
 python run.py                         # default 90d/30d/7d/1d dashboard
 python run.py --since 2026-07-01 --until 2026-07-31 --format html
 python run.py --sources               # source coverage only
-python run.py --check                 # environment checks only
+python run.py --check                 # environment + adapter auth-status checks
+python run.py --provision             # auto-provision welink-cli + git identity
 python run.py --top 10                # rank by Human time
 python run.py --task <id> --drill     # inspect one task
 python run.py --persist               # atomically merge tasks and advance state
@@ -67,8 +70,16 @@ the user's own activity to colleague or team analysis.
 Run `python run.py --sources` when coverage is uncertain. Every adapter follows:
 
 ```text
-detect → bounded collect → normalize → isolate failures → report coverage
+detect → [auth_status] → bounded collect → normalize → isolate failures → report coverage
 ```
+
+Adapters may implement an optional `auth_status()` probe that `--check` calls
+after `detect()` returns True. It returns `("ok", "")` when the source is
+authenticated and ready, or `("not_authenticated", hint)` when detected but
+unable to produce events without user action (e.g. welink-cli token expired,
+git `user.email` not set). `--check` renders this as `NOT AUTHENTICATED` —
+distinct from `READY` and `NOT DETECTED`. `--provision` automates the fix
+for welink-cli and git identity, but requires explicit user approval.
 
 The registry supports these source families when detected:
 
