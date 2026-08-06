@@ -100,7 +100,9 @@ retro-scope → skill-forge.
 1. **Run the environment check** — `python retro-scope/scripts/run.py --check`
    from the skill directory. This lists every source adapter and whether it's
    available, with a short hint for each missing source. It does NOT collect
-   personal data — it only calls `detect()`, never `collect()`.
+   personal activity data — it calls `detect()` and optional `auth_status()`
+   probes (which check tool configuration like token state and git identity,
+   not personal data), never `collect()`.
 
 2. **Report what works now vs. what's optional.** The core pipeline works with
    **zero setup** — just Python 3.9+. Sources that work out of the box:
@@ -110,12 +112,13 @@ retro-scope → skill-forge.
    but need auth/config to produce events (e.g. welink-cli installed but
    token expired, git `user.email` not set).
 
-3. **Offer to auto-provision high-value sources.** If welink-cli is `NOT
-   DETECTED` or `NOT AUTHENTICATED`, or git is `NOT AUTHENTICATED`, explain
-   in the user's language what each source adds and that setup takes ~1
-   minute. Then ask for a single approval: "Can I set up welink-cli and git
-   for you? I'll install welink-cli (npm, from the approved Huawei intranet
-   registry) and start the QR-code login, and configure your git identity."
+3. **Offer to auto-provision high-value sources.** If welink-cli or git is
+   anything other than `READY` (i.e. `NOT DETECTED` or `NOT AUTHENTICATED`),
+   explain in the user's language what each source adds and that setup takes
+   ~1 minute. Then ask for a single approval: "Can I set up welink-cli and
+   git for you? I'll install welink-cli (npm, from the approved Huawei
+   intranet registry) and start the QR-code login, and configure your git
+   identity."
    - If yes → collect the user's git email (ask them), then run
      `python retro-scope/scripts/run.py --provision --git-email <email>`.
      The QR code or WeLink PC client interaction is visible to the user in

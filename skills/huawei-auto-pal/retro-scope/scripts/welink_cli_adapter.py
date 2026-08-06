@@ -246,8 +246,10 @@ class WeLinkCLIAdapter:
         out = self._run(["auth", "status"], timeout=10)
         if out is None:
             return ("not_authenticated", "welink-cli installed but 'auth status' failed")
-        # "User Token: EXPIRED" or missing "UID:" line = not logged in
-        if "EXPIRED" in out or "UID:" not in out:
+        # "User Token: EXPIRED" or no valid token = not authenticated.
+        # Treat anything that isn't explicitly "valid" as not-authenticated,
+        # so we don't falsely report READY on unexpected output.
+        if "EXPIRED" in out or "valid" not in out.lower():
             return ("not_authenticated", "run 'welink-cli auth login' to enable WeLink data")
         return ("ok", "")
 

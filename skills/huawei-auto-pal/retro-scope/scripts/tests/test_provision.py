@@ -342,5 +342,89 @@ class TestCmdProvision(unittest.TestCase):
         mock_git.assert_not_called()
 
 
+class TestMutualExclusivity(unittest.TestCase):
+    """--check, --provision, --eval, --sources are mutually exclusive."""
+
+    def test_check_and_provision_rejected(self):
+        import run as run_mod
+        import importlib
+        importlib.reload(run_mod)
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                old_argv = sys.argv
+                sys.argv = ["run.py", "--check", "--provision"]
+                try:
+                    run_mod.main()
+                finally:
+                    sys.argv = old_argv
+
+    def test_provision_and_eval_rejected(self):
+        import run as run_mod
+        import importlib
+        importlib.reload(run_mod)
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                old_argv = sys.argv
+                sys.argv = ["run.py", "--provision", "--eval"]
+                try:
+                    run_mod.main()
+                finally:
+                    sys.argv = old_argv
+
+
+class TestRunInteractive(unittest.TestCase):
+    """_run_interactive — for auth login, output not captured."""
+
+    def _import(self):
+        import importlib
+        import run as run_mod
+        importlib.reload(run_mod)
+        return run_mod
+
+    @patch("subprocess.run")
+    def test_dry_run_returns_zero(self, mock_subproc):
+        run_mod = self._import()
+        with redirect_stdout(io.StringIO()):
+            rc = run_mod._run_interactive(["welink-cli", "auth", "login"], dry_run=True)
+        self.assertEqual(rc, 0)
+        mock_subproc.assert_not_called()
+
+    @patch("subprocess.run")
+    def test_success_returns_zero(self, mock_subproc):
+        mock_subproc.return_value = MagicMock(returncode=0)
+        run_mod = self._import()
+        with redirect_stdout(io.StringIO()):
+            rc = run_mod._run_interactive(["welink-cli", "auth", "login"], dry_run=False)
+        self.assertEqual(rc, 0)
+
+    @patch("subprocess.run")
+    def test_failure_returns_nonzero(self, mock_subproc):
+        mock_subproc.return_value = MagicMock(returncode=1)
+        run_mod = self._import()
+        with redirect_stdout(io.StringIO()):
+            rc = run_mod._run_interactive(["welink-cli", "auth", "login"], dry_run=False)
+        self.assertEqual(rc, 1)
+
+    @patch("subprocess.run", side_effect=__import__("subprocess").TimeoutExpired(cmd="test", timeout=5))
+    def test_timeout_returns_nonzero(self, mock_subproc):
+        run_mod = self._import()
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc = run_mod._run_interactive(["welink-cli", "auth", "login"], timeout=5, dry_run=False)
+        self.assertEqual(rc, 1)
+
+    @patch("subprocess.run")
+    def test_does_not_capture_output(self, mock_subproc):
+        """_run_interactive must NOT pass capture_output=True — the QR code
+        must be visible to the user in real-time."""
+        run_mod = self._import()
+        mock_subproc.return_value = MagicMock(returncode=0)
+        with redirect_stdout(io.StringIO()):
+            run_mod._run_interactive(["welink-cli", "auth", "login"], dry_run=False)
+        # Verify capture_output was NOT passed (or was False)
+        call_kwargs = mock_subproc.call_args.kwargs
+        self.assertFalse(call_kwargs.get("capture_output", False),
+                         "auth login must not capture output — QR code must be visible")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -206,6 +206,28 @@ def _run_command(cmd: list[str], env: dict | None = None,
     return (result.returncode, result.stdout, result.stderr)
 
 
+def _run_interactive(cmd: list[str], timeout: int = 120,
+                     dry_run: bool = False) -> int:
+    """Run an interactive command with stdout/stderr inherited from the terminal.
+
+    Unlike _run_command, this does NOT capture output — the user sees QR codes
+    and prompts in real-time. Used for 'welink-cli auth login'.
+    Returns the exit code (0 = success). On timeout, prints a message and returns 1.
+    """
+    import shlex
+    label = " ".join(shlex.quote(c) for c in cmd)
+    if dry_run:
+        print(f"  [dry-run] {label}")
+        return 0
+    print(f"  $ {label}")
+    try:
+        result = subprocess.run(cmd, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        print(f"  ERROR: command timed out after {timeout}s.", file=sys.stderr)
+        return 1
+    return result.returncode
+
+
 def _provision_welink_cli(dry_run: bool = False) -> bool:
     """Install welink-cli if missing, then run auth login.
 
@@ -269,9 +291,11 @@ def _provision_welink_cli(dry_run: bool = False) -> bool:
         return True
 
     # Step 4: run auth login (interactive — QR code or WeLink PC client)
+    # Use _run_interactive (not _run_command) so the QR code is visible in
+    # real-time. capture_output=True would buffer it until timeout.
     print("  Starting welink-cli auth login...")
     print("  (Scan the QR code in your terminal, or approve in WeLink PC client.)")
-    rc, _, _ = _run_command(["welink-cli", "auth", "login"], timeout=120, dry_run=dry_run)
+    rc = _run_interactive(["welink-cli", "auth", "login"], timeout=120, dry_run=dry_run)
     if rc != 0:
         print("  ERROR: 'welink-cli auth login' failed.")
         return False
@@ -942,15 +966,6 @@ def main():
                     "Setting --since disables multi-horizon mode.")
     ap.add_argument("--until", help="end date for both modes (YYYY-MM-DD, default: today). "
                     "In multi-horizon: horizons end at this date. In single-range: only tasks on/before this date.")
-    ap.add_argument("--sources", action="store_true",
-                    help="report which sources were found/used/skipped, then exit")
-    ap.add_argument("--check", action="store_true",
-                    help="verify environment + adapters, then exit (no analysis)")
-    ap.add_argument("--provision", action="store_true",
-                    help="auto-provision welink-cli (install + auth login) and git identity "
-                         "(user.email/user.name). Requires Node.js >= 18 for welink-cli. "
-                         "Use --git-email/--git-name to pre-supply git identity, "
-                         "--only welink/git to scope, --dry-run to preview.")
     ap.add_argument("--git-email", default=None,
                     help="with --provision: set git user.email to this value (skips prompt)")
     ap.add_argument("--git-name", default=None,
@@ -969,8 +984,19 @@ def main():
     ap.add_argument("--top", type=int, metavar="N", default=None,
                     help="list the top N tasks by active time (with task IDs, so you can "
                          "--task <id> --drill into any of them). Use with --since/--until to scope.")
-    ap.add_argument("--eval", action="store_true",
-                    help="run segmentation evaluation against the labeled benchmark (Phase 9.8)")
+    # Early-exit modes are mutually exclusive — only one can run per invocation.
+    _exclusive = ap.add_mutually_exclusive_group()
+    _exclusive.add_argument("--sources", action="store_true",
+                            help="report which sources were found/used/skipped, then exit")
+    _exclusive.add_argument("--check", action="store_true",
+                            help="verify environment + adapters, then exit (no analysis)")
+    _exclusive.add_argument("--provision", action="store_true",
+                            help="auto-provision welink-cli (install + auth login) and git identity "
+                                 "(user.email/user.name). Requires Node.js >= 18 for welink-cli. "
+                                 "Use --git-email/--git-name to pre-supply git identity, "
+                                 "--only welink/git to scope, --dry-run to preview.")
+    _exclusive.add_argument("--eval", action="store_true",
+                            help="run segmentation evaluation against the labeled benchmark (Phase 9.8)")
     args = ap.parse_args()
 
     # --check and --eval are detection/evaluation-only modes that must NOT
