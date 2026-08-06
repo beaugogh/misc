@@ -582,9 +582,7 @@ def cmd_dist(args, agents, output_skills):
     os.makedirs(downloads, exist_ok=True)
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    user = _user_id()
-    user_part = f"{user}-" if user else ""
-    zip_name = f"huawei-auto-pal-{user_part}{timestamp}.zip"
+    zip_name = f"huawei-auto-pal-{timestamp}.zip"
     zip_path = os.path.join(downloads, zip_name)
 
     if args.dry_run:
