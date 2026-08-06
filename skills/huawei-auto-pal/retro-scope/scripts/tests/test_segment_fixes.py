@@ -453,26 +453,10 @@ class TestCommNarrativeWithNames(unittest.TestCase):
 
 
 class TestTimelineEnrichment(unittest.TestCase):
-    """Test that session record timeline includes comm-specific fields."""
+    """Test that session record timeline includes kind-specific fields per rubric 12."""
 
-    def test_timeline_includes_sender_for_chat_messages(self):
-        """The timeline entry for a chat_message should include sender fields."""
-        # This tests the run._export_session_records logic indirectly —
-        # we verify the data shape that the timeline construction produces.
-        ev = {
-            "timestamp": 1783502035.67,
-            "kind": "chat_message",
-            "text": "你走过流程了吧",
-            "tool_name": None,
-            "tool_is_error": None,
-            "tool_input": {
-                "sender": "b00563677",
-                "sender_name": "高博",
-                "conversation_name": "崔少攀",
-                "is_group": False,
-            },
-        }
-        # Simulate the timeline construction logic from run.py
+    def _build_entry(self, ev):
+        """Replicate the timeline construction logic from run._export_session_records."""
         entry = {
             "timestamp": ev.get("timestamp"),
             "kind": ev.get("kind"),
@@ -480,17 +464,134 @@ class TestTimelineEnrichment(unittest.TestCase):
             "tool_name": ev.get("tool_name"),
             "tool_is_error": ev.get("tool_is_error"),
         }
-        if ev.get("kind") == "chat_message":
-            ti = ev.get("tool_input") or {}
+        ti = ev.get("tool_input") or {}
+        kind = ev.get("kind")
+        if kind == "chat_message":
             entry["sender"] = ti.get("sender")
             entry["sender_name"] = ti.get("sender_name")
             entry["conversation_name"] = ti.get("conversation_name")
             entry["is_group"] = ti.get("is_group")
+        elif kind == "email":
+            entry["from"] = ti.get("from")
+            entry["direction"] = ti.get("direction")
+            entry["subject"] = (ti.get("subject") or "")[:120]
+        elif kind == "meeting":
+            entry["subject"] = (ti.get("subject") or "")[:120]
+            entry["organizer"] = ti.get("organizer")
+            entry["duration_seconds"] = ti.get("duration_seconds")
+        elif kind == "visit":
+            entry["url"] = (ti.get("url") or "")[:200]
+            entry["visit_count"] = ti.get("visit_count")
+        elif kind == "search":
+            entry["query"] = (ti.get("query") or "")[:120]
+        elif kind == "download":
+            entry["target_path"] = (ti.get("target_path") or "")[:200]
+            entry["total_bytes"] = ti.get("total_bytes")
+        elif kind == "commit":
+            entry["hash"] = ti.get("hash")
+            entry["files"] = (ti.get("files") or [])[:10]
+        elif kind == "branch_checkout":
+            entry["from_branch"] = ti.get("from_branch")
+            entry["to_branch"] = ti.get("to_branch")
+        elif kind == "tool_use":
+            entry["tool_use_id"] = ev.get("tool_use_id")
+        return entry
 
+    def test_chat_message_timeline_entry(self):
+        ev = {
+            "timestamp": 1783502035.67, "kind": "chat_message", "text": "你走过流程了吧",
+            "tool_input": {"sender": "b00563677", "sender_name": "高博",
+                           "conversation_name": "崔少攀", "is_group": False},
+        }
+        entry = self._build_entry(ev)
         self.assertEqual(entry["sender"], "b00563677")
         self.assertEqual(entry["sender_name"], "高博")
-        self.assertEqual(entry["conversation_name"], "崔少攀")
         self.assertFalse(entry["is_group"])
+
+    def test_email_timeline_entry(self):
+        ev = {
+            "timestamp": 1783502035.67, "kind": "email", "text": "Re: 报销",
+            "tool_input": {"from": "崔少攀", "direction": "received", "subject": "Re: 报销"},
+        }
+        entry = self._build_entry(ev)
+        self.assertEqual(entry["from"], "崔少攀")
+        self.assertEqual(entry["direction"], "received")
+        self.assertEqual(entry["subject"], "Re: 报销")
+
+    def test_meeting_timeline_entry(self):
+        ev = {
+            "timestamp": 1783502035.67, "kind": "meeting", "text": "站会",
+            "tool_input": {"subject": "站会", "organizer": "高博", "duration_seconds": 1800},
+        }
+        entry = self._build_entry(ev)
+        self.assertEqual(entry["subject"], "站会")
+        self.assertEqual(entry["organizer"], "高博")
+        self.assertEqual(entry["duration_seconds"], 1800)
+
+    def test_visit_timeline_entry(self):
+        ev = {
+            "timestamp": 1783502035.67, "kind": "visit", "text": "Google",
+            "tool_input": {"url": "https://google.com/search?q=python", "visit_count": 5},
+        }
+        entry = self._build_entry(ev)
+        self.assertEqual(entry["url"], "https://google.com/search?q=python")
+        self.assertEqual(entry["visit_count"], 5)
+
+    def test_search_timeline_entry(self):
+        ev = {
+            "timestamp": 1783502035.67, "kind": "search", "text": "python logging",
+            "tool_input": {"query": "python logging", "url": "https://google.com"},
+        }
+        entry = self._build_entry(ev)
+        self.assertEqual(entry["query"], "python logging")
+
+    def test_download_timeline_entry(self):
+        ev = {
+            "timestamp": 1783502035.67, "kind": "download", "text": "report.pdf",
+            "tool_input": {"target_path": "C:/Downloads/report.pdf", "total_bytes": 1024},
+        }
+        entry = self._build_entry(ev)
+        self.assertEqual(entry["target_path"], "C:/Downloads/report.pdf")
+        self.assertEqual(entry["total_bytes"], 1024)
+
+    def test_commit_timeline_entry(self):
+        ev = {
+            "timestamp": 1783502035.67, "kind": "commit", "text": "fix bug",
+            "tool_input": {"hash": "abc123", "files": ["src/main.py", "README.md"]},
+        }
+        entry = self._build_entry(ev)
+        self.assertEqual(entry["hash"], "abc123")
+        self.assertEqual(entry["files"], ["src/main.py", "README.md"])
+
+    def test_branch_checkout_timeline_entry(self):
+        ev = {
+            "timestamp": 1783502035.67, "kind": "branch_checkout", "text": "main -> dev",
+            "tool_input": {"from_branch": "main", "to_branch": "dev"},
+        }
+        entry = self._build_entry(ev)
+        self.assertEqual(entry["from_branch"], "main")
+        self.assertEqual(entry["to_branch"], "dev")
+
+    def test_tool_use_timeline_entry(self):
+        ev = {
+            "timestamp": 1783502035.67, "kind": "tool_use", "text": "Read file",
+            "tool_name": "Read", "tool_use_id": "tu_001",
+            "tool_input": {"file_path": "src/main.py"},
+        }
+        entry = self._build_entry(ev)
+        self.assertEqual(entry["tool_use_id"], "tu_001")
+
+    def test_unknown_kind_has_base_fields_only(self):
+        """Events with unknown kinds still get the base 5 fields."""
+        ev = {"timestamp": 1000, "kind": "custom_kind", "text": "something"}
+        entry = self._build_entry(ev)
+        self.assertEqual(entry["timestamp"], 1000)
+        self.assertEqual(entry["kind"], "custom_kind")
+        self.assertEqual(entry["text"], "something")
+        # No kind-specific enrichment
+        self.assertNotIn("sender", entry)
+        self.assertNotIn("url", entry)
+        self.assertNotIn("hash", entry)
 
 
 if __name__ == "__main__":

@@ -760,6 +760,9 @@ def _export_session_records(tasks: list[dict], events: list[dict], output_dir: s
         }
 
         # Add event timeline (capped at 200 events).
+        # Each entry is self-describing: kind-specific fields from tool_input
+        # are lifted into the timeline entry so the record is readable without
+        # cross-referencing the raw event stream (rubric 12).
         task_events = _events_for_task(t)
         timeline = []
         for ev in task_events[:200]:
@@ -770,14 +773,61 @@ def _export_session_records(tasks: list[dict], events: list[dict], output_dir: s
                 "tool_name": ev.get("tool_name"),
                 "tool_is_error": ev.get("tool_is_error"),
             }
-            # Enrich chat_message entries with comm-specific fields so the
-            # timeline is self-describing: who sent it, in which conversation.
-            if ev.get("kind") == "chat_message":
-                ti = ev.get("tool_input") or {}
+            ti = ev.get("tool_input") or {}
+            kind = ev.get("kind")
+            # Kind-specific enrichment: lift the fields that make the entry
+            # self-describing. All values are capped/truncated to keep records
+            # compact; sensitive values are redacted by _redact() below.
+            if kind == "chat_message":
                 entry["sender"] = ti.get("sender")
                 entry["sender_name"] = ti.get("sender_name")
                 entry["conversation_name"] = ti.get("conversation_name")
                 entry["is_group"] = ti.get("is_group")
+            elif kind == "email":
+                entry["from"] = ti.get("from")
+                entry["from_email"] = ti.get("from_email")
+                entry["direction"] = ti.get("direction")
+                entry["subject"] = (ti.get("subject") or "")[:120]
+                entry["is_read"] = ti.get("is_read")
+                entry["has_attachments"] = ti.get("has_attachments")
+            elif kind == "meeting":
+                entry["subject"] = (ti.get("subject") or "")[:120]
+                entry["organizer"] = ti.get("organizer")
+                entry["location"] = (ti.get("location") or "")[:80] if ti.get("location") else None
+                entry["duration_seconds"] = ti.get("duration_seconds")
+                entry["attendees_count"] = (
+                    len(ti["attendees"]) if isinstance(ti.get("attendees"), list)
+                    else ti.get("attendees_count")
+                )
+            elif kind == "visit":
+                entry["url"] = (ti.get("url") or "")[:200]
+                entry["title"] = (ti.get("title") or "")[:120]
+                entry["visit_count"] = ti.get("visit_count")
+            elif kind == "search":
+                entry["query"] = (ti.get("query") or "")[:120]
+                entry["url"] = (ti.get("url") or "")[:200]
+            elif kind == "download":
+                entry["target_path"] = (ti.get("target_path") or "")[:200]
+                entry["total_bytes"] = ti.get("total_bytes")
+                entry["mime_type"] = ti.get("mime_type")
+            elif kind == "commit":
+                entry["hash"] = ti.get("hash")
+                entry["subject"] = (ti.get("subject") or "")[:120]
+                entry["files"] = (ti.get("files") or [])[:10]
+            elif kind == "branch_checkout":
+                entry["from_branch"] = ti.get("from_branch")
+                entry["to_branch"] = ti.get("to_branch")
+            elif kind == "tool_use":
+                entry["tool_use_id"] = ev.get("tool_use_id")
+                # Truncate large tool_input values to keep records compact.
+                raw_ti = ev.get("tool_input")
+                if isinstance(raw_ti, dict):
+                    entry["tool_input"] = {
+                        k: (str(v)[:80] if isinstance(v, str) else v)
+                        for k, v in raw_ti.items()
+                    }
+            elif kind == "file_open":
+                entry["file_path"] = (ti.get("file_path") or ti.get("path") or "")[:200]
             timeline.append(entry)
         record["event_timeline"] = timeline
         record["event_count_total"] = len(task_events)

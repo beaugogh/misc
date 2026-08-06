@@ -68,17 +68,31 @@ are folded into the rule they inspired, not kept as separate entries.
     is a JSON file in `output/session_records/` with restrictive permissions.
     Every event in the timeline must carry enough context to understand *what
     happened, when, and who was involved* without cross-referencing external data.
-    - **Chat messages:** each timeline entry must include `timestamp`, `text`,
-      `sender` (employee account ID), `sender_name` (resolved human-readable name),
-      `conversation_name`, and `is_group` (group vs P2P). Sender account IDs are
-      resolved to names via `welink-cli contact detail` (batch lookup, one call
-      for all unique senders); if resolution fails, the account ID is kept.
+    Every event kind lifts its kind-specific fields from `tool_input` into the
+    timeline entry:
+    - **Chat messages (`chat_message`):** `sender` (employee account ID),
+      `sender_name` (resolved human-readable name), `conversation_name`,
+      `is_group` (group vs P2P). Sender account IDs are resolved to names via
+      `welink-cli contact detail` (batch lookup, one call for all unique senders);
+      if resolution fails, the account ID is kept.
     - **Group chats:** the task context must list `im_participants` as
       `[{account, name}]` so the reader can see who was in the conversation.
     - **P2P chats:** the conversation name is the peer's name (from `staff_name`),
       not blank — the task subject should read "与 崔少攀 的私聊", not "(no subject)".
-    - **All activity types:** timeline entries include the fields relevant to
-      their kind (page title + URL for browser, commit subject for git, etc.).
+    - **Email (`email`):** `from`, `from_email`, `direction` (sent/received),
+      `subject`, `is_read`, `has_attachments`.
+    - **Meetings (`meeting`):** `subject`, `organizer`, `location`,
+      `duration_seconds`, `attendees_count`.
+    - **Browser visits (`visit`):** `url`, `title`, `visit_count`.
+    - **Searches (`search`):** `query`, `url`.
+    - **Downloads (`download`):** `target_path`, `total_bytes`, `mime_type`.
+    - **Commits (`commit`):** `hash`, `subject`, `files` (capped at 10).
+    - **Branch checkouts (`branch_checkout`):** `from_branch`, `to_branch`.
+    - **Tool calls (`tool_use`):** `tool_use_id`, `tool_input` (values truncated
+      to 80 chars to keep records compact).
+    - **File opens (`file_open`):** `file_path`.
+    - **Unknown kinds:** always include the base 5 fields (`timestamp`, `kind`,
+      `text`, `tool_name`, `tool_is_error`).
     - Never export credentials, unnecessary identity, or full correspondence.
       Redaction patterns strip API keys, JWTs, and emails. Sender names of
       colleagues are not secrets — they are visible in the WeLink client — and
