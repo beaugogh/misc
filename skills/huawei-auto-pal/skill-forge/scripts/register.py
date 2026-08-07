@@ -797,6 +797,7 @@ def _write_session_trace(output_dir: str) -> str | None:
         (_re.compile(r"(?i)(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;]+"), r"\1[REDACTED]"),
         (_re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b"), "[REDACTED_JWT]"),
         (_re.compile(r"(?i)(?:--strict-ssl\s+false|--strict-ssl=false)"), "[REDACTED_SSL_FLAG]"),
+        (_re.compile(r"(?i)(https?://[^:/@\s]+:)[^@/\s]+(@)"), r"\1[REDACTED]\2"),
     )
 
     def _redact_str(s: str) -> str:

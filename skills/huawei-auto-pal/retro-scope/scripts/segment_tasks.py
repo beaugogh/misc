@@ -1353,6 +1353,8 @@ def _merge_automated_fragments(tasks: list[dict]) -> list[dict]:
             continue
         group.sort(key=lambda t: t.get("start") or 0.0)
         current = dict(group[0])
+        current["human_data"] = dict(current.get("human_data") or {})
+        current["tool_names"] = list(current.get("tool_names") or [])
         current["_merged_count"] = 1
         for t in group[1:]:
             gap = (t.get("start") or 0) - (current.get("end") or 0)
@@ -1393,6 +1395,8 @@ def _merge_automated_fragments(tasks: list[dict]) -> list[dict]:
                 # Gap too large — start a new merged group.
                 merged_tasks.append(current)
                 current = dict(t)
+                current["human_data"] = dict(current.get("human_data") or {})
+                current["tool_names"] = list(current.get("tool_names") or [])
                 current["_merged_count"] = 1
         merged_tasks.append(current)
 

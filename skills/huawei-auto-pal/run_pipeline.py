@@ -21,7 +21,6 @@ from __future__ import annotations
 import sys
 import os
 import subprocess
-import time
 
 # Python 3.9+ guard (same as run.py).
 if sys.version_info < (3, 9):

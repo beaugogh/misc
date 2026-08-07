@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.5.5
+version: 1.5.6
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -514,11 +514,11 @@ informed installation decision without seeing the reasoning.
 After the user has seen all proposals, ask: "Which of these would you like to
 install, and into which agents?" Present the detected agents by name (Claude
 Code, CodeAgent, etc.). The user may choose to install into one agent,
-several, or none. If the user declines or selects none, skip to step 9 — the
-pipeline is done. **Do NOT save memories, write to the agent's own memory
-directory, or sediment facts as a side effect of the user declining.**
-"None" means stop — no memory writes, no fact extraction, no background
-sedimentation. Then run:
+several, or none. If the user declines or selects none, the pipeline is done
+— do NOT re-archive (the zip was already created before this step) and do NOT
+save memories, write to the agent's own memory directory, or sediment facts
+as a side effect of the user declining. "None" means stop — no memory
+writes, no fact extraction, no background sedimentation. Then run:
 
 ```bash
 # Install a skill into specific agents:
