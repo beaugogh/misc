@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.5.6
+version: 1.5.7
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -396,7 +396,7 @@ automatic triggering, no need to remember the fix manually>
 Be specific, clear, logical, and detailed where necessary — cite session counts, time
 lost, recurrence. The user reads this to decide whether to install the skill, so the
 reasoning must be coherent and comprehensive. This file is proposal metadata: it is
-read by the agent in step 8 but is **NOT** installed into agents (the installer
+read by the agent in step 9 but is **NOT** installed into agents (the installer
 excludes it). For memory, create the same file at
 `output/personal-context/PROPOSAL.md`.
 
@@ -428,7 +428,7 @@ rollback behavior.
 
 **Writing a NEW skill or memory to `output/` is staging, not a durable agent
 change — it requires no approval.** The skill-forge pipeline writes proposals to
-`output/` automatically and archives them (step 9) without asking. The authority
+`output/` automatically and archives them (step 8) without asking. The authority
 tiers below apply to: (a) edits to EXISTING skills in `output/`, and (b)
 installation from `output/` into an agent's native directories. Creating a NEW
 skill or memory in `output/` is always permitted — it is personal, gitignored,
@@ -451,12 +451,31 @@ obtain explicit approval before writing.
 An approval or opt-in for one target does not authorize another target or unrelated
 discovery. Apply only the authorized diff, rerun validation, and report the final result.
 
-### 8. Register into the user's agents
+### 8. Archive output to Downloads
 
-After skills and memory have been created or updated in `output/`, present
-them to the user with full bilingual reasoning and ask which to install into
-which agents. This is a pipeline step, not an end-of-run menu option. If there
-is nothing in `output/`, skip this step and go straight to step 9.
+**Run this automatically after creating proposals — BEFORE presenting them
+to the user.** The zip is a diagnostic snapshot; it must exist before any
+installation decision so the output is never blocked by that decision. Do not
+ask the user whether to archive, distribute, or do neither. Zip the `output/`
+folder and save it to the user's Downloads directory:
+
+```bash
+python run_pipeline.py --archive
+```
+
+This creates a timestamped `huawei-auto-pal-output-YYYYMMDD-HHMMSS.zip` in
+the user's Downloads folder. Report where it was saved so the user can find
+it. This gives them a portable snapshot of their time analysis, skills, and
+memory for backup or transfer. If the archive reports zero skills, note the
+warning and continue — do not block on it. **Run `--archive` only once. Do
+NOT re-archive after the install step.**
+
+### 9. Present proposals and install
+
+After the zip is created, present the proposals to the user with full
+bilingual reasoning and ask which to install into which agents. This is a
+pipeline step, not an end-of-run menu option. If there is nothing in
+`output/`, skip this step.
 
 **Skill installation is always Tier 3** — explicit approval required per skill
 per agent. The user must be consulted before anything is installed natively
@@ -515,7 +534,7 @@ After the user has seen all proposals, ask: "Which of these would you like to
 install, and into which agents?" Present the detected agents by name (Claude
 Code, CodeAgent, etc.). The user may choose to install into one agent,
 several, or none. If the user declines or selects none, the pipeline is done
-— do NOT re-archive (the zip was already created before this step) and do NOT
+— do NOT re-archive (the zip was already created in step 8) and do NOT
 save memories, write to the agent's own memory directory, or sediment facts
 as a side effect of the user declining. "None" means stop — no memory
 writes, no fact extraction, no background sedimentation. Then run:
@@ -559,23 +578,6 @@ Codex gets a `## Personal Context` section in `AGENTS.md`. OpenClaw gets a
 until their layouts are confirmed.
 
 Always show the user the target paths and fact list before asking for approval.
-
-### 9. Archive output to Downloads
-
-**Run this automatically at the end of every pipeline run** — it is not an
-optional end-of-run choice. Do not ask the user whether to archive, distribute,
-or do neither. Zip the `output/` folder and save it to the user's Downloads
-directory:
-
-```bash
-python skill-forge/scripts/register.py --archive
-```
-
-This creates a timestamped `huawei-auto-pal-output-YYYYMMDD-HHMMSS.zip` in
-the user's Downloads folder. Report where it was saved so the user can find
-it. This gives them a portable snapshot of their time analysis, skills, and
-memory for backup or transfer. If the archive reports zero skills, note the
-warning and continue — do not block on it.
 
 ### 10. Distribute the skill to colleagues (manual, on-demand only)
 
