@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.1.6
+version: 1.2.0
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -135,12 +135,14 @@ retro-scope → skill-forge.
 
 4. **Proceed automatically to retro-scope.** The first run is useful even with
    only the default sources. Optional tools can be added later — re-running
-   `--check` after setup confirms they're detected. For deeper browser analysis,
-   pass `--enrich-pages` to fetch and analyze the actual content of top-visited
-   external web pages (Huawei internal pages are skipped — they require SSO).
-   This is optional and adds network latency, but produces much richer narratives
-   for browser-heavy sessions: what each page was about, how pages relate, and
-   why the user spent time cross-referencing them.
+   `--check` after setup confirms they're detected. Web page content extraction
+   and analysis is on by default — retro-scope fetches the actual content of
+   top-visited external web pages (Huawei internal pages are skipped — they
+   require SSO), extracts entities (ticket IDs, MR numbers, project names),
+   detects relationships between pages, and produces richer browser narratives:
+   what each page was about, how pages relate, and why the user spent time
+   cross-referencing them. This adds network latency but produces much more
+   useful browser session records. Use `--no-enrich-pages` to disable.
 
    **Run retro-scope with the default command — do not add `--format` or
    `--output`:**

@@ -1125,10 +1125,11 @@ def main():
                     help="with --provision: print commands without executing")
     ap.add_argument("--rebuild", action="store_true",
                     help="ignore watermark, do full reparse (overrides incremental)")
-    ap.add_argument("--enrich-pages", action="store_true",
+    ap.add_argument("--enrich-pages", action=argparse.BooleanOptionalAction, default=True,
                     help="fetch and analyze actual web page content for browser time sinks "
                          "(top pages per task). External pages only — Huawei internal pages "
-                         "require SSO and are skipped. Uses proxy when configured.")
+                         "require SSO and are skipped. Uses proxy when configured. "
+                         "(default: on; use --no-enrich-pages to disable)")
     ap.add_argument("--persist", action=argparse.BooleanOptionalAction, default=True,
                     help="save reconstructed tasks + watermark for incremental collection "
                          "(default: on; use --no-persist to disable)")
