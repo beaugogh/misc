@@ -96,7 +96,7 @@ def phase_diagnose(git_email: str | None, skip_provision: bool,
             provision_cmd += ["--git-email", email]
         # --provision handles everything: install welink-cli, QR login, git config.
         # The QR code appears — user scans or lets it time out.
-        rc = _run(provision_cmd, timeout=300)
+        rc = _run(provision_cmd, timeout=360)
         # Provision may return non-zero if auth timed out — that's OK, continue.
         if rc != 0:
             print(f"\nNOTE: provision did not fully complete (exit {rc}). "

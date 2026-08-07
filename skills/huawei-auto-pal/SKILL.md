@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.5.1
+version: 1.5.2
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -66,7 +66,7 @@ The pipeline is: **find the waste → eliminate the waste going forward.**
 Diagnoses where time goes. Multi-horizon reports (90d/30d/7d/1d) with three-way
 time accounting (Wall → Active → Human), content-driven root-cause narratives, and
 recurring time-consumption analysis (persistent, declining, increasing, automation
-candidates). 14 source adapters, all detector-based. Retrospective only — no live
+candidates). All source adapters are detector-based. Retrospective only — no live
 tracking.
 
 See `retro-scope/SKILL.md` for full details.
@@ -137,7 +137,12 @@ and continue. CodeHub token (`.env`) stays manual — mention it in passing.
 - Auto-detect paths and source accounts only for filtering; never infer or store a
   person's identity without consent, or encode one machine's inventory in the skill.
 - Detect unavailable dependencies and report them. Never install, authenticate, update,
-  or weaken TLS settings without explicit user approval.
+  or weaken TLS settings without explicit user approval, except for the approved
+  `--provision` flow (welink-cli from the Huawei intranet registry + git identity),
+  which runs automatically as part of `run_pipeline.py`. The QR code appearing in
+  the terminal is the user's opt-in for welink auth — they scan it or let it time out.
+  The `--strict-ssl=false` flag is command-scoped to the approved Huawei intranet
+  registry URL only, never persisted globally.
 - Never modify or create files in the skill's own directory to work around a
   failure. If a stage (e.g. LLM labeling) fails or is slow, report the failure and
   continue — do not patch, edit, sed, or create new Python files in the skill

@@ -995,21 +995,17 @@ def _update_index_skills_section(output_dir: str) -> None:
     except OSError:
         return
 
-    # Check if skills section already exists — replace it.
-    if '<div class="skills-section">' in html:
-        # Replace existing section.
+    # Replace the skills section using marker comments (robust against
+    # nested HTML — regex on nested divs is unreliable).
+    START = '<!-- SKILLS_SECTION_START -->'
+    END = '<!-- SKILLS_SECTION_END -->'
+    if START in html and END in html:
         import re as _re
-        html = _re.sub(
-            r'<div class="skills-section">.*?</div>\s*</div>',
-            skills_html,
-            html,
-            flags=_re.DOTALL,
-        )
+        pattern = _re.compile(_re.escape(START) + r'.*?' + _re.escape(END), _re.DOTALL)
+        html = pattern.sub(skills_html, html)
     elif "</body>" in html:
-        # Inject before </body>.
         html = html.replace("</body>", f"{skills_html}\n</body>")
     else:
-        # No </body> — append.
         html += "\n" + skills_html
 
     try:
