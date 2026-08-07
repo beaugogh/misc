@@ -135,7 +135,8 @@ class TestProvisionWelinkCli(unittest.TestCase):
     @patch("shutil.which")
     @patch("subprocess.run")
     def test_auth_login_when_expired(self, mock_subproc, mock_which):
-        """When welink-cli is installed but auth expired, auth login is called."""
+        """When welink-cli is installed but auth expired, auth login is called.
+        The QR code appears — the user scans it or lets it time out."""
         mock_which.return_value = "/usr/bin/welink-cli"  # both node and welink-cli found
         mock_subproc.return_value = MagicMock(
             returncode=0, stdout="v22.23.1\n", stderr="")

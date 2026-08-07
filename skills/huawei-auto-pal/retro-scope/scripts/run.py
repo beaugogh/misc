@@ -334,13 +334,16 @@ def _provision_welink_cli(dry_run: bool = False) -> bool:
         return True
 
     # Step 4: run auth login (interactive — QR code or WeLink PC client)
-    # Use _run_interactive (not _run_command) so the QR code is visible in
-    # real-time. capture_output=True would buffer it until timeout.
+    # The QR code appears in the terminal. The user scans it or doesn't.
+    # If they scan, auth succeeds. If they don't, it times out and the
+    # pipeline continues without welink data. Use _run_interactive (not
+    # _run_command) so the QR renders in real-time, not buffered.
     print("  Starting welink-cli auth login...")
-    print("  (Scan the QR code in your terminal, or approve in WeLink PC client.)")
+    print("  (Scan the QR code in your terminal, or approve in WeLink PC client.")
+    print("   If you don't scan, it will time out and the pipeline continues without WeLink.)")
     rc = _run_interactive(["welink-cli", "auth", "login"], timeout=120, dry_run=dry_run)
     if rc != 0:
-        print("  ERROR: 'welink-cli auth login' failed.")
+        print("  NOTE: welink-cli auth login did not complete. WeLink data will be skipped.")
         return False
 
     # Step 5: re-check auth
@@ -351,7 +354,7 @@ def _provision_welink_cli(dry_run: bool = False) -> bool:
     if status is None or status[0] == "ok":
         print("  welink-cli authenticated — OK")
         return True
-    print(f"  ERROR: welink-cli auth still not ready: {status[1]}")
+    print(f"  NOTE: welink-cli auth not ready: {status[1]}. WeLink data will be skipped.")
     return False
 
 
@@ -1146,7 +1149,7 @@ def main():
                                  "(user.email/user.name). Requires Node.js >= 18 for welink-cli. "
                                  "Use --git-email/--git-name to pre-supply git identity, "
                                  "--only welink/git to scope. The auth login is interactive "
-                                 "(QR code renders in terminal) — run directly, not via --dry-run.")
+                                 "(QR code renders in terminal — scan it or let it time out).")
     _exclusive.add_argument("--eval", action="store_true",
                             help="run segmentation evaluation against the labeled benchmark (Phase 9.8)")
     args = ap.parse_args()
