@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.5.4
+version: 1.5.5
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -131,6 +131,10 @@ archive**, all automatic. Do not stop to ask the user which path to follow.
      text (not via Bash — terminal output is collapsed)
    - Ask which to install into which agents, run `register.py --install`
    - If the user declines all installs, the pipeline is done. Do not re-archive.
+   - **Do NOT save memories, write files to agent memory directories, or
+     sediment anything into the agent's own state without explicit approval.**
+     Declining all installs means stop — the agent must not save memories or
+     facts to its own memory directory as a side effect.
 
 Do not block the pipeline on missing optional dependencies. Detect, report,
 and continue. CodeHub token (`.env`) stays manual — mention it in passing.
@@ -143,6 +147,12 @@ and continue. CodeHub token (`.env`) stays manual — mention it in passing.
 - Redact secrets and minimize personal data in generated evidence.
 - Auto-detect paths and source accounts only for filtering; never infer or store a
   person's identity without consent, or encode one machine's inventory in the skill.
+- **Do not hardcode PII (name, employee ID, email, account names) or internal URLs
+  in generated SKILL.md files.** Proposals and skills in `output/` are archived
+  into a zip that may be shared with colleagues. PII extracted from session data
+  must not appear in generated skill files. Use placeholders like `<your-email>`
+  or `<employee-id>`. Internal platform URLs are machine inventory — do not
+  hardcode them in skills that may be shared.
 - Detect unavailable dependencies and report them. Never install, authenticate, update,
   or weaken TLS settings without explicit user approval, except for the approved
   `--provision` flow (welink-cli from the Huawei intranet registry + git identity),

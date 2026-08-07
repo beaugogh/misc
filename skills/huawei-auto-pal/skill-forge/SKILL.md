@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.5.4
+version: 1.5.5
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -301,6 +301,11 @@ Choose the smallest suitable result:
 Do not infer identity. If a memory needs a name or employee identifier, ask the user
 whether to store it and explain why. Exclude tokens, passwords, keys, session cookies,
 private correspondence, colleague PII, and machine inventory that is not essential.
+**Never hardcode PII (real name, employee ID, email, GitHub account) or internal
+Huawei URLs in generated SKILL.md files.** The `output/` directory is archived into
+a zip that may be shared with colleagues — PII must not leak into it. Use
+placeholders like `<your-name>`, `<your-email>`, `<employee-id>`. Internal platform
+URLs are machine inventory and must not be hardcoded in shareable skills.
 
 ### 5. Design without over-generalizing
 
@@ -509,8 +514,11 @@ informed installation decision without seeing the reasoning.
 After the user has seen all proposals, ask: "Which of these would you like to
 install, and into which agents?" Present the detected agents by name (Claude
 Code, CodeAgent, etc.). The user may choose to install into one agent,
-several, or none. If the user declines or selects none, skip to step 9. Then
-run:
+several, or none. If the user declines or selects none, skip to step 9 — the
+pipeline is done. **Do NOT save memories, write to the agent's own memory
+directory, or sediment facts as a side effect of the user declining.**
+"None" means stop — no memory writes, no fact extraction, no background
+sedimentation. Then run:
 
 ```bash
 # Install a skill into specific agents:
