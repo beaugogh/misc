@@ -389,7 +389,7 @@ class TestDetectNoCOM(unittest.TestCase):
 
     @patch("outlook_adapter._try_import_win32com", return_value=None)
     def test_collect_no_win32com(self, mock_import):
-        """collect() yields nothing without raising when COM unavailable."""
+        """collect() returns empty list without raising when COM unavailable."""
         adapter = OutlookAdapter()
         events = list(adapter.collect())
         self.assertEqual(events, [])
@@ -452,7 +452,7 @@ class TestCollectWithMockCOM(unittest.TestCase):
 
     @patch("outlook_adapter._try_import_win32com")
     def test_collect_yields_events(self, mock_import):
-        """collect() yields email events from all folders."""
+        """collect() returns email events from all folders."""
         mock_outlook = self._build_mock_outlook()
         mock_import.return_value = self._make_mock_win32com(mock_outlook)
 
@@ -589,7 +589,7 @@ class TestLiveOutlookIntegration(unittest.TestCase):
         self.assertTrue(self.detected)
 
     def test_collect_yields_events(self):
-        """collect() yields at least some email events from Outlook."""
+        """collect() returns at least some email events from Outlook."""
         events = list(self.adapter.collect())
         self.assertGreater(len(events), 0, "Expected at least some email events")
 
