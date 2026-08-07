@@ -175,6 +175,25 @@ NO_PROXY=cmc.centralrepo.rnd.huawei.com \
 Verify with `nga.cmd --help`. If not on PATH, follow your CodeAgent CLI install
 docs — do not hardcode a drive path.
 
+### W3/3MS search & CloudDevOps Wiki (optional, no installation)
+
+**Adds / 增加数据**: Intranet search results and Wiki documents for identity
+enrichment (used by skill-forge).
+**Prerequisite / 前置条件**: None — self-contained Python scripts in the
+repo's `mcp-tools/` directory, pure stdlib, no auth needed for read operations.
+
+```bash
+# W3/3MS intranet search
+python3 mcp-tools/huawei-w3-search/w3_search.py "<query>" --size 10 --json
+
+# CloudDevOps Wiki document search (read-only, no token needed)
+python3 mcp-tools/huawei-wiki/wiki_mcp.py search-wiki-documents \
+  --url <wiki-url> --search-range knowledge --search-key "<name>" --json
+```
+
+If `mcp-tools/` is absent (skill installed standalone), these tools are
+skipped — skill-forge continues without W3/Wiki enrichment.
+
 ---
 
 ## Credential setup / 凭据配置

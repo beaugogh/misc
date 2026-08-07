@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.1.3
+version: 1.1.4
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -203,6 +203,8 @@ the setup section in the parent [`README.md`](../README.md):
 | welink-cli | locate command and inspect auth status | Skip WeLink supplementary evidence | README.md §welink-cli |
 | CodeHub MCP | `python3 mcp-tools/huawei-codehub/codehub.py --list-tools` succeeds | Skip MR reviews from Huawei internal repos | README.md §CODEHUB_TOKEN |
 | GitHub MCP | — (disabled: `ssl.CERT_NONE`, not called) | No GitHub PR reviews until TLS is fixed | README.md §GITHUB_TOKEN |
+| W3 search | `python3 mcp-tools/huawei-w3-search/w3_search.py --help` succeeds | Skip W3/3MS intranet search for identity enrichment | — (self-contained, stdlib only, no auth) |
+| CloudDevOps Wiki | `python3 mcp-tools/huawei-wiki/wiki_mcp.py --list-tools` succeeds | Skip Wiki document search for identity enrichment | — (self-contained, stdlib only, read operations need no auth) |
 
 If an optional tool is missing or authentication is expired, explain the impact
 and continue. Offer an exact, scoped repair command separately. Run it only after
@@ -254,6 +256,32 @@ Use git, WeLink, CodeHub, W3, or Wiki evidence only to resolve a specific
 uncertainty in a candidate. Minimize collection, bound result counts, and report
 which sources were used or skipped. Do not reinstall tools or refresh authentication
 as part of collection.
+
+**W3/3MS search** (self-contained script, no auth needed):
+```bash
+# Search the Huawei intranet for a user's public technical content
+python3 mcp-tools/huawei-w3-search/w3_search.py "<user name + employee id>" --size 10 --json
+```
+Returns JSON with `title`/`source`/`url`/`texts`/`publish_time`. Use to enrich
+identity resolution (technical domains, project history, published articles).
+The script auto-bypasses the corporate proxy (built-in no-proxy opener).
+
+**CloudDevOps Wiki** (self-contained script, read operations need no auth):
+```bash
+# Search wiki documents by author
+python3 mcp-tools/huawei-wiki/wiki_mcp.py search-wiki-documents --url <wiki-url> --search-range knowledge --search-key "<user name>" --json
+# Fetch a specific wiki document's content
+python3 mcp-tools/huawei-wiki/wiki_mcp.py fetch-wiki-content --url <wiki-url> --json
+```
+Returns JSON with document titles, authors, content. Use to identify the user's
+core expertise areas and authored documentation. User-level queries (e.g.
+`list-my-initiated-wiki-countersigns`) and write operations require
+`WIKI_X_AUTH_TOKEN` — not needed for read-only analysis.
+
+Both scripts are at `mcp-tools/` in the repository root (two levels up from the
+skill directory). They are pure stdlib Python 3 — no installation needed. If
+the `mcp-tools/` directory is absent (e.g. skill installed standalone without
+the repo), skip W3/Wiki enrichment and continue.
 
 ### 4. Classify the intervention
 
