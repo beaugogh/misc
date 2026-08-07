@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.4.1
+version: 1.4.2
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -87,15 +87,6 @@ When a user invokes huawei-auto-pal for the first time, run these pre-flight
 checks **sequentially and automatically**, then proceed straight into the
 pipeline. Do not stop to ask which path to follow — the path is always
 retro-scope → skill-forge.
-
-0. **Check for legacy output.** The skill was renamed from `huawei-auto-buddy`.
-   If prior state exists at the old `skills/huawei-auto-buddy/output/` path,
-   `--check` reports it. Do not auto-merge or auto-migrate:
-   - **Old only**: explain the source and destination, ask for approval to
-     move it, then preserve watermarks, policy, backups, and timestamps.
-   - **Both old and new**: report the conflict and ask which to keep. Do not
-     silently overwrite either.
-   - Never read or print personal output contents during the inventory.
 
 1. **Run the environment check** — `python retro-scope/scripts/run.py --check`
    from the skill directory. This lists every source adapter and whether it's

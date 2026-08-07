@@ -1329,15 +1329,9 @@ def main():
     # collection below, which parses real Claude session records.
     if args.check:
         from sources import default_registry as _reg
-        from persistence import detect_legacy_output, format_legacy_report
         # session_cwds not needed — --check only calls detect(), not collect().
         reg = _reg(session_cwds=[])
         print(render_check_output(reg._adapters))
-        # Surface legacy output migration status (read-only, no personal contents).
-        legacy = detect_legacy_output()
-        if legacy["status"] != "current_only" and legacy["status"] != "none":
-            print()
-            print(format_legacy_report(legacy))
         sys.exit(0)
 
     if args.eval:
