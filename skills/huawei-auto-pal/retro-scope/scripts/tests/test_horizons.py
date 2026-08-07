@@ -9,6 +9,7 @@ Run with: python -m unittest discover -s scripts/tests
 import unittest
 import os
 import sys
+import shutil
 import tempfile
 import json
 
@@ -292,6 +293,69 @@ class TestMultiHorizonGate(unittest.TestCase):
         # Should contain a version-like string (e.g. "1.0.20")
         import re
         self.assertRegex(proc.stdout, r"\d+\.\d+\.\d+")
+
+
+class TestSkillsSectionInIndex(unittest.TestCase):
+    """Test that proposed skills appear in the index.html dashboard."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="skills_idx_")
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _make_proposal(self, skill_name, problem, evidence, why, benefit):
+        """Create a skill dir with a PROPOSAL.md."""
+        d = os.path.join(self._tmp, skill_name)
+        os.makedirs(d)
+        path = os.path.join(d, "PROPOSAL.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(f"# Proposal: {skill_name}\n\n")
+            f.write("## Problem / 问题\n\n[EN]\n" + problem + "\n\n[ZH]\n中文\n\n")
+            f.write("## Evidence / 证据\n\n[EN]\n" + evidence + "\n\n[ZH]\n中文\n\n")
+            f.write("## Why This Skill Is Proposed / 为什么提出这个技能\n\n[EN]\n" + why + "\n\n[ZH]\n中文\n\n")
+            f.write("## Benefit of Local Installation / 本地安装的收益\n\n[EN]\n" + benefit + "\n\n[ZH]\n中文\n\n")
+        return path
+
+    def test_skills_section_contains_proposed_skills(self):
+        """The index page should include skill proposals from output/."""
+        self._make_proposal("test-skill", "Test problem here", "Test evidence",
+                            "Test why", "Test benefit")
+        import html as html_mod
+        from run import _build_skills_section
+        result = _build_skills_section(self._tmp, html_mod)
+        self.assertIn("test-skill", result)
+        self.assertIn("Test problem here", result)
+        self.assertIn("Test evidence", result)
+        self.assertIn("Proposed skills", result)
+
+    def test_skills_section_empty_when_no_proposals(self):
+        """No PROPOSAL.md files → empty skills section."""
+        import html as html_mod
+        from run import _build_skills_section
+        result = _build_skills_section(self._tmp, html_mod)
+        self.assertEqual(result, "")
+
+    def test_skills_section_marks_memory_type(self):
+        """personal-context should be marked as 'memory' type."""
+        self._make_proposal("personal-context", "Context problem", "Evidence",
+                            "Why", "Benefit")
+        import html as html_mod
+        from run import _build_skills_section
+        result = _build_skills_section(self._tmp, html_mod)
+        self.assertIn("memory", result)
+
+    def test_skills_section_excludes_non_skill_dirs(self):
+        """session_records, page_cache, etc. should not appear as skills."""
+        os.makedirs(os.path.join(self._tmp, "session_records"))
+        os.makedirs(os.path.join(self._tmp, "page_cache"))
+        self._make_proposal("real-skill", "Problem", "Evidence", "Why", "Benefit")
+        import html as html_mod
+        from run import _build_skills_section
+        result = _build_skills_section(self._tmp, html_mod)
+        self.assertIn("real-skill", result)
+        self.assertNotIn("session_records", result)
+        self.assertNotIn("page_cache", result)
 
 
 class TestIsAllDayTruthiness(unittest.TestCase):

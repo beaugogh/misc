@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.2.0
+version: 1.3.0
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
