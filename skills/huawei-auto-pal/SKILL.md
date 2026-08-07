@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.4.0
+version: 1.4.1
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -112,24 +112,21 @@ retro-scope → skill-forge.
    but need auth/config to produce events (e.g. welink-cli installed but
    token expired, git `user.email` not set).
 
-3. **Offer to auto-provision high-value sources.** If welink-cli or git is
-   anything other than `READY` (i.e. `NOT DETECTED` or `NOT AUTHENTICATED`),
-   explain in the user's language what each source adds and that setup takes
-   ~1 minute. Then ask for a single approval: "Can I set up welink-cli and
-   git for you? I'll install welink-cli (npm, from the approved Huawei
-   intranet registry), start the QR-code login, and configure your git
-   identity."
-   - If yes → collect the user's git email (ask them), then run
-     `python retro-scope/scripts/run.py --provision --git-email <email>`.
-     **Run `--provision` directly — do NOT dry-run first.** The provision
-     command handles the full flow: installs welink-cli (if missing), starts
-     `welink-cli auth login` interactively so the QR code renders in the
-     terminal, and configures git identity. The QR code just appears — the
-     user scans it or lets it time out. Do NOT tell the user to run
-     `welink-cli auth login` themselves. Do NOT run `--provision` without
-     explicit approval — it installs software and authenticates (Tier 3
-     per the safety model).
-   - If no → note what they're missing and continue (no blocking).
+3. **Auto-provision welink-cli and git.** If welink-cli or git is anything
+   other than `READY`, run provisioning automatically — do NOT ask the user
+   for approval first. The `--provision` command is safe: it installs
+   welink-cli from the approved Huawei intranet registry (if missing),
+   configures git identity (if missing), and starts `welink-cli auth login`
+   interactively. The QR code just appears in the terminal — the user scans
+   it or lets it time out. If they don't scan, the pipeline continues
+   without WeLink data. No blocking, no asking.
+   - Collect the user's git email (ask them only for this one piece of
+     info if git identity is not set), then run:
+     `python retro-scope/scripts/run.py --provision --git-email <email>`
+   - **Run `--provision` directly — do NOT dry-run first, do NOT ask
+     whether to provision, do NOT present a menu of choices.** Just run it.
+   - If welink-cli is already installed but needs auth, `--provision` skips
+     the install and goes straight to the QR login.
    - CodeHub token (`.env`) stays manual — it's a web-UI personal access
      token that cannot be auto-fetched. Mention it in passing if relevant.
 
