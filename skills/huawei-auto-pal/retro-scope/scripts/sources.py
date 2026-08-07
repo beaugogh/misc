@@ -200,7 +200,7 @@ def default_registry(session_cwds: list[str] | None = None) -> SourceRegistry:
     from browser_adapter import ChromeHistoryAdapter, EdgeHistoryAdapter
     from more_adapters import (
         VSCodeHistoryAdapter, ICalendarAdapter, WindowsRecentAdapter,
-        WeLinkRecordingsAdapter, JumpListAdapter, ThreeMsAdapter,
+        WeLinkRecordingsAdapter, JumpListAdapter,
     )
     from welink_cli_adapter import WeLinkCLIAdapter
     from legacy_codeagent_adapter import LegacyCodeagentAdapter
@@ -221,7 +221,6 @@ def default_registry(session_cwds: list[str] | None = None) -> SourceRegistry:
     reg.register(WeLinkCLIAdapter(enable_im=True))
     reg.register(LegacyCodeagentAdapter())
     reg.register(OutlookAdapter())
-    reg.register(ThreeMsAdapter())
 
     # Phase 6.10: unverified-source adapters. Each detect() returns False when
     # the tool isn't present, so they silently skip on machines without them.

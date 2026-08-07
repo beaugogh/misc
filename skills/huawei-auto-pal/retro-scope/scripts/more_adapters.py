@@ -729,35 +729,3 @@ class WeLinkRecordingsAdapter:
         for ev in self.collect():
             if ev.get("timestamp", 0) > watermark:
                 yield ev
-
-
-# ---------------------------------------------------------------------------
-# 3ms (via existing huawei-3ms plugin)
-# ---------------------------------------------------------------------------
-
-class ThreeMsAdapter:
-    """Adapter for 3ms publish/edit timestamps via the huawei-3ms plugin.
-
-    Gated on the plugin being installed. The plugin is invoked via opencli if available.
-    For now, this is a detector-only adapter — it detects the plugin but doesn't
-    collect (the plugin's search/read interface doesn't expose publish timestamps
-    in a structured way yet). Marked as a placeholder for Phase 6.9.
-    """
-
-    name = "3ms"
-    source_kind = "doc_authoring"
-    detector_only = True  # detects opencli but collect() yields nothing yet
-
-    def detect(self) -> bool:
-        # Check if the huawei-3ms plugin is installed
-        import shutil
-        return shutil.which("opencli") is not None
-
-    def collect(self) -> Iterator[dict]:
-        # Phase 6.9 placeholder: the 3ms plugin doesn't yet expose publish timestamps
-        # in a structured way. When it does, this will yield doc_authoring events.
-        return
-        yield  # make it a generator
-
-    def collect_since(self, watermark: float | None) -> Iterator[dict]:
-        yield from self.collect()

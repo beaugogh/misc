@@ -14,8 +14,6 @@ Sources:
   - Codex (OpenAI CLI)         → `~/.codex/sessions/` (JSONL expected)
   - Openclaw                   → `~/.openclaw/` or `~/.open-claw/` (JSONL/SQLite)
   - Hermes-agent               → `~/.hermes-agent/` or `~/.hermes/` (JSONL/SQLite)
-  - CloudDevOps Wiki           → via `opencli` if a wiki plugin exists
-  - W3                         → via `opencli` if a w3 plugin exists
 
 These are [unverified] in SKILL.md — the expected paths are documented from
 public tool docs / community knowledge. The adapter verifies itself on first
@@ -384,112 +382,6 @@ class HermesAgentAdapter:
 
 
 # ---------------------------------------------------------------------------
-# CloudDevOps Wiki (via opencli plugin)
-# ---------------------------------------------------------------------------
-
-class CloudDevOpsWikiAdapter:
-    """Adapter for CloudDevOps Wiki authoring activity.
-
-    CloudDevOps Wiki is a Huawei-internal web platform. There's no local
-    session store — activity must be fetched via an API or CLI plugin.
-
-    Detection: checks for `opencli` in PATH (the Huawei internal CLI bridge).
-    If a `clouddevops-wiki` plugin is available via opencli, this adapter
-    will use it to fetch wiki edit/publish timestamps.
-
-    Currently detector-only: the opencli plugin for CloudDevOps Wiki doesn't
-    expose structured timestamps yet. When it does, collect() will yield
-    doc_authoring events. The adapter is registered so that a colleague with
-    the plugin gets automatic detection.
-    """
-
-    name = "clouddevops_wiki"
-    source_kind = "doc_authoring"
-    detector_only = True  # detects opencli but collect() yields nothing yet
-
-    def detect(self) -> bool:
-        # Check if opencli is available AND has a dedicated clouddevops-wiki command.
-        # We check for "clouddevops" as a command name, NOT just "wiki" (which
-        # appears in the huawei-3ms plugin description and would false-positive).
-        if not shutil.which("opencli"):
-            return False
-        try:
-            result = subprocess.run(
-                ["opencli", "list"], capture_output=True, text=True,
-                encoding="utf-8", errors="replace", timeout=15,
-            )
-            if result.returncode != 0:
-                return False
-            # Look for a line that starts with "clouddevops" (a command name).
-            for line in result.stdout.split("\n"):
-                if line.strip().lower().startswith("clouddevops"):
-                    return True
-            return False
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            return False
-
-    def collect(self) -> Iterator[dict]:
-        # Placeholder: the opencli clouddevops-wiki plugin doesn't yet expose
-        # structured publish/edit timestamps. When it does, this will yield
-        # doc_authoring events with title, url, author, publish_time, edit_time.
-        return
-        yield  # make it a generator
-
-    def collect_since(self, watermark: float | None) -> Iterator[dict]:
-        yield from self.collect()
-
-
-# ---------------------------------------------------------------------------
-# W3 (Huawei internal portal, via opencli plugin)
-# ---------------------------------------------------------------------------
-
-class W3Adapter:
-    """Adapter for W3 (Huawei internal portal) activity.
-
-    W3 is Huawei's internal web portal. Like CloudDevOps Wiki, there's no
-    local session store — activity would come via an API or CLI plugin.
-
-    Detection: checks for `opencli` with a w3 command.
-    Currently detector-only (same as CloudDevOpsWikiAdapter).
-    """
-
-    name = "w3"
-    source_kind = "doc_authoring"
-    detector_only = True  # detects opencli but collect() yields nothing yet
-
-    def detect(self) -> bool:
-        if not shutil.which("opencli"):
-            return False
-        try:
-            result = subprocess.run(
-                ["opencli", "list"], capture_output=True, text=True,
-                encoding="utf-8", errors="replace", timeout=15,
-            )
-            if result.returncode != 0:
-                return False
-            # Check for w3 commands (but not huawei-3ms which is a different source).
-            output = result.stdout.lower()
-            # Look for a standalone w3 command, not w3 within another command name.
-            lines = output.split("\n")
-            for line in lines:
-                if line.strip().startswith("w3") or "w3 " in line.lower():
-                    return True
-            return False
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            return False
-
-    def collect(self) -> Iterator[dict]:
-        # Placeholder: the W3 access path is not yet defined. When an opencli
-        # w3 plugin exposes structured timestamps, this will yield doc_authoring
-        # events.
-        return
-        yield  # make it a generator
-
-    def collect_since(self, watermark: float | None) -> Iterator[dict]:
-        yield from self.collect()
-
-
-# ---------------------------------------------------------------------------
 # Registration helper
 # ---------------------------------------------------------------------------
 
@@ -502,5 +394,3 @@ def register_unverified_adapters(registry) -> None:
     registry.register(CodexAdapter())
     registry.register(OpenclawAdapter())
     registry.register(HermesAgentAdapter())
-    registry.register(CloudDevOpsWikiAdapter())
-    registry.register(W3Adapter())

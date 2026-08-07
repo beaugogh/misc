@@ -87,19 +87,7 @@ class _FakeAuthAdapter(_FakeAdapter):
 # ---------------------------------------------------------------------------
 
 class TestDetectorOnlyAttribute(unittest.TestCase):
-    """The three placeholder adapters must carry detector_only=True."""
-
-    def test_3ms_is_detector_only(self):
-        from more_adapters import ThreeMsAdapter
-        self.assertTrue(getattr(ThreeMsAdapter(), "detector_only", False))
-
-    def test_clouddevops_wiki_is_detector_only(self):
-        from unverified_adapters import CloudDevOpsWikiAdapter
-        self.assertTrue(getattr(CloudDevOpsWikiAdapter(), "detector_only", False))
-
-    def test_w3_is_detector_only(self):
-        from unverified_adapters import W3Adapter
-        self.assertTrue(getattr(W3Adapter(), "detector_only", False))
+    """Placeholder adapters must carry detector_only=True."""
 
     def test_real_adapter_not_detector_only(self):
         from more_adapters import WeLinkRecordingsAdapter
@@ -282,13 +270,13 @@ class TestAuthStatus(unittest.TestCase):
     def test_auth_status_not_called_when_detector_only(self):
         """auth_status() must not be called for detector-only adapters."""
         a = _FakeAuthAdapter(
-            name="3ms",
+            name="fake_detector",
             detect_result=True,
             detector_only=True,
             auth_result=("not_authenticated", "should not be reached"),
         )
         out = self._render([a])
-        line = self._adapter_line(out, "3ms")
+        line = self._adapter_line(out, "fake_detector")
         self.assertIn("DETECTOR-ONLY", line)
 
     def test_auth_hint_overrides_adapter_hint(self):
@@ -517,7 +505,7 @@ class TestCheckNoCollection(unittest.TestCase):
                 except SystemExit:
                     pass
         out = buf.getvalue()
-        for name in ("claude_code", "git", "3ms", "clouddevops_wiki", "w3"):
+        for name in ("claude_code", "git", "welink_recordings"):
             self.assertIn(name, out)
 
 

@@ -98,8 +98,6 @@ _ADAPTER_HINTS = {
     "codex": "Codex AI sessions — works with zero setup if Codex is installed",
     "openclaw": "OpenClaw AI sessions — works with zero setup if OpenClaw is installed",
     "hermes_agent": "Hermes AI sessions — works with zero setup if Hermes is installed",
-    "clouddevops_wiki": "CloudDevOps Wiki — requires OpenCLI plugin; see README.md §optional-tools",
-    "w3": "W3 portal — requires OpenCLI plugin; see README.md §optional-tools",
 }
 
 from sources import default_registry

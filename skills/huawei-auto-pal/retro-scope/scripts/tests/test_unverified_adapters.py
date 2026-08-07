@@ -25,8 +25,6 @@ from unverified_adapters import (
     CodexAdapter,
     OpenclawAdapter,
     HermesAgentAdapter,
-    CloudDevOpsWikiAdapter,
-    W3Adapter,
 )
 
 
@@ -200,43 +198,16 @@ class TestHermesAgentAdapter(unittest.TestCase):
             self.assertEqual(events[0]["source"], "hermes_agent")
 
 
-class TestCloudDevOpsWikiAdapter(unittest.TestCase):
-    def test_detect_false_when_opencli_absent(self):
-        a = CloudDevOpsWikiAdapter()
-        # opencli may or may not be present, but the wiki command likely isn't.
-        # Just verify detect() doesn't crash.
-        result = a.detect()
-        self.assertIsInstance(result, bool)
-
-    def test_collect_is_generator(self):
-        a = CloudDevOpsWikiAdapter()
-        # collect() should yield nothing (placeholder).
-        events = list(a.collect())
-        self.assertEqual(len(events), 0)
-
-
-class TestW3Adapter(unittest.TestCase):
-    def test_detect_false_when_opencli_absent(self):
-        a = W3Adapter()
-        result = a.detect()
-        self.assertIsInstance(result, bool)
-
-    def test_collect_is_generator(self):
-        a = W3Adapter()
-        events = list(a.collect())
-        self.assertEqual(len(events), 0)
-
-
 class TestRegistration(unittest.TestCase):
     def test_register_all_adapters(self):
-        """register_unverified_adapters registers all 5 adapters."""
+        """register_unverified_adapters registers all 3 adapters."""
         from sources import SourceRegistry
         from unverified_adapters import register_unverified_adapters
         reg = SourceRegistry()
         register_unverified_adapters(reg)
         names = [adapter.name for adapter in reg._adapters]
         self.assertEqual(names, [
-            "codex", "openclaw", "hermes_agent", "clouddevops_wiki", "w3",
+            "codex", "openclaw", "hermes_agent",
         ])
 
 
