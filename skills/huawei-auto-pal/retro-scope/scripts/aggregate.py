@@ -808,6 +808,7 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 
     # --- Top tasks list (ranked by HUMAN engaged time, not raw active time) ---
     top_tasks_html = ""
+    recurring_grouped_html = ""
     if tasks:
         def _human_engaged_h(t: dict) -> float:
             return (t.get("human_data") or {}).get("human_engaged_seconds", 0) or 0
@@ -866,6 +867,46 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 {chr(10).join(rows)}
   </tbody>
 </table>"""
+
+            # Grouped recurring time sinks: subjects appearing 2+ times.
+            from collections import defaultdict as _dd
+            _groups: dict[str, list[dict]] = _dd(list)
+            for t in tasks:
+                subj = (t.get("subject") or "(no subject)").strip()
+                if subj:
+                    _groups[subj].append(t)
+            _recurring = [(s, ts) for s, ts in _groups.items() if len(ts) >= 2]
+            _recurring.sort(key=lambda x: sum(_human_engaged_h(t) for t in x[1]), reverse=True)
+            if _recurring:
+                _grp_rows = []
+                for i, (subj, ts) in enumerate(_recurring[:10], 1):
+                    total_h = sum(_human_engaged_h(t) for t in ts) / 3600
+                    count = len(ts)
+                    kind = html_mod.escape(classify_task(ts[0])[:11])
+                    starts = sorted(t.get("start") or 0 for t in ts)
+                    date_range = (f"{_dt.fromtimestamp(starts[0]).strftime('%m-%d')} → "
+                                  f"{_dt.fromtimestamp(starts[-1]).strftime('%m-%d')}")
+                    subj_esc = html_mod.escape(subj[:55])
+                    _grp_rows.append(
+                        f'      <tr>'
+                        f'<td class="num">{i}</td>'
+                        f'<td class="num">{total_h:.1f}h</td>'
+                        f'<td class="num">{count}</td>'
+                        f'<td>{kind}</td>'
+                        f'<td>{date_range}</td>'
+                        f'<td>{subj_esc}</td>'
+                        f'</tr>'
+                    )
+                recurring_grouped_html = f"""<h2>Recurring time sinks (grouped by subject)</h2>
+<p class="hint">The same activity split across multiple sessions/days. Total human time across all occurrences.</p>
+<table class="top-tasks">
+  <thead><tr><th>#</th><th>Total Human</th><th>Count</th><th>Type</th><th>Date range</th><th>Subject</th></tr></thead>
+  <tbody>
+{chr(10).join(_grp_rows)}
+  </tbody>
+</table>"""
+            else:
+                recurring_grouped_html = ""
 
         # Low-engagement tasks: active time but NOT genuine time sinks.
         # These are likely forgotten tabs / abandoned sessions (rubric 54-60).
@@ -1073,6 +1114,8 @@ def render_html(agg: dict, granularity: str, tasks: list[dict] | None = None,
 {recurring_painpoints_html}
 
 {top_tasks_html}
+
+{recurring_grouped_html}
 
 <hr class="section-divider">
 

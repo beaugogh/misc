@@ -716,6 +716,33 @@ def _render_top_tasks(tasks: list[dict], n: int) -> str:
         lines.append(f"       id: {t.get('id', '?')}")
     lines.append("")
     lines.append("Drill into any task:  python run.py --task <id> --drill")
+
+    # Grouped summary: show subjects that appear multiple times, summed.
+    from collections import defaultdict
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for t in tasks:
+        subj = (t.get("subject") or "(no subject)").strip()
+        if subj:
+            groups[subj].append(t)
+    recurring = [(subj, ts) for subj, ts in groups.items() if len(ts) >= 2]
+    recurring.sort(key=lambda x: sum(_human_engaged_h(t) for t in x[1]), reverse=True)
+    if recurring:
+        lines.append("")
+        lines.append(f"# Recurring time sinks (grouped by subject, top {min(10, len(recurring))})")
+        lines.append(f"{'#':>3}  {'Total':>7}  {'Count':>5}  {'Kind':<11} {'Date range':<22} {'Subject'}")
+        lines.append("-" * 100)
+        for i, (subj, ts) in enumerate(recurring[:10], 1):
+            total_h = sum(_human_engaged_h(t) for t in ts) / 3600
+            count = len(ts)
+            kind = (ts[0].get("source_kind") or "?")[:11]
+            starts = sorted(t.get("start") or 0 for t in ts)
+            from datetime import datetime as _dt2
+            date_range = (f"{_dt2.fromtimestamp(starts[0]).strftime('%m-%d')} → "
+                          f"{_dt2.fromtimestamp(starts[-1]).strftime('%m-%d')}")
+            lines.append(f"{i:>3}  {total_h:>6.1f}h  {count:>5}  {kind:<11} {date_range:<22} {subj[:45]}")
+        lines.append("")
+        lines.append("(These are the same activity split across multiple sessions/days.)")
+
     return "\n".join(lines)
 
 

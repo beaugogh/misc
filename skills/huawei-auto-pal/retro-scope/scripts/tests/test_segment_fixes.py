@@ -594,5 +594,120 @@ class TestTimelineEnrichment(unittest.TestCase):
         self.assertNotIn("hash", entry)
 
 
+class TestMergeAutomatedFragments(unittest.TestCase):
+    """Test the _merge_automated_fragments function."""
+
+    def _task(self, subject, start, end, session_id="ses-1",
+              flavor="implicit", involvement="low", active=300):
+        return {
+            "id": f"implicit-{start}",
+            "flavor": flavor,
+            "subject": subject,
+            "session_id": session_id,
+            "start": start,
+            "end": end,
+            "active_seconds": active,
+            "wall_clock_seconds": active,
+            "event_count": 5,
+            "tool_calls": 0,
+            "errors": 0,
+            "tool_names": [],
+            "human_data": {
+                "human_involvement": involvement,
+                "human_engaged_seconds": active,
+                "human_action_count": 1,
+                "machine_autonomous_seconds": 0,
+                "is_genuine_time_sink": True,
+            },
+        }
+
+    def test_merges_same_subject_fragments(self):
+        """Multiple fragments with same subject in same session merge into 1."""
+        from segment_tasks import _merge_automated_fragments
+        tasks = [
+            self._task("Report progress", 1000, 1300),
+            self._task("Report progress", 1300, 1600),
+            self._task("Report progress", 1600, 1900),
+        ]
+        result = _merge_automated_fragments(tasks)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["start"], 1000)
+        self.assertEqual(result[0]["end"], 1900)
+        self.assertEqual(result[0]["active_seconds"], 900)
+        self.assertEqual(result[0]["_merged_count"], 3)
+
+    def test_does_not_merge_different_subjects(self):
+        """Tasks with different subjects are NOT merged."""
+        from segment_tasks import _merge_automated_fragments
+        tasks = [
+            self._task("Report A", 1000, 1300),
+            self._task("Report B", 1300, 1600),
+            self._task("Report A", 1600, 1900),
+        ]
+        result = _merge_automated_fragments(tasks)
+        # Report A fragments should merge (2 → 1), Report B stays (1)
+        # Total: 2 (1 merged Report A + 1 Report B)
+        self.assertEqual(len(result), 2)
+
+    def test_does_not_merge_different_sessions(self):
+        """Tasks from different sessions are NOT merged."""
+        from segment_tasks import _merge_automated_fragments
+        tasks = [
+            self._task("Report", 1000, 1300, session_id="ses-1"),
+            self._task("Report", 1300, 1600, session_id="ses-2"),
+        ]
+        result = _merge_automated_fragments(tasks)
+        self.assertEqual(len(result), 2)
+
+    def test_does_not_merge_large_gaps(self):
+        """Tasks with gaps > 30 min are NOT merged."""
+        from segment_tasks import _merge_automated_fragments
+        gap = 31 * 60  # 31 min
+        tasks = [
+            self._task("Report", 1000, 1300),
+            self._task("Report", 1300 + gap, 1600 + gap),
+        ]
+        result = _merge_automated_fragments(tasks)
+        self.assertEqual(len(result), 2)
+
+    def test_does_not_merge_high_involvement(self):
+        """High-involvement tasks are NOT merged (real user work)."""
+        from segment_tasks import _merge_automated_fragments
+        tasks = [
+            self._task("Report", 1000, 1300, involvement="high"),
+            self._task("Report", 1300, 1600, involvement="high"),
+        ]
+        result = _merge_automated_fragments(tasks)
+        self.assertEqual(len(result), 2)
+
+    def test_does_not_merge_explicit_tasks(self):
+        """Explicit (TaskCreate) tasks are NOT merged."""
+        from segment_tasks import _merge_automated_fragments
+        tasks = [
+            self._task("Report", 1000, 1300, flavor="explicit"),
+            self._task("Report", 1300, 1600, flavor="explicit"),
+        ]
+        result = _merge_automated_fragments(tasks)
+        self.assertEqual(len(result), 2)
+
+    def test_merges_interleaved_subjects(self):
+        """Interleaved subjects (A, B, A, B, A) merge into (A, B)."""
+        from segment_tasks import _merge_automated_fragments
+        tasks = [
+            self._task("Report A", 1000, 1300),
+            self._task("Report B", 1300, 1600),
+            self._task("Report A", 1600, 1900),
+            self._task("Report B", 1900, 2200),
+            self._task("Report A", 2200, 2500),
+        ]
+        result = _merge_automated_fragments(tasks)
+        self.assertEqual(len(result), 2)
+        # Find which is A and which is B
+        a_task = [t for t in result if "A" in t["subject"]][0]
+        b_task = [t for t in result if "B" in t["subject"]][0]
+        self.assertEqual(a_task["_merged_count"], 3)
+        self.assertEqual(b_task["_merged_count"], 2)
+
+
 if __name__ == "__main__":
     unittest.main()

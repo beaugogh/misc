@@ -1294,7 +1294,118 @@ def segment(events: list[dict], use_advanced: bool = True) -> list[dict]:
             implicit_tasks.extend(segment_implicit(evs, counter))
     all_tasks = explicit_tasks + implicit_tasks
     all_tasks.sort(key=lambda t: t.get("start") or 0.0)
+    # Merge over-segmented fragments from the same automated/monitoring session
+    # (e.g. "Report ch5 synth progress" every 5 min → 115 fragments → 1 task).
+    all_tasks = _merge_automated_fragments(all_tasks)
     return all_tasks
+
+
+def _subject_key(subject: str | None) -> str:
+    """Normalize a subject for grouping: lowercase, first 40 chars, stripped."""
+    if not subject:
+        return ""
+    return subject.strip().lower()[:40]
+
+
+def _merge_automated_fragments(tasks: list[dict]) -> list[dict]:
+    """Merge implicit tasks from the same session that are likely fragments
+    of one automated/monitoring activity.
+
+    Merges tasks when ALL conditions hold:
+    - Same session_id
+    - Same (or very similar) subject (first 40 chars, case-insensitive)
+    - Both have low or moderate human involvement (automated pattern)
+    - Both are implicit (not explicit TaskCreate-bound)
+
+    Tasks are grouped by (session_id, subject_key), then within each group,
+    tasks are sorted by start time and merged if the gap between consecutive
+    same-subject tasks is < GAP_THRESHOLD_SECONDS. This handles interleaved
+    subjects (e.g. "Report ch4" and "Report ch5" alternating every 5 minutes)
+    by grouping rather than requiring consecutive adjacency.
+
+    This reduces 115 five-minute "Report ch5 synth progress" fragments into
+    1 merged task. Real user-led tasks with different subjects are NOT merged.
+    """
+    if len(tasks) < 2:
+        return tasks
+
+    # Group tasks by (session_id, subject_key) for merging candidates.
+    from collections import defaultdict
+    groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    non_mergeable: list[dict] = []  # explicit or high-involvement tasks
+
+    for t in tasks:
+        sid = t.get("session_id") or ""
+        sk = _subject_key(t.get("subject"))
+        inv = (t.get("human_data") or {}).get("human_involvement", "moderate")
+        is_implicit = t.get("flavor") == "implicit"
+        is_low = inv in ("low", "moderate")
+        if is_implicit and is_low and sk:
+            groups[(sid, sk)].append(t)
+        else:
+            non_mergeable.append(t)
+
+    # Merge within each group.
+    merged_tasks: list[dict] = []
+    for (sid, sk), group in groups.items():
+        if len(group) < 2:
+            merged_tasks.extend(group)
+            continue
+        group.sort(key=lambda t: t.get("start") or 0.0)
+        current = dict(group[0])
+        current["_merged_count"] = 1
+        for t in group[1:]:
+            gap = (t.get("start") or 0) - (current.get("end") or 0)
+            if gap < GAP_THRESHOLD_SECONDS:
+                # Merge t into current.
+                current["end"] = max(current.get("end") or 0, t.get("end") or 0)
+                current["active_seconds"] = (current.get("active_seconds") or 0) + \
+                                             (t.get("active_seconds") or 0)
+                current["wall_clock_seconds"] = (current.get("wall_clock_seconds") or 0) + \
+                                                 (t.get("wall_clock_seconds") or 0)
+                current["event_count"] = (current.get("event_count") or 0) + \
+                                          (t.get("event_count") or 0)
+                current["tool_calls"] = (current.get("tool_calls") or 0) + \
+                                         (t.get("tool_calls") or 0)
+                current["errors"] = (current.get("errors") or 0) + \
+                                     (t.get("errors") or 0)
+                current["_merged_count"] += 1
+                # Merge tool_names.
+                tn = set(current.get("tool_names") or []) | set(t.get("tool_names") or [])
+                current["tool_names"] = sorted(tn)
+                # Merge human_data.
+                c_hd = current.get("human_data") or {}
+                t_hd = t.get("human_data") or {}
+                t_inv = t_hd.get("human_involvement", "moderate")
+                c_inv = c_hd.get("human_involvement", "moderate")
+                c_hd["human_engaged_seconds"] = (c_hd.get("human_engaged_seconds") or 0) + \
+                                                 (t_hd.get("human_engaged_seconds") or 0)
+                c_hd["human_action_count"] = (c_hd.get("human_action_count") or 0) + \
+                                              (t_hd.get("human_action_count") or 0)
+                c_hd["machine_autonomous_seconds"] = (c_hd.get("machine_autonomous_seconds") or 0) + \
+                                                      (t_hd.get("machine_autonomous_seconds") or 0)
+                for level in ("high", "moderate", "low"):
+                    if level in (t_inv, c_inv):
+                        c_hd["human_involvement"] = level
+                        break
+                current["human_data"] = c_hd
+            else:
+                # Gap too large — start a new merged group.
+                merged_tasks.append(current)
+                current = dict(t)
+                current["_merged_count"] = 1
+        merged_tasks.append(current)
+
+    # Combine merged tasks with non-mergeable ones, sorted by start time.
+    all_merged = merged_tasks + non_mergeable
+    all_merged.sort(key=lambda t: t.get("start") or 0.0)
+
+    # Clean up: remove _merged_count if only 1 fragment (no merge happened).
+    for t in all_merged:
+        if t.get("_merged_count", 1) == 1:
+            t.pop("_merged_count", None)
+
+    return all_merged
 
 
 if __name__ == "__main__":
