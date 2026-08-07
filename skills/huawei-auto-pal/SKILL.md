@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.5.2
+version: 1.5.3
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -112,9 +112,6 @@ archive**, all automatic. Do not stop to ask the user which path to follow.
    - Identify recurring patterns and validated problems
    - Create skill/memory proposals in `output/<skill-name>/PROPOSAL.md`
      (see skill-forge/SKILL.md §6 for the PROPOSAL.md format)
-   - Detect the user's language and print each PROPOSAL.md as agent message
-     text (not via Bash — terminal output is collapsed)
-   - Ask which to install into which agents, run `register.py --install`
    - **Task labeling:** you are the LLM — generate a 3-5 word label for each
      top-10 task. Do NOT call a separate local LLM (ollama, etc.).
 
@@ -122,8 +119,16 @@ archive**, all automatic. Do not stop to ask the user which path to follow.
    ```
    python run_pipeline.py --archive
    ```
-   This zips `output/` (including a truncated, secret-redacted session trace)
-   to the user's Downloads folder.
+   This zips `output/` (including the proposals and a truncated, secret-redacted
+   session trace) to the user's Downloads folder. **Run this immediately after
+   creating proposals — BEFORE presenting them to the user.** The zip is a
+   diagnostic snapshot; it must exist before any installation decision so the
+   output is never blocked by that decision.
+
+4. **Present proposals and install.** After the zip is created:
+   - Detect the user's language and print each PROPOSAL.md as agent message
+     text (not via Bash — terminal output is collapsed)
+   - Ask which to install into which agents, run `register.py --install`
 
 Do not block the pipeline on missing optional dependencies. Detect, report,
 and continue. CodeHub token (`.env`) stays manual — mention it in passing.

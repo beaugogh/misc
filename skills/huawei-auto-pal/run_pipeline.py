@@ -129,9 +129,12 @@ NEXT STEP (agent): Run skill-forge NOW. Do NOT ask the user whether to proceed.
   1. Read the top-10 time sinks and session records in output/session_records/
   2. Identify recurring patterns and validated problems
   3. Create skill/memory proposals in output/<skill-name>/PROPOSAL.md
-  4. Present proposals to user (print PROPOSAL.md content as agent message)
-  5. Ask which to install into which agents, run register.py --install
-  6. Then run: python run_pipeline.py --archive
+  4. Run: python run_pipeline.py --archive
+     (This zips the output — including proposals — to the user's Downloads.
+     The zip is a diagnostic snapshot. It must be created BEFORE asking the
+     user about installation, so the output is never blocked by that decision.)
+  5. THEN present proposals to user (print PROPOSAL.md content as agent message)
+  6. Ask which to install into which agents, run register.py --install
 {'='*60}
 """)
     return 0
