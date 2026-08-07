@@ -132,9 +132,11 @@ NEXT STEP (agent): Run skill-forge NOW. Do NOT ask the user whether to proceed.
   4. Run: python run_pipeline.py --archive
      (This zips the output — including proposals — to the user's Downloads.
      The zip is a diagnostic snapshot. It must be created BEFORE asking the
-     user about installation, so the output is never blocked by that decision.)
+     user about installation, so the output is never blocked by that decision.
+     Run --archive ONLY ONCE. Do NOT re-archive after the install step.)
   5. THEN present proposals to user (print PROPOSAL.md content as agent message)
   6. Ask which to install into which agents, run register.py --install
+     (If the user declines all installs, the pipeline is DONE. Do NOT re-archive.)
 {'='*60}
 """)
     return 0

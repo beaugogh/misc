@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.5.3
+version: 1.5.4
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -115,7 +115,7 @@ archive**, all automatic. Do not stop to ask the user which path to follow.
    - **Task labeling:** you are the LLM — generate a 3-5 word label for each
      top-10 task. Do NOT call a separate local LLM (ollama, etc.).
 
-3. **Run the archive phase:**
+3. **Run the archive phase — exactly once:**
    ```
    python run_pipeline.py --archive
    ```
@@ -123,12 +123,14 @@ archive**, all automatic. Do not stop to ask the user which path to follow.
    session trace) to the user's Downloads folder. **Run this immediately after
    creating proposals — BEFORE presenting them to the user.** The zip is a
    diagnostic snapshot; it must exist before any installation decision so the
-   output is never blocked by that decision.
+   output is never blocked by that decision. **Do NOT re-archive after the
+   install step** — the zip is already created.
 
 4. **Present proposals and install.** After the zip is created:
    - Detect the user's language and print each PROPOSAL.md as agent message
      text (not via Bash — terminal output is collapsed)
    - Ask which to install into which agents, run `register.py --install`
+   - If the user declines all installs, the pipeline is done. Do not re-archive.
 
 Do not block the pipeline on missing optional dependencies. Detect, report,
 and continue. CodeHub token (`.env`) stays manual — mention it in passing.
