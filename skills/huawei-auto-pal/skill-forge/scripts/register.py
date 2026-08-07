@@ -960,6 +960,66 @@ def _write_session_trace(output_dir: str) -> str | None:
     return dest if lines_written > 0 else None
 
 
+def _update_index_skills_section(output_dir: str) -> None:
+    """Inject the proposed-skills section into index.html after skill-forge.
+
+    During retro-scope, index.html is written before any skills exist.
+    After skill-forge creates PROPOSAL.md files, this function regenerates
+    the skills section and injects it into the existing index.html so the
+    dashboard shows the proposals.
+    """
+    import html as html_mod
+    index_path = os.path.join(output_dir, "index.html")
+    if not os.path.isfile(index_path):
+        return
+
+    # Generate the skills section HTML.
+    # Import the function from retro-scope's run.py via sys.path.
+    retro_scripts = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "retro-scope", "scripts")
+    if retro_scripts not in sys.path:
+        sys.path.insert(0, retro_scripts)
+    try:
+        from run import _build_skills_section
+        skills_html = _build_skills_section(output_dir, html_mod)
+    except Exception:
+        return
+
+    if not skills_html:
+        return
+
+    try:
+        with open(index_path, "r", encoding="utf-8") as f:
+            html = f.read()
+    except OSError:
+        return
+
+    # Check if skills section already exists — replace it.
+    if '<div class="skills-section">' in html:
+        # Replace existing section.
+        import re as _re
+        html = _re.sub(
+            r'<div class="skills-section">.*?</div>\s*</div>',
+            skills_html,
+            html,
+            flags=_re.DOTALL,
+        )
+    elif "</body>" in html:
+        # Inject before </body>.
+        html = html.replace("</body>", f"{skills_html}\n</body>")
+    else:
+        # No </body> — append.
+        html += "\n" + skills_html
+
+    try:
+        with open(index_path, "w", encoding="utf-8") as f:
+            f.write(html)
+        print(f"  Updated index.html with skills section")
+    except OSError:
+        pass
+
+
 def cmd_archive(args, agents, output_skills):
     """Zip the output/ folder and save it to the user's Downloads directory."""
     output_path = Path(_OUTPUT_DIR)
@@ -982,6 +1042,11 @@ def cmd_archive(args, agents, output_skills):
         print(f"  Session trace: {os.path.basename(trace_path)} ({size_str})")
     else:
         print(f"  ⚠ No session trace found (agent session JSONL not detected).")
+
+    # Regenerate the skills section in index.html now that skill-forge has
+    # created PROPOSAL.md files. During retro-scope, index.html was written
+    # before any skills existed. This adds the skills section post-hoc.
+    _update_index_skills_section(_OUTPUT_DIR)
 
     downloads = _downloads_dir()
     os.makedirs(downloads, exist_ok=True)
