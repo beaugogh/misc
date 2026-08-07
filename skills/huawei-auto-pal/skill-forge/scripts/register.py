@@ -53,7 +53,7 @@ _OUTPUT_DIR = os.path.normpath(os.path.join(_HERE, "..", "..", "output"))
 _OUTPUT_DIR = os.environ.get("SKILL_FORGE_OUTPUT_DIR", _OUTPUT_DIR)
 
 from agent_targets import discover_agents, format_agents_report, AgentTarget
-from skill_installer import install_skill, install_memory, InstallResult
+from skill_installer import install_skill, install_memory, update_skill, InstallResult
 
 
 def _find_output_skills(output_dir: str) -> list[str]:
@@ -77,6 +77,98 @@ def _is_installed(skill_name: str, agent: AgentTarget) -> bool:
     if agent.skills_dir is None:
         return False
     return (Path(agent.skills_dir) / skill_name).exists()
+
+
+def scan_installed_skills(agents: list[AgentTarget]) -> dict[str, list[dict]]:
+    """Scan each detected agent's skills/ directory for installed skills.
+
+    Returns a dict: {agent_id: [{name, description, path}, ...]}.
+    Read-only — only reads SKILL.md frontmatter, never modifies anything.
+
+    This gives skill-forge visibility into what's already installed so it can:
+    - Skip creating a redundant skill that overlaps with an installed one
+    - Propose an update to an existing skill instead of creating a new one
+    - Note the overlap in PROPOSAL.md
+    """
+    result: dict[str, list[dict]] = {}
+    for agent in agents:
+        if agent.skills_dir is None:
+            continue
+        skills_path = Path(agent.skills_dir)
+        if not skills_path.is_dir():
+            continue
+        installed: list[dict] = []
+        try:
+            for entry in sorted(skills_path.iterdir()):
+                if not entry.is_dir():
+                    continue
+                skill_md = entry / "SKILL.md"
+                if not skill_md.is_file():
+                    continue
+                desc = _read_frontmatter_description(str(entry)) or ""
+                installed.append({
+                    "name": entry.name,
+                    "description": desc[:200],  # truncate for display
+                    "path": str(entry),
+                })
+        except OSError:
+            pass
+        if installed:
+            result[agent.agent_id] = installed
+    return result
+
+
+def cmd_installed(args, agents, output_skills):
+    """Print all skills installed across all detected agents.
+
+    Used by skill-forge before creating proposals — gives the LLM visibility
+    into existing skills so it can avoid redundancy and propose updates
+    instead of duplicates.
+    """
+    installed = scan_installed_skills(agents)
+    if not installed:
+        print("# No skills installed in any detected agent.")
+        print()
+        print(format_agents_report(agents))
+        return
+
+    print("# Installed skills (across all detected agents)")
+    print()
+    for agent in agents:
+        skills = installed.get(agent.agent_id, [])
+        if not skills:
+            if agent.skills_dir is None:
+                print(f"## {agent.display_name} — no skills directory")
+            else:
+                print(f"## {agent.display_name} — no skills installed")
+            print()
+            continue
+        print(f"## {agent.display_name} ({len(skills)} skill{'s' if len(skills) != 1 else ''})")
+        print()
+        for s in skills:
+            desc = s["description"]
+            if desc:
+                # Truncate description to one line for readability.
+                first_line = desc.split("\n")[0][:120]
+                print(f"  {s['name']:40s}  {first_line}")
+            else:
+                print(f"  {s['name']:40s}  (no description)")
+        print()
+    # Summary of unique skill names across all agents.
+    all_names: dict[str, list[str]] = {}
+    for agent_id, skills in installed.items():
+        for s in skills:
+            all_names.setdefault(s["name"], []).append(agent_id)
+    if len(all_names) > 1:
+        print(f"## Summary: {len(all_names)} unique skill{'s' if len(all_names) != 1 else ''}")
+        print()
+        for name, agent_ids in sorted(all_names.items()):
+            count = len(agent_ids)
+            if count > 1:
+                print(f"  {name:40s}  (in {count} agents: {', '.join(agent_ids)})")
+            else:
+                print(f"  {name:40s}  (in {agent_ids[0]})")
+        print()
 
 
 def _safe_output_subpath(name: str) -> str:
@@ -472,7 +564,16 @@ def cmd_install(args, agents, output_skills):
     any_success = False
     for agent in targets:
         if _is_installed(name, agent):
-            print(f"  {agent.display_name}: already installed, skipping")
+            if getattr(args, 'update', False):
+                # --update: back up existing, overwrite with new version.
+                result = update_skill(source, agent, dry_run=args.dry_run)
+                status = "✓" if result.success else "✗"
+                print(f"  {agent.display_name}: {status} {result.action} — {result.detail}")
+                if result.success:
+                    any_success = True
+            else:
+                print(f"  {agent.display_name}: already installed, skipping "
+                      f"(use --update to overwrite)")
             continue
         result = install_skill(source, agent, dry_run=args.dry_run)
         status = "✓" if result.success else "✗"
@@ -1168,16 +1269,19 @@ def main():
                     help="preview without writing anything")
     ap.add_argument("--all-agents", action="store_true",
                     help="install into all detected agents")
+    ap.add_argument("--installed", action="store_true",
+                    help="list all skills already installed across all detected agents")
+    ap.add_argument("--update", action="store_true",
+                    help="with --install: back up and overwrite an existing skill instead of skipping")
     args = ap.parse_args()
 
-    # --archive, --dist, --install, --install-memory, --describe, --present are
-    # mutually exclusive action modes. Passing more than one silently shadows
-    # the others.
+    # --archive, --dist, --install, --install-memory, --describe, --present,
+    # --installed are mutually exclusive action modes.
     mode_count = sum(1 for m in (args.archive, args.dist, bool(args.install),
                                   args.install_memory, bool(args.describe),
-                                  args.present) if m)
+                                  args.present, args.installed) if m)
     if mode_count > 1:
-        print("Error: --archive, --dist, --install, --install-memory, --describe, and --present are mutually exclusive.",
+        print("Error: --archive, --dist, --install, --install-memory, --describe, --present, and --installed are mutually exclusive.",
               file=sys.stderr)
         sys.exit(1)
 
@@ -1196,6 +1300,8 @@ def main():
         cmd_install(args, agents, output_skills)
     elif args.install_memory:
         cmd_install_memory(args, agents, output_skills)
+    elif args.installed:
+        cmd_installed(args, agents, output_skills)
     else:
         cmd_list(args, agents, output_skills)
 

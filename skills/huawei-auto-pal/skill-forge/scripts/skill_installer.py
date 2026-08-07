@@ -121,6 +121,104 @@ def install_skill(
     )
 
 
+def update_skill(
+    source_dir: str,
+    agent: AgentTarget,
+    backup_dir: str | None = None,
+    dry_run: bool = False,
+) -> InstallResult:
+    """Update an existing skill in an agent's skills/ directory.
+
+    Backs up the existing skill, then overwrites with the new version.
+    The backup is placed at ``backup_dir/<skill_name>/<timestamp>/`` if
+    ``backup_dir`` is provided, otherwise at
+    ``output/.skill-forge-backups/<skill_name>/<timestamp>/`` relative to
+    the source skill's parent's parent (the output/ directory).
+
+    Returns InstallResult with action="updated" or "error".
+    """
+    source = Path(source_dir)
+    if not source.is_dir():
+        return InstallResult(False, "error", source_dir, "source directory does not exist")
+    if not (source / "SKILL.md").is_file():
+        return InstallResult(False, "error", source_dir, "source has no SKILL.md")
+
+    skill_name = source.name
+
+    if agent.skills_dir is None:
+        return InstallResult(
+            False, "unsupported", "",
+            f"{agent.display_name} does not support skill directories"
+        )
+
+    target = Path(agent.skills_dir) / skill_name
+
+    if not target.exists():
+        # Nothing to update — fall back to install.
+        return install_skill(source_dir, agent, dry_run=dry_run)
+
+    # Determine backup location.
+    if backup_dir is None:
+        # Default: output/.skill-forge-backups/<name>/<timestamp>/
+        # source is output/<name>/ → output/ is source.parent
+        output_root = source.parent
+        backup_base = output_root / ".skill-forge-backups"
+    else:
+        backup_base = Path(backup_dir)
+
+    import time as _time
+    timestamp = _time.strftime("%Y%m%d-%H%M%S")
+    backup_path = backup_base / skill_name / timestamp
+
+    if dry_run:
+        return InstallResult(
+            True, "dry_run", str(target),
+            f"would back up {target} → {backup_path}, then overwrite with {skill_name}/",
+        )
+
+    # 1. Back up the existing skill.
+    try:
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(target, backup_path,
+                        symlinks=True,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"))
+    except Exception as e:
+        return InstallResult(
+            False, "error", str(target),
+            f"backup failed ({e}) — existing skill left untouched at {target}",
+        )
+
+    # 2. Remove the old skill and copy the new one.
+    try:
+        shutil.rmtree(target, ignore_errors=False)
+        shutil.copytree(source, target,
+                        symlinks=True,
+                        ignore=shutil.ignore_patterns("PROPOSAL.md", "__pycache__", "*.pyc", "*.pyo"))
+        if not (target / "SKILL.md").is_file():
+            # Restore from backup if copy failed.
+            shutil.rmtree(target, ignore_errors=True)
+            shutil.copytree(backup_path, target, symlinks=True)
+            return InstallResult(False, "error", str(target),
+                                 "copy failed — SKILL.md missing after copy, restored from backup")
+    except Exception as e:
+        # Restore from backup.
+        try:
+            shutil.rmtree(target, ignore_errors=True)
+            shutil.copytree(backup_path, target, symlinks=True)
+        except Exception:
+            pass
+        return InstallResult(
+            False, "error", str(target),
+            f"update failed ({e}) — restored from backup at {backup_path}",
+        )
+
+    return InstallResult(
+        True, "updated", str(target),
+        f"updated {skill_name} in {agent.display_name} (backup: {backup_path})",
+        files_copied=["SKILL.md"],
+    )
+
+
 # ---------------------------------------------------------------------------
 # Memory installation (personal-context → agent memory system)
 # ---------------------------------------------------------------------------

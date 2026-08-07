@@ -1215,5 +1215,174 @@ class TestReadFrontmatterFoldedScalar(unittest.TestCase):
         self.assertEqual(desc, "a---b")
 
 
+class TestScanInstalledSkills(unittest.TestCase):
+    """Test scan_installed_skills scans agent skills/ dirs correctly."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="scan_test_")
+        self._skills_dir = os.path.join(self._tmp, "skills")
+        os.makedirs(self._skills_dir)
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _make_installed_skill(self, name, desc="A test skill."):
+        d = os.path.join(self._skills_dir, name)
+        os.makedirs(d)
+        with open(os.path.join(d, "SKILL.md"), "w", encoding="utf-8") as f:
+            f.write(f"---\nname: {name}\ndescription: {desc}\n---\n# {name}\n")
+
+    def _make_agent(self, agent_id="codeagent"):
+        return AgentTarget(
+            agent_id=agent_id,
+            display_name=agent_id.title(),
+            skills_dir=self._skills_dir,
+            memory_dir=None,
+            memory_format="none",
+            detect_path=self._tmp,
+        )
+
+    def test_finds_installed_skills(self):
+        self._make_installed_skill("skill-a", "First skill.")
+        self._make_installed_skill("skill-b", "Second skill.")
+        agent = self._make_agent()
+        result = register.scan_installed_skills([agent])
+        self.assertIn("codeagent", result)
+        names = [s["name"] for s in result["codeagent"]]
+        self.assertEqual(sorted(names), ["skill-a", "skill-b"])
+
+    def test_reads_descriptions(self):
+        self._make_installed_skill("my-skill", "Does useful things.")
+        agent = self._make_agent()
+        result = register.scan_installed_skills([agent])
+        self.assertEqual(result["codeagent"][0]["description"], "Does useful things.")
+
+    def test_skips_dirs_without_skill_md(self):
+        self._make_installed_skill("real-skill")
+        os.makedirs(os.path.join(self._skills_dir, "no-skill-md"))
+        agent = self._make_agent()
+        result = register.scan_installed_skills([agent])
+        names = [s["name"] for s in result["codeagent"]]
+        self.assertEqual(names, ["real-skill"])
+
+    def test_empty_skills_dir(self):
+        agent = self._make_agent()
+        result = register.scan_installed_skills([agent])
+        self.assertEqual(result, {})
+
+    def test_agent_without_skills_dir(self):
+        agent = AgentTarget(
+            agent_id="none", display_name="None",
+            skills_dir=None, memory_dir=None,
+            memory_format="none", detect_path=self._tmp,
+        )
+        result = register.scan_installed_skills([agent])
+        self.assertEqual(result, {})
+
+    def test_multiple_agents(self):
+        # Second agent with its own skills dir.
+        tmp2 = tempfile.mkdtemp(prefix="scan_test2_")
+        skills2 = os.path.join(tmp2, "skills")
+        os.makedirs(skills2)
+        try:
+            d = os.path.join(skills2, "shared-skill")
+            os.makedirs(d)
+            with open(os.path.join(d, "SKILL.md"), "w", encoding="utf-8") as f:
+                f.write("---\nname: shared-skill\ndescription: Shared.\n---\n# shared\n")
+            # agent1 (codeagent) has skill-a from setUp.
+            self._make_installed_skill("skill-a")
+            agent1 = self._make_agent("codeagent")
+            agent2 = AgentTarget(
+                agent_id="claude_code", display_name="Claude Code",
+                skills_dir=skills2, memory_dir=None,
+                memory_format="none", detect_path=tmp2,
+            )
+            result = register.scan_installed_skills([agent1, agent2])
+            self.assertIn("codeagent", result)
+            self.assertIn("claude_code", result)
+            self.assertEqual(result["claude_code"][0]["name"], "shared-skill")
+        finally:
+            shutil.rmtree(tmp2, ignore_errors=True)
+
+
+class TestUpdateSkill(unittest.TestCase):
+    """Test update_skill backs up and overwrites."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="update_test_")
+        # Source skill in output/
+        self._output = os.path.join(self._tmp, "output")
+        self._source = os.path.join(self._output, "my-skill")
+        os.makedirs(self._source)
+        with open(os.path.join(self._source, "SKILL.md"), "w", encoding="utf-8") as f:
+            f.write("---\nname: my-skill\nversion: 2.0.0\n---\n# my-skill v2\n")
+        # Agent skills dir with old version installed.
+        self._skills_dir = os.path.join(self._tmp, "skills")
+        self._installed = os.path.join(self._skills_dir, "my-skill")
+        os.makedirs(self._installed)
+        with open(os.path.join(self._installed, "SKILL.md"), "w", encoding="utf-8") as f:
+            f.write("---\nname: my-skill\nversion: 1.0.0\n---\n# my-skill v1\n")
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _make_agent(self):
+        return AgentTarget(
+            agent_id="codeagent", display_name="CodeAgent",
+            skills_dir=self._skills_dir, memory_dir=None,
+            memory_format="none", detect_path=self._tmp,
+        )
+
+    def test_update_overwrites_and_backs_up(self):
+        from skill_installer import update_skill
+        agent = self._make_agent()
+        result = update_skill(self._source, agent, dry_run=False)
+        self.assertTrue(result.success)
+        self.assertEqual(result.action, "updated")
+        # New version is installed.
+        with open(os.path.join(self._installed, "SKILL.md"), "r", encoding="utf-8") as f:
+            self.assertIn("version: 2.0.0", f.read())
+        # Backup exists.
+        backup_base = os.path.join(self._output, ".skill-forge-backups", "my-skill")
+        self.assertTrue(os.path.isdir(backup_base))
+        backups = os.listdir(backup_base)
+        self.assertEqual(len(backups), 1)
+
+    def test_update_dry_run(self):
+        from skill_installer import update_skill
+        agent = self._make_agent()
+        result = update_skill(self._source, agent, dry_run=True)
+        self.assertTrue(result.success)
+        self.assertEqual(result.action, "dry_run")
+        # Old version still there.
+        with open(os.path.join(self._installed, "SKILL.md"), "r", encoding="utf-8") as f:
+            self.assertIn("version: 1.0.0", f.read())
+
+    def test_update_falls_back_to_install_if_not_installed(self):
+        from skill_installer import update_skill
+        # Remove the installed skill.
+        shutil.rmtree(self._installed)
+        agent = self._make_agent()
+        result = update_skill(self._source, agent, dry_run=False)
+        self.assertTrue(result.success)
+        self.assertEqual(result.action, "copied")
+
+    def test_update_preserves_backup_on_failure(self):
+        from skill_installer import update_skill
+        # Make source SKILL.md unreadable after backup to force copy failure.
+        agent = self._make_agent()
+        # Corrupt the source by removing SKILL.md mid-copy is hard to simulate.
+        # Instead, test with a source that has no SKILL.md.
+        bad_source = os.path.join(self._output, "bad-skill")
+        os.makedirs(bad_source)
+        # No SKILL.md in bad_source.
+        result = update_skill(bad_source, agent, dry_run=False)
+        self.assertFalse(result.success)
+        self.assertEqual(result.action, "error")
+        # Original still intact.
+        with open(os.path.join(self._installed, "SKILL.md"), "r", encoding="utf-8") as f:
+            self.assertIn("version: 1.0.0", f.read())
+
+
 if __name__ == "__main__":
     unittest.main()

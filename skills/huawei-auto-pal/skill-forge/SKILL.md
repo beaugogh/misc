@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.6.0
+version: 1.7.0
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -344,6 +344,25 @@ behavior, propose a user-owned wrapper or fork instead of editing the installed 
 
 ### 6. Build and evaluate the change
 
+**Before creating proposals, scan installed skills to avoid redundancy:**
+
+```bash
+python skill-forge/scripts/register.py --installed
+```
+
+This lists all skills already installed across all detected agents. Use it to:
+- **Avoid duplication**: if a proposed skill semantically overlaps with an
+  installed one, do NOT create a new skill — propose an update to the existing
+  one instead (write the updated SKILL.md to `output/<existing-name>/`).
+- **Note overlaps**: if a new skill is still justified despite partial overlap
+  with an installed one, note the relationship in the PROPOSAL.md under a
+  `## Relationship to existing skills / 与现有技能的关系` section.
+- **Propose updates**: if an existing installed skill has a narrow gap that the
+  evidence addresses, classify it as a "Skill update proposal" (§4) and write
+  the complete updated SKILL.md to `output/<existing-name>/` (not a new
+  directory). The user can then install it with `--update` to back up and
+  overwrite the old version.
+
 **All generated or updated skills MUST be written to `output/<skill-name>/` first —
 never directly into an agent's `skills/` directory.** The `output/` directory is the
 single staging area: `--archive` zips it, `--list` discovers from it, and `--install`
@@ -540,10 +559,13 @@ as a side effect of the user declining. "None" means stop — no memory
 writes, no fact extraction, no background sedimentation. Then run:
 
 ```bash
-# Install a skill into specific agents:
+# Install a new skill into specific agents:
 python skill-forge/scripts/register.py --install <skill-name> --agent codeagent
 python skill-forge/scripts/register.py --install <skill-name> --agent codeagent,claude_code
 python skill-forge/scripts/register.py --install <skill-name> --all-agents
+
+# Update an existing skill (backs up the old version, then overwrites):
+python skill-forge/scripts/register.py --install <skill-name> --agent codeagent --update
 
 # Install personal-context memory into specific agents:
 python skill-forge/scripts/register.py --install-memory --agent codeagent
@@ -551,6 +573,12 @@ python skill-forge/scripts/register.py --install-memory --agent codeagent
 # Preview first:
 python skill-forge/scripts/register.py --dry-run --install <name> --agent <id>
 ```
+
+When a proposal updates an existing installed skill, use `--update` instead of
+plain `--install`. This backs up the old version to
+`output/.skill-forge-backups/<name>/<timestamp>/` before overwriting. Without
+`--update`, `--install` skips agents where the skill is already installed
+(safe default — never accidentally overwrites).
 
 Agent IDs: `claude_code`, `codeagent`, `opencode`, `codex`, `openclaw`,
 `hermes`. Without `--agent` or `--all-agents`, `--install` lists available
