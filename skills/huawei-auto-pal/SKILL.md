@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.4.3
+version: 1.5.0
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -84,113 +84,49 @@ See `skill-forge/SKILL.md` for full details.
 
 ## First-run guide
 
-When a user invokes huawei-auto-pal for the first time, run these pre-flight
-checks **sequentially and automatically**, then proceed straight into the
-pipeline. Do not stop to ask which path to follow — the path is always
-retro-scope → skill-forge.
+When a user invokes huawei-auto-pal, the pipeline is: **diagnose → act →
+archive**, all automatic. Do not stop to ask the user which path to follow.
 
-1. **Run the environment check** — `python retro-scope/scripts/run.py --check`
-   from the skill directory. This lists every source adapter and whether it's
-   available, with a short hint for each missing source. It does NOT collect
-   personal activity data — it calls `detect()` and optional `auth_status()`
-   probes (which check tool configuration like token state and git identity,
-   not personal data), never `collect()`.
-
-2. **Report what works now vs. what's optional.** The core pipeline works with
-   **zero setup** — just Python 3.9+. Sources that work out of the box:
-   Claude Code sessions, git, Chrome/Edge history, VS Code history, Windows
-   Recent, Jump Lists. No credentials, no CLI tools, no `.env` needed.
-   `--check` now reports `NOT AUTHENTICATED` for sources that are detected
-   but need auth/config to produce events (e.g. welink-cli installed but
-   token expired, git `user.email` not set).
-
-3. **Auto-provision welink-cli and git.** If welink-cli or git is anything
-   other than `READY`, run provisioning automatically — do NOT ask the user
-   for approval first. The `--provision` command is safe: it installs
-   welink-cli from the approved Huawei intranet registry (if missing),
-   configures git identity (if missing), and starts `welink-cli auth login`
-   interactively. The QR code just appears in the terminal — the user scans
-   it or lets it time out. If they don't scan, the pipeline continues
-   without WeLink data. No blocking, no asking.
-   - Collect the user's git email (ask them only for this one piece of
-     info if git identity is not set), then run:
-     `python retro-scope/scripts/run.py --provision --git-email <email>`
-   - **Run `--provision` directly — do NOT dry-run first, do NOT ask
-     whether to provision, do NOT present a menu of choices.** Just run it.
-   - If welink-cli is already installed but needs auth, `--provision` skips
-     the install and goes straight to the QR login.
-   - CodeHub token (`.env`) stays manual — it's a web-UI personal access
-     token that cannot be auto-fetched. Mention it in passing if relevant.
-
-4. **Proceed automatically to retro-scope.** The first run is useful even with
-   only the default sources. Optional tools can be added later — re-running
-   `--check` after setup confirms they're detected. Web page content extraction
-   and analysis is on by default — retro-scope fetches the actual content of
-   top-visited external web pages (Huawei internal pages are skipped — they
-   require SSO), extracts entities (ticket IDs, MR numbers, project names),
-   detects relationships between pages, and produces richer browser narratives:
-   what each page was about, how pages relate, and why the user spent time
-   cross-referencing them. This adds network latency but produces much more
-   useful browser session records. Use `--no-enrich-pages` to disable.
-
-   **Run retro-scope with the default command — do not add `--format` or
-   `--output`:**
+1. **Run the diagnose phase** — this runs the environment check, auto-provisions
+   welink-cli and git (QR code appears — user scans or lets it time out), then
+   runs retro-scope (multi-horizon analysis with web page content extraction).
+   Ask the user for their git email only if git identity is not configured;
+   otherwise run without asking:
    ```
-   python retro-scope/scripts/run.py --horizons 90d,30d,7d,1d
+   python run_pipeline.py
    ```
-   In PowerShell, quote the horizons value to prevent comma-splitting:
+   Or with git email:
    ```
-   python retro-scope/scripts/run.py --horizons '90d,30d,7d,1d'
+   python run_pipeline.py --git-email <email>
    ```
-   The default multi-horizon mode writes HTML report files (`index.html`,
-   `report_90d.html`, etc.) to `output/` automatically. Adding `--format html`
-   disables multi-horizon mode and prints HTML to stdout (which terminals
-   collapse) — this now errors out. Incremental collection (`--persist`) is
-   on by default, so subsequent runs only process new activity.
+   The script prints a directive when diagnose completes. **Read it and proceed
+   to step 2 immediately — do NOT ask the user whether to continue.**
 
-   **Task labeling:** retro-scope uses a rule-based classifier for task
-   categories (coding, research, meeting, etc.). You (the agent) are the LLM
-   — after retro-scope completes, read the top 10 time sinks from the report
-   or `--top` output and generate a 3-5 word label for each, grounded in the
-   task's actual content (subject, errors, files, tool calls). Do NOT call a
-   separate local LLM (ollama, etc.) — use your own model. This is optional
-   and only enriches the report; the rule-based labels stand alone if skipped.
+2. **Run skill-forge.** The diagnose phase printed:
+   - Reports in `output/index.html` (open in browser)
+   - Session records in `output/session_records/`
+   - Top-10 time sinks (run `--top 10` if needed)
 
-5. **Proceed automatically to skill-forge immediately after retro-scope.**
-   Do NOT stop and ask the user whether to continue — the pipeline is
-   retro-scope → skill-forge → archive, all automatic. As soon as
-   retro-scope finishes writing reports, start skill-forge. If `README.md`
-   has a step-by-step credential guide with screenshots for the CodeHub
-   token, mention it in passing. CodeHub is the active code-review
-   integration; GitHub is currently disabled (see README.md §GITHUB_TOKEN).
-   These are optional — skill-forge works from retro-scope findings alone.
+   Now do the LLM-driven part:
+   - Read the top-10 time sinks and session records
+   - Identify recurring patterns and validated problems
+   - Create skill/memory proposals in `output/<skill-name>/PROPOSAL.md`
+     (see skill-forge/SKILL.md §6 for the PROPOSAL.md format)
+   - Detect the user's language and print each PROPOSAL.md as agent message
+     text (not via Bash — terminal output is collapsed)
+   - Ask which to install into which agents, run `register.py --install`
+   - **Task labeling:** you are the LLM — generate a 3-5 word label for each
+     top-10 task. Do NOT call a separate local LLM (ollama, etc.).
 
-6. **After skill-forge creates output**, present the proposals to the user and
-   ask which to install into which agents. First detect the user's language
-   preference by scanning their session messages (Chinese → show Chinese
-   proposals, English → show English, mixed → show both, default English).
-   Then **read each `output/<skill-name>/PROPOSAL.md` file and print the
-   matching language block as your own message** — do not run `--present` via
-   Bash (terminal tool output is collapsed and the user won't see it). The
-   proposal (problem, evidence, why proposed, benefit of local installation)
-   must appear as agent message text in the terminal, in the user's language.
-   Do not summarize or paraphrase it. Then ask which skills/memory to install
-   and into which agents (CodeAgent? Claude Code? etc.), and run
-   `register.py --install <name> --agent <id>` for each approval. See
-   skill-forge/SKILL.md §8.
-
-7. **Archive automatically.** At the end of the pipeline, run
-   `python skill-forge/scripts/register.py --archive` without asking — it
-   zips `output/` to the user's Downloads folder. This is a pipeline step,
-   not an end-of-run menu option. Do not present archive/distribute/register
-   as a list of choices for the user to pick from. The archive includes a
-   truncated, secret-redacted session transcript (`session_trace.jsonl`)
-   for diagnosis — it captures the agent's own conversation (commands, errors,
-   decisions) so problems can be diagnosed without asking the colleague to
-   manually export their session.
+3. **Run the archive phase:**
+   ```
+   python run_pipeline.py --archive
+   ```
+   This zips `output/` (including a truncated, secret-redacted session trace)
+   to the user's Downloads folder.
 
 Do not block the pipeline on missing optional dependencies. Detect, report,
-and continue.
+and continue. CodeHub token (`.env`) stays manual — mention it in passing.
 
 ## Safety and authority
 
