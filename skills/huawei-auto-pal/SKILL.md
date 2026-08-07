@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.1.4
+version: 1.1.5
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -121,9 +121,13 @@ retro-scope → skill-forge.
    identity."
    - If yes → collect the user's git email (ask them), then run
      `python retro-scope/scripts/run.py --provision --git-email <email>`.
-     The QR code or WeLink PC client interaction is visible to the user in
-     their terminal. Do NOT run `--provision` without explicit approval —
-     it installs software and authenticates (Tier 3 per the safety model).
+     **Run `--provision` directly — do NOT dry-run first.** The provision
+     command handles the full flow: installs welink-cli (if missing), starts
+     `welink-cli auth login` interactively so the QR code renders in the
+     terminal, and configures git identity. Do NOT tell the user to run
+     `welink-cli auth login` themselves — `--provision` does this for them.
+     Do NOT run `--provision` without explicit approval — it installs
+     software and authenticates (Tier 3 per the safety model).
    - If no → note what they're missing and continue (no blocking).
    - CodeHub token (`.env`) stays manual — it's a web-UI personal access
      token that cannot be auto-fetched. Mention it in passing if relevant.

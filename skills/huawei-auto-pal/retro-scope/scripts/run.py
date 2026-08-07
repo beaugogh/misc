@@ -1145,7 +1145,8 @@ def main():
                             help="auto-provision welink-cli (install + auth login) and git identity "
                                  "(user.email/user.name). Requires Node.js >= 18 for welink-cli. "
                                  "Use --git-email/--git-name to pre-supply git identity, "
-                                 "--only welink/git to scope, --dry-run to preview.")
+                                 "--only welink/git to scope. The auth login is interactive "
+                                 "(QR code renders in terminal) — run directly, not via --dry-run.")
     _exclusive.add_argument("--eval", action="store_true",
                             help="run segmentation evaluation against the labeled benchmark (Phase 9.8)")
     args = ap.parse_args()
