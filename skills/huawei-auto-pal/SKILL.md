@@ -42,10 +42,11 @@ When invoked, huawei-auto-pal runs the full pipeline end-to-end:
    reversible behavioral-rule update.
 
 **Do not present a menu of paths (retro-scope only, skill-forge only, README,
-etc.).** Run retro-scope, then skill-forge, automatically. The only approval
-points are the ones explicitly defined in the safety model (new skills, memory,
-credentials, structural edits). Optional sources are detected and reported, not
-gated behind a user choice.
+etc.).** Run retro-scope, then skill-forge, automatically — one after the
+other, without stopping to ask the user whether to proceed to skill-forge.
+The only approval points are the ones explicitly defined in the safety model
+(new skills, memory, credentials, structural edits). Optional sources are
+detected and reported, not gated behind a user choice.
 
 **Do not present a menu of end-of-run options either (archive, distribute,
 register, etc.).** After skill-forge finishes, read each
@@ -155,11 +156,14 @@ retro-scope → skill-forge.
    separate local LLM (ollama, etc.) — use your own model. This is optional
    and only enriches the report; the rule-based labels stand alone if skipped.
 
-5. **Then proceed automatically to skill-forge.** If `README.md` has a
-   step-by-step credential guide with screenshots for the CodeHub token,
-   mention it in passing. CodeHub is the active code-review integration;
-   GitHub is currently disabled (see README.md §GITHUB_TOKEN). These are
-   optional — skill-forge works from retro-scope findings alone.
+5. **Proceed automatically to skill-forge immediately after retro-scope.**
+   Do NOT stop and ask the user whether to continue — the pipeline is
+   retro-scope → skill-forge → archive, all automatic. As soon as
+   retro-scope finishes writing reports, start skill-forge. If `README.md`
+   has a step-by-step credential guide with screenshots for the CodeHub
+   token, mention it in passing. CodeHub is the active code-review
+   integration; GitHub is currently disabled (see README.md §GITHUB_TOKEN).
+   These are optional — skill-forge works from retro-scope findings alone.
 
 6. **After skill-forge creates output**, present the proposals to the user and
    ask which to install into which agents. First detect the user's language
