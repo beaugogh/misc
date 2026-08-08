@@ -1285,6 +1285,11 @@ def main():
               file=sys.stderr)
         sys.exit(1)
 
+    # --update is a modifier for --install only.
+    if args.update and not args.install:
+        print("Error: --update requires --install.", file=sys.stderr)
+        sys.exit(2)
+
     agents = discover_agents()
     output_skills = _find_output_skills(_OUTPUT_DIR)
 

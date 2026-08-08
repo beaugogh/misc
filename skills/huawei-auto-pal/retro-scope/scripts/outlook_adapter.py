@@ -290,16 +290,28 @@ def _find_ost_files() -> list[str]:
 def _find_folder_by_name(root, name_substring: str):
     """Find a folder under a root folder by case-insensitive name match.
 
-    Returns the folder object or None.
+    Returns the folder object or None. The caller is responsible for
+    ``del``-ing the returned folder COM object.
     """
     name_lower = name_substring.lower()
+    folders = None
+    found = None
     try:
-        for f in root.Folders:
+        folders = root.Folders
+        for f in folders:
             if name_lower in f.Name.lower():
-                return f
+                found = f
+                break
     except Exception:
         pass
-    return None
+    finally:
+        # Release the Folders collection COM object. The matched folder
+        # (if any) is held in `found` and returned to the caller.
+        try:
+            del folders
+        except NameError:
+            pass
+    return found
 
 
 # ---------------------------------------------------------------------------

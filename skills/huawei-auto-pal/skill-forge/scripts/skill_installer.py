@@ -26,7 +26,7 @@ from agent_targets import AgentTarget
 class InstallResult:
     """Result of an install attempt."""
     success: bool
-    action: str               # "copied" | "skipped" | "conflict" | "error" | "unsupported" | "dry_run"
+    action: str               # "copied" | "updated" | "skipped" | "conflict" | "error" | "unsupported" | "dry_run"
     target_path: str          # where it went (or would go)
     detail: str = ""          # human-readable detail
     files_copied: list[str] = field(default_factory=list)
@@ -188,28 +188,49 @@ def update_skill(
             f"backup failed ({e}) — existing skill left untouched at {target}",
         )
 
-    # 2. Remove the old skill and copy the new one.
+    # 2. Copy new version to a temp dir, then swap atomically.
+    #    On Windows, os.rename is atomic for dirs on the same volume.
+    #    If the agent process has files locked, the rename fails but
+    #    the original skill is left untouched.
+    target_new = target.parent / f"{skill_name}.new"
+    target_old = target.parent / f"{skill_name}.old"
     try:
-        shutil.rmtree(target, ignore_errors=False)
-        shutil.copytree(source, target,
+        # Clean up any stale temp dirs from a previous failed run.
+        if target_new.exists():
+            shutil.rmtree(target_new, ignore_errors=True)
+        if target_old.exists():
+            shutil.rmtree(target_old, ignore_errors=True)
+
+        # Copy new version to <name>.new/
+        shutil.copytree(source, target_new,
                         symlinks=True,
                         ignore=shutil.ignore_patterns("PROPOSAL.md", "__pycache__", "*.pyc", "*.pyo"))
-        if not (target / "SKILL.md").is_file():
-            # Restore from backup if copy failed.
-            shutil.rmtree(target, ignore_errors=True)
-            shutil.copytree(backup_path, target, symlinks=True)
+        if not (target_new / "SKILL.md").is_file():
+            shutil.rmtree(target_new, ignore_errors=True)
             return InstallResult(False, "error", str(target),
-                                 "copy failed — SKILL.md missing after copy, restored from backup")
-    except Exception as e:
-        # Restore from backup.
+                                 "copy failed — SKILL.md missing after copy, original left untouched")
+
+        # Swap: target → target.old, target_new → target
         try:
-            shutil.rmtree(target, ignore_errors=True)
-            shutil.copytree(backup_path, target, symlinks=True)
-        except Exception:
-            pass
+            os.rename(str(target), str(target_old))
+        except PermissionError:
+            # Agent process has files locked — can't rename target.
+            shutil.rmtree(target_new, ignore_errors=True)
+            return InstallResult(
+                False, "error", str(target),
+                f"cannot replace skill (agent may be running) — "
+                f"original left untouched at {target}. Close the agent and retry.",
+            )
+        os.rename(str(target_new), str(target))
+        # Clean up the old version.
+        shutil.rmtree(target_old, ignore_errors=True)
+    except Exception as e:
+        # Clean up any temp dirs.
+        shutil.rmtree(target_new, ignore_errors=True)
+        shutil.rmtree(target_old, ignore_errors=True)
         return InstallResult(
             False, "error", str(target),
-            f"update failed ({e}) — restored from backup at {backup_path}",
+            f"update failed ({e}) — original skill untouched at {target}, backup at {backup_path}",
         )
 
     return InstallResult(

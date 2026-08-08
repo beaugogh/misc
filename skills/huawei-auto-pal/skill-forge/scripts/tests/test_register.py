@@ -1383,6 +1383,33 @@ class TestUpdateSkill(unittest.TestCase):
         with open(os.path.join(self._installed, "SKILL.md"), "r", encoding="utf-8") as f:
             self.assertIn("version: 1.0.0", f.read())
 
+    def test_update_locked_target_leaves_original_untouched(self):
+        """When os.rename(target, target_old) raises PermissionError
+        (agent process has files locked), the original skill is untouched
+        and the temp dir is cleaned up."""
+        from skill_installer import update_skill
+        agent = self._make_agent()
+        # Patch os.rename to raise PermissionError on the first call
+        # (target → target.old), succeed on the second (target_new → target).
+        import skill_installer
+        original_rename = os.rename
+        call_count = [0]
+        def mock_rename(src, dst):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise PermissionError("File is locked by another process")
+            return original_rename(src, dst)
+        with patch("skill_installer.os.rename", side_effect=mock_rename):
+            result = update_skill(self._source, agent, dry_run=False)
+        self.assertFalse(result.success)
+        self.assertEqual(result.action, "error")
+        self.assertIn("agent may be running", result.detail)
+        # Original still intact.
+        with open(os.path.join(self._installed, "SKILL.md"), "r", encoding="utf-8") as f:
+            self.assertIn("version: 1.0.0", f.read())
+        # Temp dir cleaned up.
+        self.assertFalse(os.path.exists(os.path.join(self._skills_dir, "my-skill.new")))
+
 
 if __name__ == "__main__":
     unittest.main()
