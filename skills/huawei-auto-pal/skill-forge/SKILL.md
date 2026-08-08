@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.7.1
+version: 1.7.2
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -302,10 +302,10 @@ Do not infer identity. If a memory needs a name or employee identifier, ask the 
 whether to store it and explain why. Exclude tokens, passwords, keys, session cookies,
 private correspondence, colleague PII, and machine inventory that is not essential.
 **Never hardcode PII (real name, employee ID, email, GitHub account) or internal
-Huawei URLs in generated SKILL.md files.** The `output/` directory is archived into
-a zip that may be shared with colleagues — PII must not leak into it. Use
-placeholders like `<your-name>`, `<your-email>`, `<employee-id>`. Internal platform
-URLs are machine inventory and must not be hardcoded in shareable skills.
+Huawei URLs in generated SKILL.md or PROPOSAL.md files.** The `output/` directory
+is archived into a zip that may be shared with colleagues — PII must not leak into
+it. Use placeholders like `<your-name>`, `<your-email>`, `<employee-id>`. Internal
+platform URLs are machine inventory and must not be hardcoded in shareable skills.
 
 ### 5. Design without over-generalizing
 

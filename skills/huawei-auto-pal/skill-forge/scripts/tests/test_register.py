@@ -1411,5 +1411,90 @@ class TestUpdateSkill(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self._skills_dir, "my-skill.new")))
 
 
+class TestRedactPII(unittest.TestCase):
+    """Test _redact_pii_in_output mechanically redacts PII from proposal/skill files."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="pii_test_")
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _make_skill_file(self, skill_name, fname, content):
+        d = os.path.join(self._tmp, skill_name)
+        os.makedirs(d, exist_ok=True)
+        fpath = os.path.join(d, fname)
+        with open(fpath, "w", encoding="utf-8") as f:
+            f.write(content)
+        return fpath
+
+    def test_redacts_employee_id(self):
+        self._make_skill_file("my-skill", "PROPOSAL.md",
+            "Huawei employee (b00563677) works on stuff.")
+        register._redact_pii_in_output(self._tmp)
+        with open(os.path.join(self._tmp, "my-skill", "PROPOSAL.md"), "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertNotIn("b00563677", content)
+        self.assertIn("<employee-id>", content)
+
+    def test_redacts_email(self):
+        self._make_skill_file("my-skill", "SKILL.md",
+            "Contact: bo.gao@huawei.com for details.")
+        register._redact_pii_in_output(self._tmp)
+        with open(os.path.join(self._tmp, "my-skill", "SKILL.md"), "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertNotIn("bo.gao@huawei.com", content)
+        self.assertIn("<email>", content)
+
+    def test_redacts_internal_urls(self):
+        self._make_skill_file("my-skill", "PROPOSAL.md",
+            "Visit https://agentcenter.huawei.com/ for info.")
+        register._redact_pii_in_output(self._tmp)
+        with open(os.path.join(self._tmp, "my-skill", "PROPOSAL.md"), "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertNotIn("agentcenter.huawei.com", content)
+        self.assertIn("<internal-url>", content)
+
+    def test_redacts_github_url(self):
+        self._make_skill_file("my-skill", "SKILL.md",
+            "Repo at https://github.com/beaugogh/misc")
+        register._redact_pii_in_output(self._tmp)
+        with open(os.path.join(self._tmp, "my-skill", "SKILL.md"), "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertNotIn("github.com/beaugogh", content)
+        self.assertIn("<github-url>", content)
+
+    def test_no_pii_leaves_file_unchanged(self):
+        original = "# My Skill\n\nNo PII here at all."
+        self._make_skill_file("clean-skill", "SKILL.md", original)
+        register._redact_pii_in_output(self._tmp)
+        with open(os.path.join(self._tmp, "clean-skill", "SKILL.md"), "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertEqual(content, original)
+
+    def test_skips_non_skill_dirs(self):
+        # session_records should not be scanned.
+        sr = os.path.join(self._tmp, "session_records")
+        os.makedirs(sr)
+        with open(os.path.join(sr, "data.json"), "w", encoding="utf-8") as f:
+            f.write('{"email": "bo.gao@huawei.com"}')
+        register._redact_pii_in_output(self._tmp)
+        with open(os.path.join(sr, "data.json"), "r", encoding="utf-8") as f:
+            content = f.read()
+        # Should still contain the email — session_records is not scanned.
+        self.assertIn("bo.gao@huawei.com", content)
+
+    def test_redacts_multiple_files(self):
+        self._make_skill_file("skill-a", "PROPOSAL.md",
+            "Employee b00563677 and email test@huawei.com")
+        self._make_skill_file("skill-b", "SKILL.md",
+            "URL: https://w3.huawei.com/ and ID b12345678")
+        register._redact_pii_in_output(self._tmp)
+        for skill, fname in [("skill-a", "PROPOSAL.md"), ("skill-b", "SKILL.md")]:
+            with open(os.path.join(self._tmp, skill, fname), "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertNotIn("huawei.com", content)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1118,6 +1118,70 @@ def _update_index_skills_section(output_dir: str) -> None:
         pass
 
 
+def _redact_pii_in_output(output_dir: str) -> None:
+    """Scan all SKILL.md and PROPOSAL.md files in output/ for PII and redact it.
+
+    This is a mechanical enforcement layer — the LLM is told not to hardcode
+    PII but may do so anyway. This catches and fixes it before zipping.
+
+    Redacts:
+    - Employee IDs matching b\\d{8} (Huawei convention)
+    - Email addresses (user@huawei.com, user@example.com)
+    - Internal Huawei URLs (https://*.huawei.com/...)
+    - GitHub usernames in URLs (github.com/<user>)
+
+    Uses placeholder replacements. Prints a warning for each redaction.
+    """
+    import re as _re
+
+    # PII patterns with replacements.
+    # Note: employee ID pattern (b + 8 digits) is Huawei-specific.
+    pii_patterns = [
+        # Employee ID: b00563677, b12345678, etc.
+        (_re.compile(r'\bb\d{8}\b'), '<employee-id>'),
+        # Email addresses.
+        (_re.compile(r'\b[\w.+-]+@[\w.-]+\.\w{2,}\b'), '<email>'),
+        # Internal Huawei URLs.
+        (_re.compile(r'https?://[a-z0-9-]+\.huawei\.com[/\w.?=&-]*'), '<internal-url>'),
+        # GitHub profile URLs (github.com/username).
+        (_re.compile(r'https?://github\.com/[\w-]+'), '<github-url>'),
+    ]
+
+    redacted_count = 0
+    for name in sorted(os.listdir(output_dir)):
+        skill_dir = os.path.join(output_dir, name)
+        if not os.path.isdir(skill_dir):
+            continue
+        if name in ("session_records", "page_cache", "__pycache__",
+                    ".skill-forge-backups", "reports"):
+            continue
+        for fname in ("SKILL.md", "PROPOSAL.md"):
+            fpath = os.path.join(skill_dir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except OSError:
+                continue
+
+            original = content
+            for pattern, replacement in pii_patterns:
+                content = pattern.sub(replacement, content)
+
+            if content != original:
+                try:
+                    with open(fpath, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    redacted_count += 1
+                    print(f"  Redacted PII in {name}/{fname}")
+                except OSError:
+                    pass
+
+    if redacted_count > 0:
+        print(f"  PII redaction: {redacted_count} file(s) cleaned")
+
+
 def cmd_archive(args, agents, output_skills):
     """Zip the output/ folder and save it to the user's Downloads directory."""
     output_path = Path(_OUTPUT_DIR)
@@ -1146,6 +1210,12 @@ def cmd_archive(args, agents, output_skills):
     # before any skills existed. This adds the skills section post-hoc.
     _update_index_skills_section(_OUTPUT_DIR)
 
+    # Mechanically scan generated SKILL.md and PROPOSAL.md files for PII
+    # and redact it. Wording-based rules are insufficient — the LLM reads
+    # unredacted session data and may write PII into output files despite
+    # instructions not to. This is the enforcement layer.
+    _redact_pii_in_output(_OUTPUT_DIR)
+
     downloads = _downloads_dir()
     os.makedirs(downloads, exist_ok=True)
 
@@ -1164,7 +1234,10 @@ def cmd_archive(args, agents, output_skills):
         print(f"  ({skill_count} skill(s), {len(agents)} agent(s) detected)")
         return
 
-    # Create the zip, excluding __pycache__ and .skill-forge-backups.
+    # Create the zip, excluding __pycache__, .skill-forge-backups, and
+    # agent-created scratch scripts (.py files at the output/ root level
+    # that the agent created to help read tasks/session records — not skill
+    # artifacts and should not be in the archive).
     skip_dirs = {"__pycache__", ".skill-forge-backups"}
     file_count = 0
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -1172,6 +1245,16 @@ def cmd_archive(args, agents, output_skills):
             # Filter out skip dirs in-place so os.walk doesn't descend into them.
             dirs[:] = [d for d in dirs if d not in skip_dirs]
             for fname in files:
+                # Skip agent-created scratch .py scripts at the output/ root.
+                # These are temp files the agent creates to read tasks/sessions
+                # (e.g. extract_top10.py, read_sessions.py). They are not skill
+                # artifacts. Only exclude .py at the root level — .py files
+                # inside skill directories (e.g. <skill>/scripts/foo.py) are
+                # legitimate skill code and must be included.
+                rel = os.path.relpath(root, _OUTPUT_DIR)
+                is_root_level = (rel == ".")
+                if is_root_level and fname.endswith(".py"):
+                    continue
                 fpath = os.path.join(root, fname)
                 arcname = os.path.relpath(fpath, _OUTPUT_DIR)
                 zf.write(fpath, arcname)

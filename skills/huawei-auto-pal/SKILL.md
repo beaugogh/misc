@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.7.1
+version: 1.7.2
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
@@ -148,11 +148,11 @@ and continue. CodeHub token (`.env`) stays manual — mention it in passing.
 - Auto-detect paths and source accounts only for filtering; never infer or store a
   person's identity without consent, or encode one machine's inventory in the skill.
 - **Do not hardcode PII (name, employee ID, email, account names) or internal URLs
-  in generated SKILL.md files.** Proposals and skills in `output/` are archived
-  into a zip that may be shared with colleagues. PII extracted from session data
-  must not appear in generated skill files. Use placeholders like `<your-email>`
-  or `<employee-id>`. Internal platform URLs are machine inventory — do not
-  hardcode them in skills that may be shared.
+  in generated SKILL.md or PROPOSAL.md files.** Proposals and skills in `output/`
+  are archived into a zip that may be shared with colleagues. PII extracted from
+  session data must not appear in any generated file. Use placeholders like
+  `<your-email>` or `<employee-id>`. Internal platform URLs are machine inventory
+  — do not hardcode them in skills that may be shared.
 - Detect unavailable dependencies and report them. Never install, authenticate, update,
   or weaken TLS settings without explicit user approval, except for the approved
   `--provision` flow (welink-cli from the Huawei intranet registry + git identity),
