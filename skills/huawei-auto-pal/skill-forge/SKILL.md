@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.7.2
+version: 1.7.3
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -368,6 +368,11 @@ never directly into an agent's `skills/` directory.** The `output/` directory is
 single staging area: `--archive` zips it, `--list` discovers from it, and `--install`
 copies from it into agent directories. Writing a skill anywhere other than `output/`
 makes it invisible to archiving, registration, and future runs.
+
+**Both `SKILL.md` and `PROPOSAL.md` are mandatory for every proposal.**
+Creating only `PROPOSAL.md` without `SKILL.md` is incomplete — the archive
+will warn and `--install` will fail because there's no skill to install.
+Always create both files in the same step.
 
 Alongside `SKILL.md`, create a `PROPOSAL.md` in `output/<skill-name>/`. This is a
 bilingual (English + Chinese) brief that explains to the user why the skill is

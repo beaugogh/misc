@@ -1210,6 +1210,29 @@ def cmd_archive(args, agents, output_skills):
     # before any skills existed. This adds the skills section post-hoc.
     _update_index_skills_section(_OUTPUT_DIR)
 
+    # Check for proposals missing SKILL.md — the agent sometimes creates
+    # PROPOSAL.md but forgets the actual SKILL.md. Warn so the user knows.
+    proposals_without_skill = []
+    try:
+        for name in sorted(os.listdir(_OUTPUT_DIR)):
+            full = os.path.join(_OUTPUT_DIR, name)
+            if not os.path.isdir(full):
+                continue
+            if name in ("session_records", "page_cache", "__pycache__",
+                        ".skill-forge-backups", "reports"):
+                continue
+            has_proposal = os.path.isfile(os.path.join(full, "PROPOSAL.md"))
+            has_skill = os.path.isfile(os.path.join(full, "SKILL.md"))
+            if has_proposal and not has_skill:
+                proposals_without_skill.append(name)
+    except OSError:
+        pass
+    if proposals_without_skill:
+        print(f"  ⚠ {len(proposals_without_skill)} proposal(s) missing SKILL.md: "
+              f"{', '.join(proposals_without_skill)}")
+        print(f"    The agent created PROPOSAL.md but not the actual skill file. "
+              f"Re-run skill-forge to generate SKILL.md for these.")
+
     # Mechanically scan generated SKILL.md and PROPOSAL.md files for PII
     # and redact it. Wording-based rules are insufficient — the LLM reads
     # unredacted session data and may write PII into output files despite
