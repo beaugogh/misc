@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.7.3
+version: 1.7.4
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -354,6 +354,9 @@ This lists all skills already installed across all detected agents. Use it to:
 - **Avoid duplication**: if a proposed skill semantically overlaps with an
   installed one, do NOT create a new skill — propose an update to the existing
   one instead (write the updated SKILL.md to `output/<existing-name>/`).
+  Consider skills to overlap if they share the same trigger condition AND
+  address the same problem domain. When uncertain, create the new skill and
+  note the overlap rather than suppressing it.
 - **Note overlaps**: if a new skill is still justified despite partial overlap
   with an installed one, note the relationship in the PROPOSAL.md under a
   `## Relationship to existing skills / 与现有技能的关系` section.

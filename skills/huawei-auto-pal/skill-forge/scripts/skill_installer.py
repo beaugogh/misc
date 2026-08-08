@@ -145,6 +145,14 @@ def update_skill(
 
     skill_name = source.name
 
+    # Validate skill_name — reject path traversal and invalid characters
+    # (same guard as install_skill, for defense-in-depth).
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9._-]*$', skill_name):
+        return InstallResult(
+            False, "error", source_dir,
+            f"invalid skill directory name: {skill_name!r} — must match [a-zA-Z0-9][a-zA-Z0-9._-]*"
+        )
+
     if agent.skills_dir is None:
         return InstallResult(
             False, "unsupported", "",

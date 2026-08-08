@@ -1141,8 +1141,9 @@ def _redact_pii_in_output(output_dir: str) -> None:
         (_re.compile(r'\bb\d{8}\b'), '<employee-id>'),
         # Email addresses.
         (_re.compile(r'\b[\w.+-]+@[\w.-]+\.\w{2,}\b'), '<email>'),
-        # Internal Huawei URLs.
-        (_re.compile(r'https?://[a-z0-9-]+\.huawei\.com[/\w.?=&-]*'), '<internal-url>'),
+        # Internal Huawei URLs — match the full URL including query strings
+        # and fragments, so names in ?q=bo+gao or #frag don't leak.
+        (_re.compile(r'https?://[a-z0-9-]+\.huawei\.com\S*'), '<internal-url>'),
         # GitHub profile URLs (github.com/username).
         (_re.compile(r'https?://github\.com/[\w-]+'), '<github-url>'),
     ]

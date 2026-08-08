@@ -1410,6 +1410,24 @@ class TestUpdateSkill(unittest.TestCase):
         # Temp dir cleaned up.
         self.assertFalse(os.path.exists(os.path.join(self._skills_dir, "my-skill.new")))
 
+    def test_update_rejects_invalid_skill_name(self):
+        """update_skill must validate skill_name, same as install_skill."""
+        from skill_installer import update_skill
+        agent = self._make_agent()
+        # Create a source dir with spaces in the name (invalid).
+        bad_source = os.path.join(self._output, "bad name with spaces")
+        os.makedirs(bad_source)
+        with open(os.path.join(bad_source, "SKILL.md"), "w", encoding="utf-8") as f:
+            f.write("---\nname: bad\n---\n# bad\n")
+        # Also create an installed copy so update path (not install fallback) is taken.
+        installed_bad = os.path.join(self._skills_dir, "bad name with spaces")
+        os.makedirs(installed_bad)
+        with open(os.path.join(installed_bad, "SKILL.md"), "w", encoding="utf-8") as f:
+            f.write("---\nname: bad\nversion: 1.0.0\n---\n# bad v1\n")
+        result = update_skill(bad_source, agent, dry_run=False)
+        self.assertFalse(result.success)
+        self.assertEqual(result.action, "error")
+
 
 class TestRedactPII(unittest.TestCase):
     """Test _redact_pii_in_output mechanically redacts PII from proposal/skill files."""
@@ -1453,6 +1471,17 @@ class TestRedactPII(unittest.TestCase):
         with open(os.path.join(self._tmp, "my-skill", "PROPOSAL.md"), "r", encoding="utf-8") as f:
             content = f.read()
         self.assertNotIn("agentcenter.huawei.com", content)
+        self.assertIn("<internal-url>", content)
+
+    def test_redacts_huawei_url_query_string_with_name(self):
+        """A name in a URL query string (e.g. ?q=bo+gao) must be redacted."""
+        self._make_skill_file("my-skill", "PROPOSAL.md",
+            "Search: https://w3.huawei.com/search?q=bo+gao&lang=en")
+        register._redact_pii_in_output(self._tmp)
+        with open(os.path.join(self._tmp, "my-skill", "PROPOSAL.md"), "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertNotIn("bo+gao", content)
+        self.assertNotIn("w3.huawei.com", content)
         self.assertIn("<internal-url>", content)
 
     def test_redacts_github_url(self):
