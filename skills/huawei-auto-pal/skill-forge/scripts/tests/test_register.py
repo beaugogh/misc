@@ -534,6 +534,8 @@ class TestCmdArchive(unittest.TestCase):
             names = zf.namelist()
             self.assertIn("report.html", names)
             self.assertIn("npm-corporate-proxy/SKILL.md", names)
+            # Sentinel file must not be in the archive.
+            self.assertNotIn(".archived", names)
 
     def test_zip_excludes_pycache(self):
         # Create __pycache__ in output.
@@ -598,6 +600,48 @@ class TestCmdArchive(unittest.TestCase):
             )
         out = buf.getvalue()
         self.assertIn("No skills found", out)
+
+    def test_double_archive_guard(self):
+        """Running --archive twice must not create a second zip.
+
+        The agent sometimes fires two --archive calls in the same turn.
+        A sentinel file (output/.archived) prevents the duplicate.
+        """
+        import io
+        from contextlib import redirect_stdout
+        # First archive — creates zip + sentinel.
+        buf1 = io.StringIO()
+        with redirect_stdout(buf1):
+            register.cmd_archive(
+                type("Args", (), {"dry_run": False})(), [], []
+            )
+        self.assertIn("archived to:", buf1.getvalue())
+        zips_after_first = [f for f in os.listdir(self._downloads) if f.endswith(".zip")]
+        self.assertEqual(len(zips_after_first), 1)
+        # Sentinel exists.
+        self.assertTrue(os.path.isfile(os.path.join(self._output, ".archived")))
+
+        # Second archive — should be blocked, no new zip.
+        buf2 = io.StringIO()
+        with redirect_stdout(buf2):
+            register.cmd_archive(
+                type("Args", (), {"dry_run": False})(), [], []
+            )
+        out2 = buf2.getvalue()
+        self.assertIn("Already archived", out2)
+        zips_after_second = [f for f in os.listdir(self._downloads) if f.endswith(".zip")]
+        self.assertEqual(len(zips_after_second), 1)  # still just 1
+
+    def test_dry_run_does_not_set_sentinel(self):
+        """--dry-run must not set the sentinel, so a real archive can follow."""
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            register.cmd_archive(
+                type("Args", (), {"dry_run": True})(), [], []
+            )
+        self.assertFalse(os.path.isfile(os.path.join(self._output, ".archived")))
 
 
 class TestCmdDist(unittest.TestCase):

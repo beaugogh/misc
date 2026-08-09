@@ -1190,6 +1190,24 @@ def cmd_archive(args, agents, output_skills):
         print(f"Error: output directory not found at {_OUTPUT_DIR}", file=sys.stderr)
         sys.exit(1)
 
+    # Guard against double-archive. The agent sometimes runs --archive twice
+    # in the same turn (e.g. re-running with 2>&1). A sentinel file prevents
+    # the second call from creating a duplicate zip. The sentinel records the
+    # timestamp of the first archive; the user sees which zip to use.
+    # --dry-run does not set the sentinel (it doesn't actually archive).
+    sentinel = output_path / ".archived"
+    if not args.dry_run and sentinel.exists():
+        sentinel_mtime = datetime.datetime.fromtimestamp(
+            sentinel.stat().st_mtime
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        print(f"✓ Already archived at {sentinel_mtime}.")
+        print(f"  Re-running --archive is unnecessary — the zip was already created.")
+        print(f"  To force a new archive, delete output/.archived first.")
+        return
+
+    if not args.dry_run:
+        sentinel.touch()
+
     # Capture the current agent session transcript for diagnosis.
     # Written to output/session_trace.jsonl before zipping so it's included
     # in the archive automatically.
@@ -1263,6 +1281,7 @@ def cmd_archive(args, agents, output_skills):
     # that the agent created to help read tasks/session records — not skill
     # artifacts and should not be in the archive).
     skip_dirs = {"__pycache__", ".skill-forge-backups"}
+    skip_files = {".archived"}  # sentinel — not an artifact
     file_count = 0
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, dirs, files in os.walk(_OUTPUT_DIR):
@@ -1278,6 +1297,8 @@ def cmd_archive(args, agents, output_skills):
                 rel = os.path.relpath(root, _OUTPUT_DIR)
                 is_root_level = (rel == ".")
                 if is_root_level and fname.endswith(".py"):
+                    continue
+                if fname in skip_files:
                     continue
                 fpath = os.path.join(root, fname)
                 arcname = os.path.relpath(fpath, _OUTPUT_DIR)
