@@ -104,8 +104,10 @@ def select_pages_to_enrich(tasks: list[dict], events: list[dict]) -> dict[str, l
     pages that are worth enriching.
 
     Only tasks with active_seconds >= _MIN_ACTIVE_SECONDS are considered.
-    Only the top _MAX_PAGES_PER_TASK pages by visit count are selected.
-    Pages matching _SKIP_PATTERNS or _AUTH_REQUIRED_DOMAINS are excluded.
+    Up to _MAX_PAGES_PER_TASK fetchable pages are selected per task.
+    Auth-required Huawei domains are included (marked 'auth_required' by
+    enrich_tasks) and don't count against the fetchable limit.
+    Non-page resources (PDFs, zips, IPs, mailto) are always excluded.
     """
     from collections import Counter
 
@@ -167,7 +169,9 @@ def select_pages_to_enrich(tasks: list[dict], events: list[dict]) -> dict[str, l
         # against the fetchable-page limit — otherwise tasks where all top URLs
         # are Huawei internal would have no fetchable pages at all.
         for url, visit_count in counts.most_common():
-            if _should_skip_url(url) and not is_auth_required_domain(url):
+            # Skip non-page resources (PDFs, zips, IPs, mailto, etc.) always —
+            # even on auth-required domains, a PDF is not a page.
+            if _is_non_page_resource(url):
                 continue
             entry = {
                 "url": url,
@@ -187,6 +191,18 @@ def select_pages_to_enrich(tasks: list[dict], events: list[dict]) -> dict[str, l
             result[task_id] = pages
 
     return result
+
+
+def _is_non_page_resource(url: str) -> bool:
+    """True if URL is a non-page resource (PDF, zip, IP, mailto, etc.).
+
+    This checks only _SKIP_PATTERNS (not auth-required domains) — a PDF on
+    an auth-required domain is still a non-page resource and should be skipped.
+    """
+    for pattern in _SKIP_PATTERNS:
+        if pattern.search(url):
+            return True
+    return False
 
 
 def _should_skip_url(url: str) -> bool:

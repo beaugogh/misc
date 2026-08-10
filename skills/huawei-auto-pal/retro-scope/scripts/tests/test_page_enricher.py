@@ -135,6 +135,22 @@ class TestSelectPagesToEnrich(unittest.TestCase):
         self.assertIn("https://example.com/real-page", urls)
         self.assertIn("https://github.com/repo/docs", urls)
 
+    def test_pdf_on_auth_domain_is_excluded(self):
+        """A PDF on an auth-required domain should be skipped entirely —
+        it's a non-page resource, not an auth-required page."""
+        events = [
+            _make_visit_event(1000, "https://codehub-g.huawei.com/repo/file.pdf", "File"),
+            _make_visit_event(1001, "https://codehub-g.huawei.com/repo/page", "Page"),
+        ]
+        tasks = [_make_task("t1", 1000, 2000, active_seconds=3600)]
+        result = select_pages_to_enrich(tasks, events)
+        self.assertIn("t1", result)
+        urls = [p["url"] for p in result["t1"]]
+        # PDF excluded — non-page resource
+        self.assertNotIn("https://codehub-g.huawei.com/repo/file.pdf", urls)
+        # HTML page on auth domain included — auth_required
+        self.assertIn("https://codehub-g.huawei.com/repo/page", urls)
+
 
 # ---------------------------------------------------------------------------
 # URL filtering
