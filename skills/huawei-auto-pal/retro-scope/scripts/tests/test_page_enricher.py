@@ -110,6 +110,28 @@ class TestSelectPagesToEnrich(unittest.TestCase):
         result = select_pages_to_enrich(tasks, events)
         self.assertEqual(result, {})
 
+    def test_filter_then_limit_not_limit_then_filter(self):
+        """When top URLs are all auth-required, external URLs beyond the
+        top N should still be selected. Filter first, then limit."""
+        events = []
+        # Top 6 by visit count: all Huawei internal (auth-required)
+        for i in range(6):
+            events.append(_make_visit_event(
+                1000 + i, f"https://clouddevops.huawei.com/wiki/{i}",
+                f"Wiki {i}", visit_count=10 - i))
+        # URLs ranked #7-8: external (fetchable)
+        events.append(_make_visit_event(1007, "https://example.com/real-page", "Real", 3))
+        events.append(_make_visit_event(1008, "https://github.com/repo/docs", "Docs", 2))
+        tasks = [_make_task("t1", 1000, 2000, active_seconds=3600)]
+        result = select_pages_to_enrich(tasks, events)
+        self.assertIn("t1", result)
+        urls = [p["url"] for p in result["t1"]]
+        # No Huawei URLs (all filtered)
+        self.assertFalse(any("huawei.com" in u for u in urls))
+        # External URLs are present (not lost behind the top-N cutoff)
+        self.assertIn("https://example.com/real-page", urls)
+        self.assertIn("https://github.com/repo/docs", urls)
+
 
 # ---------------------------------------------------------------------------
 # URL filtering

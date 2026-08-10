@@ -160,9 +160,11 @@ def select_pages_to_enrich(tasks: list[dict], events: list[dict]) -> dict[str, l
     result: dict[str, list[dict]] = {}
     for task_id, counts in task_pages.items():
         titles = task_titles.get(task_id, {})
-        top_urls = counts.most_common(_MAX_PAGES_PER_TASK)
         pages = []
-        for url, visit_count in top_urls:
+        # Filter first, then take top N. If we limited before filtering and
+        # the top 5 were all auth-required Huawei domains, external URLs
+        # ranked #6+ would never be enriched.
+        for url, visit_count in counts.most_common():
             if _should_skip_url(url):
                 continue
             pages.append({
@@ -170,6 +172,8 @@ def select_pages_to_enrich(tasks: list[dict], events: list[dict]) -> dict[str, l
                 "title": titles.get(url, ""),
                 "visit_count": visit_count,
             })
+            if len(pages) >= _MAX_PAGES_PER_TASK:
+                break
         if pages:
             result[task_id] = pages
 

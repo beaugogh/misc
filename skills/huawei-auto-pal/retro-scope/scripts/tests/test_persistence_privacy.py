@@ -96,6 +96,62 @@ class TestPrivateEvidenceExport(unittest.TestCase):
             if os.name != "nt":
                 self.assertEqual(stat.S_IMODE(os.stat(paths[0]).st_mode), 0o600)
 
+    def test_export_filters_by_source_kind(self):
+        """A browser task (session_id=None) must not include AI session events
+        that fall in the same time window. Without source_kind filtering, the
+        session_id=None filter lets all events through."""
+        task = {
+            "id": "browser-1000",
+            "subject": "research",
+            "source_kind": "browser",
+            "source": "browser",
+            "session_id": None,
+            "cwd": None,
+            "git_branch": None,
+            "start": 1000.0,
+            "end": 2000.0,
+            "human_data": {
+                "is_genuine_time_sink": True,
+                "human_engaged_seconds": 600,
+            },
+        }
+        events = [
+            # Browser events — should be included.
+            {"timestamp": 1000.0, "session_id": None, "source_kind": "browser",
+             "kind": "visit", "text": "GitHub",
+             "tool_input": {"url": "https://example.com", "title": "Example"}},
+            {"timestamp": 1100.0, "session_id": None, "source_kind": "browser",
+             "kind": "download", "text": "file.zip",
+             "tool_input": {"target_path": "C:\\file.zip", "total_bytes": 100}},
+            # AI session events in the same time window — should be EXCLUDED.
+            {"timestamp": 1200.0, "session_id": "ai-session-abc",
+             "source_kind": "ai_session", "kind": "user_message",
+             "text": "help me with this"},
+            {"timestamp": 1300.0, "session_id": "ai-session-abc",
+             "source_kind": "ai_session", "kind": "assistant_message",
+             "text": "sure, let me check"},
+            {"timestamp": 1400.0, "session_id": "ai-session-abc",
+             "source_kind": "ai_session", "kind": "tool_use",
+             "tool_name": "Bash", "tool_input": {"command": "ls"}},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            _export_session_records([task], events, tmp)
+            records_dir = os.path.join(tmp, "session_records")
+            paths = [os.path.join(records_dir, name) for name in os.listdir(records_dir)]
+            self.assertEqual(len(paths), 1)
+            with open(paths[0], encoding="utf-8") as f:
+                import json as _json
+                record = _json.load(f)
+            timeline = record.get("event_timeline", [])
+            kinds = [e["kind"] for e in timeline]
+            # Browser events present.
+            self.assertIn("visit", kinds)
+            self.assertIn("download", kinds)
+            # AI session events EXCLUDED.
+            self.assertNotIn("user_message", kinds)
+            self.assertNotIn("assistant_message", kinds)
+            self.assertNotIn("tool_use", kinds)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -562,6 +562,10 @@ def _events_for_task(task: dict, all_events: list[dict]) -> list[dict]:
     For drill-down we need the raw events. Match by session_id + time range;
     if no session_id, match by time range alone (less precise but workable).
 
+    Also filter by source_kind when the task has one — a browser research task
+    (source_kind=browser, session_id=None) should not include AI session events
+    that happen to fall in the same time window.
+
     For zero-length background tasks (start == end, from parallel_tasks.py),
     widen the window to the session's max timestamp so we capture the full
     event stream. If the session max can't be determined, fall back to a
@@ -571,6 +575,7 @@ def _events_for_task(task: dict, all_events: list[dict]) -> list[dict]:
     end = task.get("end") or (task.get("wall_clock_seconds") and start + task["wall_clock_seconds"]) or start
     session_id = task.get("session_id")
     source = task.get("source")
+    source_kind = task.get("source_kind")
 
     # C6 fix: zero-length background tasks (start == end) get a widened window.
     zero_length = end <= start
@@ -594,6 +599,10 @@ def _events_for_task(task: dict, all_events: list[dict]) -> list[dict]:
         if ts < start or ts > end + 1:
             continue
         if session_id and e.get("session_id") and e["session_id"] != session_id:
+            continue
+        # Filter by source_kind — a browser task should not include AI session
+        # events from the same time window, even when session_id is None.
+        if source_kind and e.get("source_kind") and e["source_kind"] != source_kind:
             continue
         if source and e.get("source") and e["source"] != source:
             # Allow cross-source events (e.g. git commits linked to a coding task)
@@ -794,10 +803,13 @@ def _export_session_records(tasks: list[dict], events: list[dict], output_dir: s
         start = t.get("start", 0)
         end = t.get("end", 0)
         sid = t.get("session_id")
+        sk = t.get("source_kind")
         lo = bisect_left(event_timestamps, start)
         hi = bisect_right(event_timestamps, end)
         return [e for e in ordered_events[lo:hi]
-                if e.get("session_id") == sid or not sid]
+                if (e.get("session_id") == sid or not sid)
+                and (not sk or e.get("source_kind") == sk
+                     or not e.get("source_kind"))]
 
     exported = 0
     for t in tasks:

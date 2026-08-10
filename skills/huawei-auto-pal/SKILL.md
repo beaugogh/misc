@@ -1,6 +1,6 @@
 ---
 name: huawei-auto-pal
-version: 1.8.1
+version: 1.8.2
 description: >-
   Analyze a Huawei employee's personal work traces and turn validated recurring
   friction or verified user feedback into safely governed skills or memories.
