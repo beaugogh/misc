@@ -325,9 +325,9 @@ class TestSkillsSectionInIndex(unittest.TestCase):
         from run import _build_skills_section
         result = _build_skills_section(self._tmp, html_mod)
         self.assertIn("test-skill", result)
-        self.assertIn("Test problem here", result)
-        self.assertIn("Test evidence", result)
-        self.assertIn("Proposed skills", result)
+        # [ZH] block content is "中文" — the section now extracts Chinese.
+        self.assertIn("中文", result)
+        self.assertIn("建议的技能与记忆", result)
 
     def test_skills_section_empty_when_no_proposals(self):
         """No PROPOSAL.md files → empty skills section."""
@@ -337,13 +337,13 @@ class TestSkillsSectionInIndex(unittest.TestCase):
         self.assertEqual(result, "")
 
     def test_skills_section_marks_memory_type(self):
-        """personal-context should be marked as 'memory' type."""
+        """personal-context should be marked as '记忆' type."""
         self._make_proposal("personal-context", "Context problem", "Evidence",
                             "Why", "Benefit")
         import html as html_mod
         from run import _build_skills_section
         result = _build_skills_section(self._tmp, html_mod)
-        self.assertIn("memory", result)
+        self.assertIn("记忆", result)
 
     def test_skills_section_excludes_non_skill_dirs(self):
         """session_records, page_cache, etc. should not appear as skills."""
