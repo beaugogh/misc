@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.7.5
+version: 1.8.0
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -197,7 +197,7 @@ the setup section in the parent [`README.md`](../README.md):
 | Tool | Read-only check | Missing impact | Setup |
 |---|---|---|---|
 | Python 3.9+ | `python --version` | Cannot process local evidence | — (required) |
-| skill-creator | locate its `SKILL.md` and validator | Propose direct edits, but disclose reduced validation | — (bundled in repo) |
+| skill-creator | locate `vendor/skill-creator/SKILL.md` and `vendor/skill-creator/scripts/quick_validate.py` | Propose direct edits, but disclose reduced validation | — (bundled at `vendor/skill-creator/`) |
 | git | `git --version` | Skip commit corroboration | — (usually preinstalled) |
 | agentcenter | `agentcenter --version` | Skip market search and version comparison | README.md §agentcenter |
 | welink-cli | locate command and inspect auth status | Skip WeLink supplementary evidence | README.md §welink-cli |
@@ -427,14 +427,15 @@ read by the agent in step 9 but is **NOT** installed into agents (the installer
 excludes it). For memory, create the same file at
 `output/personal-context/PROPOSAL.md`.
 
-For a new or revised skill, follow skill-creator when available:
+For a new or revised skill, follow `vendor/skill-creator/` when available:
 
 1. Define realistic trigger and non-trigger examples.
 2. Plan reusable scripts, references, or assets only when needed.
 3. Write concise imperative instructions with progressive disclosure.
 4. Validate YAML metadata and directory naming.
-5. Run relevant scripts or tests.
-6. Forward-test realistic tasks when safe.
+5. Run `python vendor/skill-creator/scripts/quick_validate.py output/<skill-name>/` to validate.
+6. Run relevant scripts or tests.
+7. Forward-test realistic tasks when safe.
 
 Create an evaluation record for proposed and automatically eligible changes containing:
 

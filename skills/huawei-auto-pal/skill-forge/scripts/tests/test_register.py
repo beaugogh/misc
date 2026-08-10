@@ -683,6 +683,15 @@ class TestCmdDist(unittest.TestCase):
         os.makedirs(pycache)
         with open(os.path.join(pycache, "junk.pyc"), "wb") as f:
             f.write(b"\x00\x00")
+        # skill-creator sibling (bundled into dist zip).
+        self._creator_root = os.path.join(self._tmp, "skill-creator")
+        os.makedirs(os.path.join(self._creator_root, "scripts"))
+        with open(os.path.join(self._creator_root, "SKILL.md"), "w", encoding="utf-8") as f:
+            f.write("---\nname: skill-creator\n---\n# skill-creator\n")
+        with open(os.path.join(self._creator_root, "scripts", "quick_validate.py"), "w", encoding="utf-8") as f:
+            f.write("# validator\n")
+        with open(os.path.join(self._creator_root, "LICENSE.txt"), "w", encoding="utf-8") as f:
+            f.write("MIT\n")
         # Patch _SKILL_ROOT and _downloads_dir.
         self._downloads = os.path.join(self._tmp, "Downloads")
         self._patch = patch.object(register, "_downloads_dir", return_value=self._downloads)
@@ -764,6 +773,45 @@ class TestCmdDist(unittest.TestCase):
         for n in names:
             self.assertTrue(n.startswith("huawei-auto-pal/"),
                             f"path not under skill dir: {n}")
+
+    def test_dist_bundles_skill_creator(self):
+        """skill-creator must be bundled under vendor/skill-creator/ in the zip."""
+        self._run_dist()
+        names, _ = self._zip_names()
+        self.assertTrue(
+            any(n == "huawei-auto-pal/vendor/skill-creator/SKILL.md" for n in names),
+            f"skill-creator/SKILL.md missing: {names}")
+        self.assertTrue(
+            any(n == "huawei-auto-pal/vendor/skill-creator/scripts/quick_validate.py" for n in names),
+            f"quick_validate.py missing: {names}")
+
+    def test_dist_skill_creator_under_vendor(self):
+        """All skill-creator files must be under vendor/skill-creator/."""
+        self._run_dist()
+        names, _ = self._zip_names()
+        creator_files = [n for n in names if "skill-creator" in n]
+        self.assertTrue(len(creator_files) > 0, "no skill-creator files found")
+        for n in creator_files:
+            self.assertTrue("vendor/skill-creator/" in n,
+                            f"skill-creator file outside vendor/: {n}")
+
+    def test_dist_warns_when_skill_creator_missing(self):
+        """When skill-creator sibling doesn't exist, warn but still produce the zip."""
+        # Remove the skill-creator sibling.
+        shutil.rmtree(self._creator_root)
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        buf_out = io.StringIO()
+        buf_err = io.StringIO()
+        with redirect_stdout(buf_out), redirect_stderr(buf_err):
+            register.cmd_dist(type("Args", (), {"dry_run": False})(), [], [])
+        combined = buf_out.getvalue() + buf_err.getvalue()
+        self.assertIn("not found", combined)
+        # Zip still created.
+        names, _ = self._zip_names()
+        self.assertTrue(any(n == "huawei-auto-pal/SKILL.md" for n in names))
+        # No vendor/skill-creator in zip.
+        self.assertFalse(any("vendor/skill-creator" in n for n in names))
 
     def test_missing_skill_root(self):
         register._SKILL_ROOT = "/nonexistent/skill/root"

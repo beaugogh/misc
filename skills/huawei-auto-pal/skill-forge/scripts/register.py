@@ -1329,6 +1329,11 @@ def cmd_dist(args, agents, output_skills):
     per AgentCenter's HIDDEN_FILE rule — covers .env, .gitignore, etc.), and build
     artifacts (__pycache__/, *.pyc, .skill-forge-backups) so the archive contains
     only shareable skill code.
+
+    Bundles skill-creator (the repo sibling at ../skill-creator/) under
+    vendor/skill-creator/ so that skill-forge's dependency on its SKILL.md
+    and quick_validate.py is available to colleagues who install the zip
+    without the full repo.
     """
     skill_root = Path(_SKILL_ROOT)
     if not skill_root.is_dir():
@@ -1342,8 +1347,21 @@ def cmd_dist(args, agents, output_skills):
     zip_name = f"huawei-auto-pal-{version}.zip"
     zip_path = os.path.join(downloads, zip_name)
 
+    # skill-creator is a repo sibling that skill-forge depends on for
+    # authoring guidance and quick_validate.py. Bundle it so the zip is
+    # self-contained.
+    skill_creator_path = os.path.join(_SKILL_ROOT, "..", "skill-creator")
+    skill_creator_path = os.path.normpath(skill_creator_path)
+    has_skill_creator = os.path.isdir(skill_creator_path)
+
+    if not has_skill_creator:
+        print(f"  ⚠ skill-creator not found at {skill_creator_path} — "
+              f"skill-forge will have reduced validation.", file=sys.stderr)
+
     if args.dry_run:
         print(f"Would zip {_SKILL_ROOT} → {zip_path}")
+        if has_skill_creator:
+            print(f"  + bundle skill-creator from {skill_creator_path}")
         return
 
     # AgentCenter rejects hidden files (anything starting with '.') and
@@ -1351,6 +1369,7 @@ def cmd_dist(args, agents, output_skills):
     skip_dirs = {"__pycache__", ".skill-forge-backups", "output"}
     file_count = 0
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        # 1. huawei-auto-pal itself.
         for root, dirs, files in os.walk(_SKILL_ROOT):
             # Drop hidden and skip dirs in-place so os.walk doesn't descend.
             dirs[:] = [d for d in dirs if d not in skip_dirs and not d.startswith(".")]
@@ -1366,10 +1385,25 @@ def cmd_dist(args, agents, output_skills):
                 zf.write(fpath, arcname)
                 file_count += 1
 
+        # 2. skill-creator (bundled dependency).
+        if has_skill_creator:
+            for root, dirs, files in os.walk(skill_creator_path):
+                dirs[:] = [d for d in dirs if d not in skip_dirs and not d.startswith(".")]
+                for fname in files:
+                    if fname.startswith(".") or fname.endswith((".pyc", ".pyo")):
+                        continue
+                    fpath = os.path.join(root, fname)
+                    rel = os.path.relpath(fpath, skill_creator_path)
+                    arcname = os.path.join(skill_root.name, "vendor", "skill-creator", rel)
+                    zf.write(fpath, arcname)
+                    file_count += 1
+
     zip_size = os.path.getsize(zip_path)
     size_str = f"{zip_size / 1024:.0f} KB" if zip_size < 1024 * 1024 else f"{zip_size / 1024 / 1024:.1f} MB"
     print(f"✓ Skill package saved to: {zip_path}")
     print(f"  {file_count} files, {size_str}")
+    if has_skill_creator:
+        print(f"  Includes: vendor/skill-creator/ (bundled)")
     print(f"  Upload this zip to AgentCenter to share with colleagues.")
 
 
