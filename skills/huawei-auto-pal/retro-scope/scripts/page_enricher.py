@@ -37,7 +37,7 @@ from html.parser import HTMLParser
 # ---------------------------------------------------------------------------
 
 # Only enrich tasks with at least this much active time (seconds).
-_MIN_ACTIVE_SECONDS = 1800  # 0.5h
+_MIN_ACTIVE_SECONDS = 600  # 10 min
 
 # Only enrich the top N pages per task (by visit count).
 _MAX_PAGES_PER_TASK = 5
@@ -161,19 +161,28 @@ def select_pages_to_enrich(tasks: list[dict], events: list[dict]) -> dict[str, l
     for task_id, counts in task_pages.items():
         titles = task_titles.get(task_id, {})
         pages = []
-        # Filter first, then take top N. If we limited before filtering and
-        # the top 5 were all auth-required Huawei domains, external URLs
-        # ranked #6+ would never be enriched.
+        auth_pages = []
+        # Separate fetchable URLs from auth-required ones. Auth-required pages
+        # are included (marked "auth_required" by enrich_tasks) but don't count
+        # against the fetchable-page limit — otherwise tasks where all top URLs
+        # are Huawei internal would have no fetchable pages at all.
         for url, visit_count in counts.most_common():
-            if _should_skip_url(url):
+            if _should_skip_url(url) and not is_auth_required_domain(url):
                 continue
-            pages.append({
+            entry = {
                 "url": url,
                 "title": titles.get(url, ""),
                 "visit_count": visit_count,
-            })
-            if len(pages) >= _MAX_PAGES_PER_TASK:
-                break
+            }
+            if is_auth_required_domain(url):
+                auth_pages.append(entry)
+            else:
+                pages.append(entry)
+                if len(pages) >= _MAX_PAGES_PER_TASK:
+                    break
+        # Auth-required pages appended after fetchable ones (capped to avoid
+        # unbounded lists when all visits are to Huawei internal sites).
+        pages.extend(auth_pages[:_MAX_PAGES_PER_TASK])
         if pages:
             result[task_id] = pages
 

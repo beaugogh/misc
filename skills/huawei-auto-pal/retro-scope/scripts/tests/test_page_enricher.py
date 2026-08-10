@@ -74,8 +74,9 @@ class TestSelectPagesToEnrich(unittest.TestCase):
         result = select_pages_to_enrich(tasks, events)
         self.assertNotIn("t1", result)
 
-    def test_skips_auth_required_domains(self):
-        """Huawei internal domains are skipped."""
+    def test_includes_auth_required_domains(self):
+        """Auth-required Huawei domains are included in selection so enrich_tasks
+        can mark them as 'auth_required' — not silently dropped."""
         events = [
             _make_visit_event(1000, "https://codehub-g.huawei.com/repo", "CodeHub"),
             _make_visit_event(1001, "https://example.com/page", "External"),
@@ -84,7 +85,8 @@ class TestSelectPagesToEnrich(unittest.TestCase):
         result = select_pages_to_enrich(tasks, events)
         self.assertIn("t1", result)
         urls = [p["url"] for p in result["t1"]]
-        self.assertNotIn("https://codehub-g.huawei.com/repo", urls)
+        # Both URLs included — auth_required is marked by enrich_tasks, not select.
+        self.assertIn("https://codehub-g.huawei.com/repo", urls)
         self.assertIn("https://example.com/page", urls)
 
     def test_caps_at_max_pages(self):
@@ -112,7 +114,8 @@ class TestSelectPagesToEnrich(unittest.TestCase):
 
     def test_filter_then_limit_not_limit_then_filter(self):
         """When top URLs are all auth-required, external URLs beyond the
-        top N should still be selected. Filter first, then limit."""
+        top N should still be selected. Auth-required URLs don't count
+        against the fetchable-page limit."""
         events = []
         # Top 6 by visit count: all Huawei internal (auth-required)
         for i in range(6):
@@ -126,9 +129,9 @@ class TestSelectPagesToEnrich(unittest.TestCase):
         result = select_pages_to_enrich(tasks, events)
         self.assertIn("t1", result)
         urls = [p["url"] for p in result["t1"]]
-        # No Huawei URLs (all filtered)
-        self.assertFalse(any("huawei.com" in u for u in urls))
-        # External URLs are present (not lost behind the top-N cutoff)
+        # Auth-required Huawei URLs are INCLUDED (marked auth_required by enrich_tasks)
+        self.assertTrue(any("huawei.com" in u for u in urls))
+        # External URLs are also present (not lost behind the auth-required cutoff)
         self.assertIn("https://example.com/real-page", urls)
         self.assertIn("https://github.com/repo/docs", urls)
 
@@ -444,9 +447,12 @@ class TestEnrichTasks(unittest.TestCase):
         events = [_make_visit_event(1000, "https://codehub-g.huawei.com/repo", "CodeHub")]
         tasks = [_make_task("t1", 1000, 2000, active_seconds=3600)]
         result = enrich_tasks(tasks, events, self.tmpdir, dry_run=True)
-        # Auth-required pages are filtered out by select_pages_to_enrich,
-        # so no pages should be selected.
-        self.assertNotIn("t1", result)
+        # Auth-required pages are now INCLUDED in selection and marked as
+        # "auth_required" by enrich_tasks — not silently dropped.
+        self.assertIn("t1", result)
+        page = result["t1"]["pages"][0]
+        self.assertEqual(page["status"], "auth_required")
+        self.assertIn(page["url"], result["t1"]["auth_skipped"])
 
     def test_uses_cache(self):
         # First, cache a result.
