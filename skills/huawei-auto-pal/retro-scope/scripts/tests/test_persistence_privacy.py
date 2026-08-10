@@ -152,6 +152,117 @@ class TestPrivateEvidenceExport(unittest.TestCase):
             self.assertNotIn("assistant_message", kinds)
             self.assertNotIn("tool_use", kinds)
 
+    def test_filesystem_task_excludes_other_sources(self):
+        """A filesystem task (session_id=None) must not include AI, browser,
+        or vcs events from the same time window."""
+        task = {
+            "id": "implicit-nosession-1000",
+            "subject": "editing files",
+            "source_kind": "filesystem",
+            "source": "windows_recent",
+            "session_id": None,
+            "cwd": None,
+            "git_branch": None,
+            "start": 1000.0,
+            "end": 2000.0,
+            "human_data": {
+                "is_genuine_time_sink": True,
+                "human_engaged_seconds": 600,
+            },
+        }
+        events = [
+            {"timestamp": 1000.0, "session_id": None, "source_kind": "filesystem",
+             "kind": "file_open", "text": "D:\\proj\\main.py",
+             "tool_input": {"file_path": "D:\\proj\\main.py"}},
+            {"timestamp": 1100.0, "session_id": None, "source_kind": "filesystem",
+             "kind": "file_open", "text": "D:\\proj\\utils.py",
+             "tool_input": {"file_path": "D:\\proj\\utils.py"}},
+            # AI session events — should be EXCLUDED.
+            {"timestamp": 1200.0, "session_id": "ai-abc",
+             "source_kind": "ai_session", "kind": "assistant_message", "text": "let me help"},
+            {"timestamp": 1300.0, "session_id": "ai-abc",
+             "source_kind": "ai_session", "kind": "tool_use", "tool_name": "Bash"},
+            # Browser events — should be EXCLUDED.
+            {"timestamp": 1400.0, "session_id": None, "source_kind": "browser",
+             "kind": "visit", "text": "Google",
+             "tool_input": {"url": "https://google.com", "title": "Google"}},
+            # VCS events — should be EXCLUDED.
+            {"timestamp": 1500.0, "session_id": None, "source_kind": "vcs",
+             "kind": "commit", "text": "fix: stuff",
+             "tool_input": {"hash": "abc123", "subject": "fix: stuff"}},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            _export_session_records([task], events, tmp)
+            records_dir = os.path.join(tmp, "session_records")
+            paths = [os.path.join(records_dir, name) for name in os.listdir(records_dir)]
+            self.assertEqual(len(paths), 1)
+            with open(paths[0], encoding="utf-8") as f:
+                import json as _json
+                record = _json.load(f)
+            timeline = record.get("event_timeline", [])
+            kinds = [e["kind"] for e in timeline]
+            # Only filesystem events.
+            self.assertIn("file_open", kinds)
+            self.assertEqual(len(kinds), 2)  # exactly the 2 file_open events
+            # No contamination.
+            self.assertNotIn("assistant_message", kinds)
+            self.assertNotIn("tool_use", kinds)
+            self.assertNotIn("visit", kinds)
+            self.assertNotIn("commit", kinds)
+
+    def test_vcs_task_excludes_other_sources(self):
+        """A vcs task (session_id=None) must not include AI or browser events."""
+        task = {
+            "id": "implicit-nosession-2000",
+            "subject": "commits",
+            "source_kind": "vcs",
+            "source": "git",
+            "session_id": None,
+            "cwd": "D:\\proj",
+            "git_branch": "main",
+            "start": 2000.0,
+            "end": 3000.0,
+            "human_data": {
+                "is_genuine_time_sink": True,
+                "human_engaged_seconds": 600,
+            },
+        }
+        events = [
+            {"timestamp": 2000.0, "session_id": None, "source_kind": "vcs",
+             "kind": "commit", "text": "fix: bug",
+             "tool_input": {"hash": "def456", "subject": "fix: bug"}},
+            {"timestamp": 2100.0, "session_id": None, "source_kind": "vcs",
+             "kind": "branch_checkout", "text": "main -> feature/x",
+             "tool_input": {"from_branch": "main", "to_branch": "feature/x"}},
+            # AI session events — should be EXCLUDED.
+            {"timestamp": 2200.0, "session_id": "ai-xyz",
+             "source_kind": "ai_session", "kind": "user_message", "text": "help"},
+            {"timestamp": 2300.0, "session_id": "ai-xyz",
+             "source_kind": "ai_session", "kind": "tool_use", "tool_name": "Read"},
+            # Browser events — should be EXCLUDED.
+            {"timestamp": 2400.0, "session_id": None, "source_kind": "browser",
+             "kind": "visit", "text": "Stack Overflow",
+             "tool_input": {"url": "https://stackoverflow.com", "title": "SO"}},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            _export_session_records([task], events, tmp)
+            records_dir = os.path.join(tmp, "session_records")
+            paths = [os.path.join(records_dir, name) for name in os.listdir(records_dir)]
+            self.assertEqual(len(paths), 1)
+            with open(paths[0], encoding="utf-8") as f:
+                import json as _json
+                record = _json.load(f)
+            timeline = record.get("event_timeline", [])
+            kinds = [e["kind"] for e in timeline]
+            # Only vcs events.
+            self.assertIn("commit", kinds)
+            self.assertIn("branch_checkout", kinds)
+            self.assertEqual(len(kinds), 2)
+            # No contamination.
+            self.assertNotIn("user_message", kinds)
+            self.assertNotIn("tool_use", kinds)
+            self.assertNotIn("visit", kinds)
+
 
 if __name__ == "__main__":
     unittest.main()
