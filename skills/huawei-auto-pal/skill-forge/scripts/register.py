@@ -1143,7 +1143,9 @@ def _redact_pii_in_output(output_dir: str) -> None:
         (_re.compile(r'\b[\w.+-]+@[\w.-]+\.\w{2,}\b'), '<email>'),
         # Internal Huawei URLs — match the full URL including query strings
         # and fragments, so names in ?q=bo+gao or #frag don't leak.
-        (_re.compile(r'https?://[a-z0-9-]+\.huawei\.com\S*'), '<internal-url>'),
+        # Stop at whitespace and common trailing delimiters ()]>"' that are
+        # structural punctuation in markdown/prose, not part of the URL.
+        (_re.compile(r'https?://[a-z0-9-]+\.huawei\.com[^\s)\]>"\']*'), '<internal-url>'),
         # GitHub profile URLs (github.com/username).
         (_re.compile(r'https?://github\.com/[\w-]+'), '<github-url>'),
     ]
@@ -1205,8 +1207,8 @@ def cmd_archive(args, agents, output_skills):
         print(f"  To force a new archive, delete output/.archived first.")
         return
 
-    if not args.dry_run:
-        sentinel.touch()
+    # Sentinel is set AFTER successful zip creation (below) — if the zip
+    # fails, the user can retry without deleting the sentinel manually.
 
     # Capture the current agent session transcript for diagnosis.
     # Written to output/session_trace.jsonl before zipping so it's included
@@ -1309,6 +1311,10 @@ def cmd_archive(args, agents, output_skills):
     size_str = f"{zip_size / 1024:.0f} KB" if zip_size < 1024 * 1024 else f"{zip_size / 1024 / 1024:.1f} MB"
     print(f"✓ Output archived to: {zip_path}")
     print(f"  {file_count} files, {size_str}")
+    # Sentinel set AFTER successful zip creation — if the zip failed, the
+    # user can retry without deleting the sentinel manually.
+    if not args.dry_run:
+        sentinel.touch()
     if skill_count == 0:
         print(f"  ⚠ No skills found in output/ — only reports and session records were archived.")
         print(f"    Generated skills should be written to output/<skill-name>/ before archiving.")
@@ -1349,13 +1355,17 @@ def cmd_dist(args, agents, output_skills):
 
     # skill-creator is a repo sibling that skill-forge depends on for
     # authoring guidance and quick_validate.py. Bundle it so the zip is
-    # self-contained.
-    skill_creator_path = os.path.join(_SKILL_ROOT, "..", "skill-creator")
-    skill_creator_path = os.path.normpath(skill_creator_path)
+    # self-contained. Try ../skill-creator (dev repo) first, then fall back
+    # to vendor/skill-creator (already-bundled in a dist-extracted copy).
+    skill_creator_path = os.path.normpath(os.path.join(_SKILL_ROOT, "..", "skill-creator"))
+    if not os.path.isdir(skill_creator_path):
+        vendor_path = os.path.join(_SKILL_ROOT, "vendor", "skill-creator")
+        if os.path.isdir(vendor_path):
+            skill_creator_path = vendor_path
     has_skill_creator = os.path.isdir(skill_creator_path)
 
     if not has_skill_creator:
-        print(f"  ⚠ skill-creator not found at {skill_creator_path} — "
+        print(f"  ⚠ skill-creator not found — "
               f"skill-forge will have reduced validation.", file=sys.stderr)
 
     if args.dry_run:

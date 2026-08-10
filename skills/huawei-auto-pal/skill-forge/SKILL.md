@@ -1,6 +1,6 @@
 ---
 name: skill-forge
-version: 1.8.0
+version: 1.8.1
 description: >-
   Use only through huawei-auto-pal when validated retro-scope findings or
   verified user feedback should become skills or long-term memories, with
@@ -197,7 +197,7 @@ the setup section in the parent [`README.md`](../README.md):
 | Tool | Read-only check | Missing impact | Setup |
 |---|---|---|---|
 | Python 3.9+ | `python --version` | Cannot process local evidence | — (required) |
-| skill-creator | locate `vendor/skill-creator/SKILL.md` and `vendor/skill-creator/scripts/quick_validate.py` | Propose direct edits, but disclose reduced validation | — (bundled at `vendor/skill-creator/`) |
+| skill-creator | locate `vendor/skill-creator/SKILL.md` and `vendor/skill-creator/scripts/quick_validate.py` | Propose direct edits, but disclose reduced validation | — (bundled in dist zip; at `../skill-creator/` in dev repo) |
 | git | `git --version` | Skip commit corroboration | — (usually preinstalled) |
 | agentcenter | `agentcenter --version` | Skip market search and version comparison | README.md §agentcenter |
 | welink-cli | locate command and inspect auth status | Skip WeLink supplementary evidence | README.md §welink-cli |

@@ -643,6 +643,31 @@ class TestCmdArchive(unittest.TestCase):
             )
         self.assertFalse(os.path.isfile(os.path.join(self._output, ".archived")))
 
+    def test_sentinel_not_set_on_zip_failure(self):
+        """If zip creation fails, the sentinel must NOT be set so retry works."""
+        # Make _downloads_dir unwritable so zip creation fails.
+        # First archive succeeds and sets sentinel.
+        register.cmd_archive(
+            type("Args", (), {"dry_run": False})(), [], []
+        )
+        self.assertTrue(os.path.isfile(os.path.join(self._output, ".archived")))
+        # Remove sentinel + zip to simulate a clean retry after failure.
+        os.remove(os.path.join(self._output, ".archived"))
+        zips = [f for f in os.listdir(self._downloads) if f.endswith(".zip")]
+        for z in zips:
+            os.remove(os.path.join(self._downloads, z))
+        # Patch zipfile.ZipFile to raise OSError.
+        with patch("register.zipfile.ZipFile", side_effect=OSError("disk full")):
+            try:
+                register.cmd_archive(
+                    type("Args", (), {"dry_run": False})(), [], []
+                )
+            except OSError:
+                pass  # The error may propagate
+        # Sentinel must NOT be set after failure.
+        self.assertFalse(os.path.isfile(os.path.join(self._output, ".archived")),
+                         "Sentinel set after failed zip — retry would be blocked")
+
 
 class TestCmdDist(unittest.TestCase):
     """Test the --dist command — zips the whole skill folder for sharing."""
@@ -1575,6 +1600,18 @@ class TestRedactPII(unittest.TestCase):
         self.assertNotIn("bo+gao", content)
         self.assertNotIn("w3.huawei.com", content)
         self.assertIn("<internal-url>", content)
+
+    def test_redacts_huawei_url_preserves_trailing_punctuation(self):
+        """Trailing )] must not be eaten by the URL regex — breaks markdown."""
+        self._make_skill_file("my-skill", "PROPOSAL.md",
+            "See [link](https://w3.huawei.com/x) and (https://w3.huawei.com/y).")
+        register._redact_pii_in_output(self._tmp)
+        with open(os.path.join(self._tmp, "my-skill", "PROPOSAL.md"), "r", encoding="utf-8") as f:
+            content = f.read()
+        # URLs redacted.
+        self.assertNotIn("w3.huawei.com", content)
+        # Closing paren preserved in markdown link and prose.
+        self.assertIn("(<internal-url>)", content)
 
     def test_redacts_github_url(self):
         self._make_skill_file("my-skill", "SKILL.md",
