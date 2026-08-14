@@ -1,0 +1,4 @@
+output: ./wiki
+delay_seconds: 2
+timeout_seconds: 30
+webpage_to_markdown_path: ../webpage-to-markdown/scripts/extract_url_markdown.py

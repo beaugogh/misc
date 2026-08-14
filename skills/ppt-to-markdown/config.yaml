@@ -1,0 +1,12 @@
+output_dir: ""
+output_suffix: "_structured.md"
+
+# Output options
+include_deck_summary: true
+include_notes: true
+truncate_text: 200            # max chars per content bullet
+
+# Slide image embedding
+embed_slide_images: true      # export each slide as PNG and embed in markdown
+image_embed_threshold: 10     # min shapes to trigger image embed (below = text only)
+image_embed_max_kb: 500       # max image size to inline as base64 (larger = file ref)
