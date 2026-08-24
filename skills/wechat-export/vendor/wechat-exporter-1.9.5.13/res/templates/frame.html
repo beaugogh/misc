@@ -1,0 +1,877 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+		<meta name="apple-mobile-web-app-capable" content="yes">
+		<meta content="yes" name="apple-touch-fullscreen">
+		<style type=text/css>
+
+		body
+		{
+			background-color: #c4c4c4;
+			font-family: "-apple-system", "Helvetica Neue", "Roboto", "Segoe UI", sans-serif;
+  			font-size: 10.5pt;
+      		margin: 0px;
+		}
+		.main
+		{
+			max-width:720px;
+			margin: 0 auto;
+			height: 100%;
+			padding-top: 54px; /* header */
+			padding-bottom: 20px; /* footer */
+			background-color: #ebebeb;
+		}
+		.header
+		{
+			position: fixed;
+			top:0;
+			max-width:720px;
+			width: 100%;
+			height: 48px;
+			background-color: #f6f6f6;
+			z-index: 2147483600;
+		}
+		.sname
+		{
+			padding-left: 12px;
+			vertical-align: middle;
+			height: 48px;
+			line-height: 48px;
+			font-weight: bold;
+		}
+		.msgfilter
+		{
+			float:right;
+			height: 48px;
+			line-height: 48px;
+			padding-right: 8px;
+		}
+		.filter-btn
+		{
+			vertical-align: middle;
+		}
+		span.filter-btn
+		{
+			cursor: hand;
+		}
+		span.filter-btn:hover
+		{
+			color: blue;
+		}
+		.footer
+		{
+			position: fixed;
+			bottom: 0;
+			max-width:720px;
+			width: 100%;
+			height: 20px;
+			z-index: 2147483600;
+		}
+		
+		div.msg
+		{
+			page-break-inside: avoid;
+			break-inside: avoid-page;
+		}
+
+		.msgs
+		{
+			width: 100%;
+			height: 100%;
+		}
+		span.msg-text pre
+		{
+			white-space: pre-wrap;       /* Since CSS 2.1 */
+			white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+			white-space: -pre-wrap;      /* Opera 4-6 */
+			white-space: -o-pre-wrap;    /* Opera 7 */
+			word-wrap: break-word;       /* Internet Explorer 5.5+ */
+			margin: 0px 0px;
+		}
+	  	.chat.left, .media.left
+	  	{
+			clear:both;
+			overflow: auto;
+			margin:0 auto;
+			padding: 8px 8px 0px 8px;
+	  	}
+		.chat.left div.avatar-box,
+		.media.left div.avatar-box
+		{
+			float: left;
+		}
+		.chat.left div.avatar-box
+		{
+			/*padding-top: 6px;*/
+		}
+		.chat.left div.nt-box,
+		.media.left div.nt-box
+		{
+			margin: 0 50px 2px 50px;
+			padding: 0px;
+			color: #848484;
+			font-size: 80%;
+			text-align: left;
+		}
+		.chat.left div.content-box
+		{
+			position: relative;
+			background-color: white;
+			/*float: left;*/
+			margin: 0 50px 8px 50px;
+			padding: 8px 8px 8px 8px;
+			border-radius:4px;
+		}
+		.media.left div.content-box
+		{
+			/*float: left;*/
+			margin: 0 50px 8px 50px;
+			padding: 8px 8px 8px 8px;
+    	}
+	    div.content-box
+	    {
+	      width:fit-content;
+	      width:-webkit-fit-content;
+	      width:-moz-fit-content;
+	    }
+		.chat.left.channels .content-box, .chat.right.channels .content-box
+		{
+			width:240px;
+		}
+		.refermsg
+		{
+			font-size: 90%;
+		}
+		
+		.chat.right, .media.right
+		{
+			clear:both;
+			overflow: auto;
+			max-width: 670px;
+			margin: 0 auto;
+			background-color: #ebebeb;
+			padding: 8px 8px 0px 58px;
+		}
+		.chat.right div.avatar-box,
+		.media.right div.avatar-box
+		{
+			float: right;
+		}
+		.chat.right div.nt-box,
+		.media.right div.nt-box
+		{
+			margin: 0px 50px 2px 50px;
+			padding: 0px;
+			color: #848484;
+			font-size: 80%;
+			text-align: right;
+		}
+		.chat.right div.content-box
+		{
+      		position: relative;
+			background-color: #b2e281;
+			margin: 0px 50px 8px auto;
+			padding: 8px 8px 8px 8px;
+			border-radius: 4px;
+		}
+		.media.right div.content-box
+		{
+			float: right;
+			margin: 0px 0px 8px 50px;
+			padding: 8px 8px 8px 8px;
+		}
+		
+		.name.right
+		{
+			display: none;
+		}
+		img.wxemoji
+		{
+			border: 0;
+			width: 20px;
+		    height: 20px;
+		    display: inline;
+		    display: -moz-inline-stack;
+		    display: inline-block;
+		    vertical-align: top;
+		    /*zoom: 1;*/
+		}
+		
+		img.avatar
+		{
+			width: 40px;
+			height: 40px;
+			border-radius: 4px;
+		}
+		
+		.triangle
+		{
+			height: 0px;
+			width: 0px;
+			border-width: 6px;
+			border-style: solid;
+			position: relative;
+		}
+		.chat.left .triangle
+		{
+			position: absolute;
+			border-color: transparent white transparent transparent;
+			left: -12px;
+			top: 6px;
+		}
+		.chat.right .triangle
+		{
+			position: absolute;
+			border-color: transparent transparent transparent #b2e281;
+			right: -12px;
+			top: 6px;
+		}
+		
+		.chat-notice
+		{
+			clear: both;
+			font-size: 80%;
+			text-align: center;
+			margin-top: 15px;
+			margin-bottom: 15px;
+			margin:0 auto;
+			padding: 0px 8px;
+    	}
+    	.chat-notice .content-box
+		{
+			width: 80%;
+			margin:0 auto;
+		}
+		.chat-notice.fmsgtag .content-box
+		{
+			background-color: #008080;
+			border-radius: 4px;
+			font-size: 100%;
+			padding: 5px 10px;
+			color: white;
+		}
+		audio
+		{
+			max-width: 220px;
+		}
+		video
+		{
+			max-width: 240px;
+			border-radius: 4px;
+		}
+		.image
+		{
+			width:90px;
+			border-radius:4px;
+			max-width: 360px;
+			max-height: 240px;
+			min-width: 120px;
+			min-height: 24px;
+		}
+		img
+		{
+			image-orientation: from-image;
+		}
+		img[src=""]
+		{
+			display: none;
+		}
+		img.app-icon
+		{
+			width: 24px;
+			height: 24px;
+			vertical-align:middle;
+			border-radius: 2px;
+		}
+		img.transfer-icon
+		{
+			width: 16px;
+			height: 16px;
+			vertical-align:middle;
+			border-radius: 2px;
+		}
+		img.channel-poster
+		{
+			object-fit: cover;
+			width: 240px;
+			height: 240px;
+		}
+		.raw-img .image:hover, .channel-poster:hover
+		{
+			cursor: -webkit-zoom-in;
+   			cursor: zoom-in;
+		  	/* transform: scale(5); */
+		}
+		img.card-avatar
+		{
+			width: 42px;
+			height: 42px;
+			vertical-align:middle;
+		}
+		div.card-name
+		{
+			display: inline-flex;
+			align-items:center;
+		}
+		div.card-name span
+		{
+			margin-left: 8px;
+		}
+		span.channel-title
+		{
+			margin-left: 2px;
+		}
+		span.app-name:empty
+		{
+			display: none;
+		}
+		div.card-type
+		{
+			border-top: 1px dotted #dedede;
+			margin: 10px 2px 2px 2px;
+			padding: 4 12px 8px 0px;
+			line-height: 1.6;
+		}
+		.contact-card .card-avatar
+		{
+			border-radius: 4px;
+		}
+		.channel-card .card-avatar
+		{
+			border-radius: 21px; /*making circle*/
+		}
+		span.channel-title
+		{
+			overflow: hidden;
+			text-overflow: ellipsis;
+			-o-text-overflow: ellipsis;
+			white-space: nowrap;
+			-webkit-line-clamp: 1;
+			-webkit-box-orient: vertical;
+			word-break: break-all;
+			width: 230px;
+			display:block;
+		}
+		.appinfo
+		{
+			/*padding-top: 12px;*/
+		}
+		.app-name
+		{
+			padding-left: 4px;
+			color: #999;
+			font-size: 80%;
+		}
+		
+		.dont-break-out
+		{
+			overflow-wrap: break-word;
+			word-wrap: break-word;
+			
+			-ms-word-break: break-all;
+			/*word-break: break-all;*/
+			word-break: break-word;
+			-ms-hyphens: auto;
+			-moz-hyphens: auto;
+			-webkit-hyphens: auto;
+			hyphens: auto;
+		}
+
+		.img-popup
+		{
+			background: rgba(0,0,0,.4);
+			
+			width: 100%;
+			height: 100%;
+			position: fixed;
+			text-align: center;
+			top: 0;
+			left: 0;
+			z-index: 2147483647;	/* top-most */
+		}
+		.img-popup .img
+		{
+			cursor: pointer;
+			display: inline-block;
+			vertical-align: middle;
+			display: inline-block;
+			position: absolute;
+			box-shadow: 10px 10px 60px #555;
+			border-radius: 8px;
+			max-width: 90%; 
+			max-height: 90%;
+			margin: auto;
+			left: 0;
+			right: 0;
+			top: 0;
+			bottom: 0;
+		}
+
+		.voicebox
+		{
+			background-color: white;
+			max-width: 300px;
+			min-width: 48px;
+			height: 30px;
+			border-radius: 4px;
+			display: inline-flex;
+			border: 1.5px solid #ccc;
+			padding: 2px;
+		}
+		.right .voicebox
+		{
+			background-color: #b2e281;
+			flex-direction: row-reverse;
+		}
+		.voiceimg
+		{
+			width: 25px;
+			height: 26px;
+			background-repeat: no-repeat;
+			background-position: -50px 0;
+			background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEsAAAAaCAMAAADIQlGKAAAAdVBMVEUAAAAAyWcHwWAHwWAHwWAFwWAHwWAHwV8GwWAHwV8HwWAGwWAHwWAHwWAHwWAGwmEJwGAKwF8LwGEHwWAIwWAIwWAFwGEHv2MAwWEAu2AHwV8HwWAIwWEGwWAGwl8GwmEIwmEGwV0IwmEHwWAIwWEGwGAHwWBdwbyCAAAAJnRSTlMABfxq+C3djVpG8cSwrXFUOBgWzIBiNCQQC7OShHpTTz8pILWpn7aeLVQAAADRSURBVDjL3dXJDoIwFEZh5klBQAUFcfa8/yO68xKb3NRYN/7bj5xFIdT72/nuUunoLFVB5qq1Syja705EoIbUPtWujxqURI11a03RKhBDaN1awahBws2z3oLCVyAlmnO+MR8UCOGswBauAquIysgIxLBVIIfuBXEAS6Mj0MCkQAe5UBhwMEICFwgVyKGeUVbujY5ABicF5LwstiTYKfD2HtXVMGiQsPjg86JTIIbKutUnqQYlQe9Zr/EVqOHh7v8V9Y5aG5ic3Rz3weE1tPd+sSe2ExTdqqGN0gAAAABJRU5ErkJggg==');
+		}
+		.voicetime
+		{
+			height: 26px;
+			line-height: 26px;
+			padding-left: 4px;
+			padding-right: 8px;
+		}
+		.right .voiceimg
+		{
+			-moz-transform: scaleX(-1);
+    		-o-transform: scaleX(-1);
+    		-webkit-transform: scaleX(-1);
+    		transform: scaleX(-1);
+    		filter: FlipH;
+    		-ms-filter: "FlipH";
+		}
+
+		.voiceplaying
+		{
+			animation:voiceplaying 1.5s steps(1, end) infinite;
+		}
+
+		@keyframes voiceplaying
+		{
+			0%{background-position: 0 0 }
+			25%{ background-position:-25px 0;}
+			75%{ background-position: -50px 0; }
+			100%{ background-position: -50px 0; }
+		}
+		
+		@media print
+		{
+			body
+			{
+				background-color: white;
+			}
+			.header
+			{
+				position: absolute;
+			}
+			.chat.left div.content-box
+			{
+				margin: 0 50px 4px 50px;
+			}
+			.chat.right div.content-box
+			{
+				margin: 0px 50px 4px auto;
+			}
+		}
+		</style>
+		<title>%%DISPLAYNAME%% - %%ML:WeChat Chat History%%</title>
+		<script language="javascript">
+			function showImagePopup(e)
+			{
+				var srcElement = e.target;
+				var imgUrl = srcElement.getAttribute("rawUrl");
+				if (imgUrl == null)
+				{
+					return false;
+				}
+	
+				var fragment = document.createDocumentFragment();
+				var div = document.createElement('div');
+				div.className = "img-popup";
+				div.onclick = function(event) {
+					document.body.removeChild(div);
+				};
+				fragment.appendChild(div);
+				var img = document.createElement('img');
+				img.className = "img";
+				img.src = imgUrl;
+				div.appendChild(img);
+				document.body.appendChild(fragment);
+			}
+	
+			function showElements(msgType)
+			{
+				var kwElement = document.getElementById("filter-keyword");
+				if (null != kwElement) kwElement.value = "";
+	
+				window.msgFilter = {'filterType': 'msgType', 'msgType': msgType};
+	
+				var msgElements = document.querySelectorAll('div.msg');
+				if (null == msgElements || msgElements.length == 0)
+				{
+					return;
+				}
+	
+				document.body.style.cursor = 'wait';
+				var visibleMsgs = 0;
+				for (idx = 0; idx < msgElements.length; idx++)
+				{
+					if (filterMsg(msgElements[idx]))
+					{
+						visibleMsgs++;
+					}
+				}
+	
+				if (visibleMsgs < window.sizeOfMsgPage && (typeof window.wechatMsgsIndexes !== 'undefined') && (window.wechatMsgsIndexes.length > 0))
+				{
+					window.numberOfMsgsToLoad = window.sizeOfMsgPage - visibleMsgs;
+					loadMsgsForNextPage();
+				}
+				document.body.style.cursor = 'default';
+			}
+	
+			function filterMsg(divMsg)
+			{
+				if ((typeof window.msgFilter === 'undefined') || (window.msgFilter == null) || (typeof window.msgFilter.filterType === 'undefined'))
+				{
+					divMsg.style.display = "block";
+					return true;
+				}
+				if (window.msgFilter.filterType == 'search')
+				{
+					if ((typeof window.msgFilter.keyword === 'undefined') || (window.msgFilter.keyword == null) || (window.msgFilter.keyword.length == 0))
+					{
+						divMsg.style.display = "block";
+						return true;
+					}
+					var elementClasses = ['span.dspname', 'span.msg-text'];
+					var matched = false;
+					for (idx1 = 0; idx1 < elementClasses.length; idx1++)
+					{
+						var elements = divMsg.querySelectorAll(elementClasses[idx1]);
+						if (null == elements || elements.length == 0) continue;
+						
+						for (idx2 = 0; idx2 < elements.length; idx2++)
+						{
+							if (null != elements[idx2].innerText && elements[idx2].innerText.toLowerCase().indexOf(window.msgFilter.keyword) != -1)
+							{
+								matched = true;
+								break;
+							}
+						}
+						if (matched) break;
+					}
+					divMsg.style.display = matched ? "block" : "none";
+					return matched;
+				}
+				else if (window.msgFilter.filterType == 'msgType')
+				{
+					var matched = (typeof window.msgFilter.msgType === 'undefined') || (window.msgFilter.msgType == null) || (divMsg.getAttribute("msgType") == window.msgFilter.msgType);
+					divMsg.style.display = matched ? "block" : "none";
+					return matched;
+				}
+	
+				divMsg.style.display = "block";
+				return true;
+			}
+	
+			function searchElements(e)
+			{
+				var keyCode = e.keyCode || e.which || 0;
+				if(keyCode !== 13)
+				{
+					return false;
+				}
+	
+				var msgElements = document.querySelectorAll('div.msg');
+				if (null == msgElements || msgElements.length == 0)
+				{
+					return false;;
+				}
+	
+				var keyword = e.target.value == null ? "" : e.target.value.toLowerCase();
+				window.msgFilter = {'filterType': 'search', 'keyword': keyword};
+				var elementClasses = ['span.dspname', 'span.msg-text'];
+				var visibleMsgs = 0;
+				document.body.style.cursor = 'wait';
+				for (idx = 0; idx < msgElements.length; idx++)
+				{
+					if (filterMsg(msgElements[idx]))
+					{
+						visibleMsgs++;
+					}
+				}
+				if (visibleMsgs < window.sizeOfMsgPage && (typeof window.wechatMsgsIndexes !== 'undefined') && (window.wechatMsgsIndexes.length > 0))
+				{
+					window.loadingMoreMsgs = true;
+					window.numberOfMsgsToLoad = window.sizeOfMsgPage - visibleMsgs;
+					loadMsgsForNextPage();
+				}
+				document.body.style.cursor = 'default';
+				
+				return false;
+			}
+	
+			function showAllMsgs(e)
+			{
+				showElements(null);
+			}
+			function showImageMsgs(e)
+			{
+				showElements("image");
+			}
+			function showVideoMsgs(e)
+			{
+				showElements("video");
+			}
+
+			function loadMsgsForNextPage()
+			{
+				if ((typeof window.wechatMsgsIndexes === 'undefined'))
+				{
+					return 0;
+				}
+				if ((typeof window.moreWechatMsgs === 'undefined'))
+				{
+					window.moreWechatMsgs = [];
+				}
+				
+				var visibleMsgs = 0;
+				if (window.moreWechatMsgs.length > 0)
+				{
+					var fragment = document.createDocumentFragment();
+					var div = document.createElement('div');
+					fragment.appendChild(div);
+					
+					while (window.moreWechatMsgs.length > 0)
+					{
+						div.innerHTML = window.moreWechatMsgs.shift();
+						if (div.children.length > 0)
+						{
+							var msgDiv = div.children[0];
+							fragment.appendChild(msgDiv);
+							
+							if (filterMsg(msgDiv))
+							{
+								visibleMsgs++;
+							}
+						}
+						
+					}
+
+					fragment.removeChild(div);
+					var containerDiv = document.getElementById('msgs-div');
+					if (null != containerDiv)
+					{
+						containerDiv.appendChild(fragment);
+					}
+				}
+				
+				window.numberOfMsgsToLoad -= visibleMsgs;
+				if ((window.numberOfMsgsToLoad > 0) && window.wechatMsgsIndexes.length > 0)
+				{
+					// Load next page
+					var nextPage = window.wechatMsgsIndexes.shift();
+
+					var script   = document.createElement("script");
+					script.type  = "text/javascript";
+					script.src   = "%%DATA_PATH%%/msg-" + nextPage + ".js";
+					document.body.appendChild(script);
+				}
+				else
+				{
+					window.loadingMoreMsgs = false;
+				}
+
+				return true;
+			}
+
+			function checkScrollDirectionIsUp(e)
+			{
+				if (e.wheelDelta)
+				{
+					return e.wheelDelta > 0;
+				}
+				return e.deltaY < 0;
+			}
+
+			function playbackEnded(e)
+			{
+				var playingMsgId = e.target.getAttribute("playingMsgId");
+				if (playingMsgId != null)
+				{
+					var voiceDiv = document.getElementById("voiceimg-" + playingMsgId);
+					if (null != voiceDiv)
+					{
+						voiceDiv.classList.remove("voiceplaying");
+					}
+					e.target.removeAttribute("playingMsgId");
+				}
+			}
+
+			function playAudio(src, msgId)
+			{
+				// Stop previous
+				var audioPlayer = document.getElementById("audioPlayer");
+				if (null == audioPlayer)
+				{
+					var divFooter = document.getElementById("footer");
+					// Create audio player
+					audioPlayer = document.createElement('audio');
+					audioPlayer.id = "audioPlayer";
+					audioPlayer.type = 'audio/mpeg';
+					audioPlayer.hidden = true;
+					if (null != divFooter)
+					{
+						divFooter.appendChild(audioPlayer);
+					}
+
+					audioPlayer.onpause = playbackEnded;
+					audioPlayer.onended = playbackEnded;
+
+					audioPlayer.onaudioprocess = function(e)
+					{
+						console.log("onaudioprocess: " + e.target.currentSrc);
+					};
+
+					audioPlayer.onloadeddata = function(e)
+					{
+						console.log("onloadeddata: " + e.target.currentSrc);
+					};
+
+					
+				}
+
+				audioPlayer.pause();
+				
+				var playingMsgId = audioPlayer.getAttribute("playingMsgId");
+				if (playingMsgId != null)
+				{
+					var voiceDiv = document.getElementById("voiceimg-" + playingMsgId);
+					if (null != voiceDiv)
+					{
+						voiceDiv.classList.remove("voiceplaying");
+					}
+					audioPlayer.removeAttribute("playingMsgId");
+				}
+
+				if (msgId != playingMsgId)
+				{
+					console.log("Will play " + msgId);
+					// Play new one
+					audioPlayer.setAttribute("playingMsgId", msgId);
+					var audioSrc = src.getAttribute("audio");
+					if (null != audioSrc)
+					{
+						audioPlayer.src = audioSrc;
+						audioPlayer.load();
+						audioPlayer.play();
+					}
+
+					var voiceDiv = document.getElementById("voiceimg-" + msgId);
+					if (null != voiceDiv)
+					{
+						voiceDiv.classList.add("voiceplaying");
+					}
+				}
+			}
+
+
+		</script>
+	</head>
+	<body uid="%%USRNAME%%" sid="%%SESSION_USRNAME%%">
+		<div class="main">
+			<div class="header">
+				<span class="sname">%%DISPLAYNAME%%</span>
+				<div class="msgfilter">
+					<!-- filter.html -->
+%%HEADER_FILTER%%
+				</div>
+			</div>
+			<div class="msgs" id="msgs-div">
+%%BODY%%
+			</div>
+			<div id="footer" class="footer">
+	
+			</div>
+		</div>
+
+  	</body>
+  	<script language="javascript">
+		(function() {
+			window.loadingMoreMsgs = false;
+			window.sizeOfMsgPage = parseInt('%%SIZE_OF_PAGE%%') || 100;
+			var numberOfMsgs = parseInt('%%NUMBER_OF_MSGS%%') || 0;
+			var numberOfPages = parseInt('%%NUMBER_OF_PAGES%%') || 0;
+			var asyncLoadingType = "%%ASYNC_LOADING_TYPE%%";
+
+			if (numberOfPages == 0)
+			{
+				return;
+			}
+			window.wechatMsgsIndexes = [];
+			for (var idx = 1; idx <= numberOfPages; idx++)
+			{
+				window.wechatMsgsIndexes.push(idx);
+			}
+
+			window.numberOfMsgsToLoad = 0;
+			
+			if (asyncLoadingType == "initial")
+			{
+				// Load all messages
+				window.numberOfMsgsToLoad = numberOfMsgs;
+				window.numberOfVisibleMsgsToLoad = -1;
+
+				window.addEventListener('load', function (e)
+				{
+					loadMsgsForNextPage();
+
+				}, false);
+			}
+			else if (asyncLoadingType == "onscroll")
+			{
+				window.addEventListener('scroll', function(e)
+				{
+					if (window.loadingMoreMsgs)
+					{
+						return;
+					}
+					if (window.wechatMsgsIndexes.length == 0)
+					{
+						return;
+					}
+
+					if (!checkScrollDirectionIsUp(e))
+					{
+						var containerDiv = document.querySelector("#msgs-div");
+						var containerDivOffset = containerDiv.offsetTop + containerDiv.clientHeight;
+
+						var pageOffset = window.pageYOffset + window.innerHeight;
+
+						if(pageOffset > containerDivOffset - 20)
+						{
+							window.loadingMoreMsgs = true;
+							if (window.numberOfMsgsToLoad <= 0) window.numberOfMsgsToLoad = window.sizeOfMsgPage;
+							loadMsgsForNextPage();
+						}
+					}
+				}, {passive: true});
+			
+			}
+		})();			
+
+		
+
+	  </script>
+
+</html>

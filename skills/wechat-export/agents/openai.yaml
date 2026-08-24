@@ -1,0 +1,4 @@
+interface:
+  display_name: "WeChat Export"
+  short_description: "Export and validate authorized WeChat archives"
+  default_prompt: "Use $wechat-export to export my authorized WeChat history into offline HTML, JSON, and CSV."
