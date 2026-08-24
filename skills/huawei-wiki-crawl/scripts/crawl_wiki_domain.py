@@ -119,14 +119,57 @@ def opencli_navigate(url: str, wait: int = 5) -> bool:
         return False
 
 
+def resolve_local_dir(domain_id: str, output_dir: Path, override: str | None = None) -> str:
+    """Resolve the output folder name for a domain.
+
+    Naming convention: {general_domain}-{sub_domain}-{domain_id}
+    e.g. data-CloudDB-44072, cloudnative-KKEI-47138, middleware-GEMAS-28877
+
+    Lookup order:
+    1. Explicit override (--local-dir argument)
+    2. local_dir field in existing manifest (wiki/manifest/{domain_id}-manifest.json)
+    3. Existing folder in wiki/ that ends with the domain_id
+    4. Fallback to bare domain_id (with a warning)
+    """
+    if override:
+        return override
+
+    # Check manifest for local_dir
+    manifest_path = output_dir / "manifest" / f"{domain_id}-manifest.json"
+    if manifest_path.exists():
+        try:
+            with open(manifest_path, encoding="utf-8") as f:
+                manifest = json.load(f)
+            local_dir = manifest.get("local_dir")
+            if local_dir:
+                return local_dir
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Check if a folder matching *-{domain_id} already exists in output_dir
+    if output_dir.exists():
+        for entry in output_dir.iterdir():
+            if entry.is_dir() and entry.name.endswith(f"-{domain_id}"):
+                return entry.name
+
+    # Fallback: bare domain_id
+    print(f"  WARNING: no local_dir found for domain {domain_id}. "
+          f"Using bare ID '{domain_id}'. "
+          f"Pass --local-dir to specify the conventional name "
+          f"(e.g. data-CloudDB-{domain_id}).", file=sys.stderr)
+    return domain_id
+
+
 def harvest_via_opencli(url: str, wiki_sn: str, domain_id: str,
-                        output_dir: Path, cfg: dict) -> str:
+                        output_dir: Path, cfg: dict,
+                        local_dir: str | None = None) -> str:
     """Harvest a wiki page by navigating to it and extracting DOM content via opencli.
 
     This is the primary harvest method — it uses the user's authenticated
     browser session (via opencli) to render the SPA page and extract content.
     """
-    domain_dir = output_dir / domain_id
+    folder_name = resolve_local_dir(domain_id, output_dir, local_dir)
+    domain_dir = output_dir / folder_name
     domain_dir.mkdir(parents=True, exist_ok=True)
     filepath = domain_dir / f"{wiki_sn}.md"
 
@@ -235,6 +278,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--output", default=None, help="Output directory")
     p.add_argument("--token", default=None, help="visionUserToken JWT")
     p.add_argument("--delay", type=float, default=None, help="Delay between fetches (seconds)")
+    p.add_argument("--local-dir", default=None,
+                   help="Override folder name (e.g. data-CloudDB-49870). "
+                        "Default: look up from manifest or fallback to domain ID.")
     args = p.parse_args(argv)
 
     cfg = load_config()
@@ -247,7 +293,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.single_url:
         wiki_sn = extract_wiki_sn(args.single_url) or "UNKNOWN"
         domain_id = extract_domain_id(args.single_url) or "unknown"
-        status = harvest_via_opencli(args.single_url, wiki_sn, domain_id, output_dir, cfg)
+        status = harvest_via_opencli(args.single_url, wiki_sn, domain_id,
+                                     output_dir, cfg, local_dir=args.local_dir)
         print(f"\nResult: {status}")
         return 0 if status != "failed" else 1
 
@@ -268,8 +315,12 @@ def main(argv: list[str] | None = None) -> int:
 
     domain_id = manifest.get("domain_id", "unknown")
     pages = manifest.get("pages", [])
+    # Use manifest's local_dir if present, fall back to resolve_local_dir
+    local_dir = manifest.get("local_dir") or resolve_local_dir(
+        str(domain_id), output_dir, args.local_dir)
+    manifest.setdefault("local_dir", local_dir)  # persist if not already set
     print(f"\nPhase 2: Harvesting {len(pages)} page(s) for domain {domain_id}")
-    print(f"Output: {output_dir / domain_id}/")
+    print(f"Output: {output_dir / local_dir}/")
     print(f"Method: opencli browser DOM extraction")
     print()
 
@@ -281,7 +332,8 @@ def main(argv: list[str] | None = None) -> int:
         title = page.get("title", "")
         print(f"[{i}/{len(pages)}] {wiki_sn} — {title[:40]}")
 
-        status = harvest_via_opencli(url, wiki_sn, domain_id, output_dir, cfg)
+        status = harvest_via_opencli(url, wiki_sn, domain_id,
+                                     output_dir, cfg, local_dir=local_dir)
         page["harvest_status"] = status
 
         if status == "harvested":
