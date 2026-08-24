@@ -242,3 +242,6 @@ pnpm-debug.log*
 opencli-plugins/**/package-lock.json
 
 
+
+# Harvest AI papers skill output — large generated artifacts, not tracked
+skills/harvest-ai-papers/output/
