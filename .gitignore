@@ -245,3 +245,6 @@ opencli-plugins/**/package-lock.json
 
 # Harvest AI papers skill output — large generated artifacts, not tracked
 skills/harvest-ai-papers/output/
+
+# Lingshu skills crawl output — crawled skill archives, gitignored
+skills/huawei-lingshu-skills-crawl/output/
