@@ -38,10 +38,10 @@ try:
 except Exception:
     pass
 
-# --- config (mirrors mcp-tool.json) -----------------------------------------
+# --- config (mirrors mcp-server.json) -----------------------------------------
 URL = "http://remote-mcp.rnd.huawei.com/remote-mcp/mcp/w3_search_tool"
 # HTTP timeout for the wrapper's own requests, in seconds. The manifest
-# (mcp-tool.json) and the harness configs use 8000ms = 8s for the MCP-client
+# (mcp-server.json) and the harness configs use 8000ms = 8s for the MCP-client
 # timeout; the wrapper adds headroom (15s) for slow VPN links. Keep these
 # aligned in intent: if you change one, change the other.
 TIMEOUT = 15

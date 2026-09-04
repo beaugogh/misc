@@ -13,14 +13,14 @@ This is **not a buildable software project**. It is a knowledge repository of Ma
 ```
 skills/              — Own agent skills (growing collection)
 opencli-plugins/     — OpenCLI browser-automation adapters
-mcp-tools/           — MCP servers (remote install-free + local uvx-launched), packaged for any agent
+mcps/                — MCP servers (remote install-free + local uvx-launched), packaged for any agent
 scripts/             — Repo-level tooling (catalog generation)
 anthropic-skills/    — Git submodule (at skills/anthropic-skills): Anthropic's official skills (read-only)
 superpowers/         — Git submodule (at skills/superpowers): obra's methodology skills (read-only)
 mattpocock-skills/   — Git submodule (at skills/mattpocock-skills): Matt Pocock's engineering skills (read-only)
 .venv/               — Python venv (torch, whisper, imageio-ffmpeg) for ML-heavy skills
 .env                 — Per-provider API credentials (gitignored, never commit)
-CATALOG.md           — Auto-generated catalog of ALL skills + OpenCLI plugins + MCP tools
+CATALOG.md           — Auto-generated catalog of ALL skills + OpenCLI plugins + MCP servers
 ```
 
 ## Skill format
@@ -81,12 +81,12 @@ source .venv/Scripts/activate
 5. Verify: `opencli plugin install file://$(pwd)/opencli-plugins/<name>` then `opencli <name> <command>`
 6. Run `./scripts/generate-catalog.sh` to update `CATALOG.md`
 
-### New MCP tool
-1. `mkdir mcp-tools/<kebab-case-name>`
-2. Add `mcp-tool.json` (manifest: `name`, `transport` (`remote` or `local`), and for remote `url`/`headers` or for local `command`/`environment`/`runtime`; `auth`, `network.no_proxy`, and a `tools[]` array with `name`/`args`/`output_fields`) — this is the catalog source of truth. Local tools must declare a `runtime` block (requires/install/note) stating their prerequisites.
+### New MCP server
+1. `mkdir mcps/<kebab-case-name>`
+2. Add `mcp-server.json` (manifest: `name`, `transport` (`remote` or `local`), and for remote `url`/`headers` or for local `command`/`environment`/`runtime`; `auth`, `network.no_proxy`, and a `tools[]` array with `name`/`args`/`output_fields`) — this is the catalog source of truth. One manifest = one server; a server may expose one or many tools in `tools[]`. Local servers must declare a `runtime` block (requires/install/note) stating their prerequisites.
 3. Write a pure-stdlib `<name>.py` wrapper that speaks the MCP protocol — Streamable HTTP for remote (urllib + json), stdio JSON-RPC for local (subprocess + json). Must run with no `pip install` for the wrapper itself. Remote wrappers bypass the corporate proxy for intranet hosts themselves (use a no-proxy opener, don't rely on `NO_PROXY` env); local wrappers augment `NO_PROXY` for the uvx subprocess.
 4. Add `claude-code.mcp.json` and `opencode.mcp.json` ready-to-load configs
-5. Add a `README.md` (model on `mcp-tools/huawei-w3-search/README.md` for remote, `mcp-tools/huawei-codehub/README.md` for local — local must state runtime prerequisites up front)
+5. Add a `README.md` (model on `mcps/huawei-w3-search/README.md` for remote, `mcps/huawei-codehub/README.md` for local — local must state runtime prerequisites up front)
 6. Run `./scripts/generate-catalog.sh` to update `CATALOG.md`
 
 ## Key conventions

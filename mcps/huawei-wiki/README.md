@@ -56,22 +56,22 @@ serial number).
 ### A. Any agent with Bash + Python 3
 
 ```bash
-python3 mcp-tools/huawei-wiki/wiki_mcp.py fetch-wiki-content --url <wiki-url>
-python3 mcp-tools/huawei-wiki/wiki_mcp.py search-wiki-documents --url <wiki-url> --search-range knowledge --search-key "盘古" --json
-python3 mcp-tools/huawei-wiki/wiki_mcp.py list-my-pending-wiki-countersigns
-python3 mcp-tools/huawei-wiki/wiki_mcp.py --list-tools
+python3 mcps/huawei-wiki/wiki_mcp.py fetch-wiki-content --url <wiki-url>
+python3 mcps/huawei-wiki/wiki_mcp.py search-wiki-documents --url <wiki-url> --search-range knowledge --search-key "盘古" --json
+python3 mcps/huawei-wiki/wiki_mcp.py list-my-pending-wiki-countersigns
+python3 mcps/huawei-wiki/wiki_mcp.py --list-tools
 ```
 
 ### B/C. Claude Code / opencode
 
-`cp mcp-tools/huawei-wiki/claude-code.mcp.json .mcp.json` (Claude Code) or
-`codeagent --mcp-config mcp-tools/huawei-wiki/opencode.mcp.json` (opencode).
+`cp mcps/huawei-wiki/claude-code.mcp.json .mcp.json` (Claude Code) or
+`codeagent --mcp-config mcps/huawei-wiki/opencode.mcp.json` (opencode).
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `mcp-tool.json` | Manifest (source of truth for catalog). |
+| `mcp-server.json` | Manifest (source of truth for catalog). |
 | `wiki_mcp.py` | Pure-stdlib MCP client (urllib + json). No `pip install`. |
 | `claude-code.mcp.json` | Claude Code config (`.mcp.json`). |
 | `opencode.mcp.json` | opencode/ngAgent/cac config. |

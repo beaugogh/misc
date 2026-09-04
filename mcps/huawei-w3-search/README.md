@@ -5,7 +5,7 @@ via the remote **`w3_search_tool`** MCP server. Returns documents — title,
 source, url, text snippets, publish time — for any query (a person's name +
 employee id, a product/topic, a technical term).
 
-This is the first entry in the repo's `mcp-tools/` category: **remote MCP
+This is the first entry in the repo's `mcps/` category: **remote MCP
 servers packaged to work out of the box for any agent/harness**, with no
 install step and no bundled credentials.
 
@@ -67,8 +67,8 @@ Output fields per result: `title`, `source` (e.g. `hw3ms_doclib`, `w3_doc_w3`),
 ### A. Any agent with Bash + Python 3 (no MCP needed)
 
 ```bash
-python3 mcp-tools/huawei-w3-search/w3_search.py "高博 b00563677"
-python3 mcp-tools/huawei-w3-search/w3_search.py "盘古平台" --page 2 --size 5 --json
+python3 mcps/huawei-w3-search/w3_search.py "高博 b00563677"
+python3 mcps/huawei-w3-search/w3_search.py "盘古平台" --page 2 --size 5 --json
 ```
 
 Prints human-readable results by default; `--json` emits the raw server JSON.
@@ -81,7 +81,7 @@ auto-discovered, or pass it explicitly:
 
 ```bash
 # Auto-discovered: place at project root as .mcp.json
-cp mcp-tools/huawei-w3-search/claude-code.mcp.json .mcp.json
+cp mcps/huawei-w3-search/claude-code.mcp.json .mcp.json
 # Ensure NO_PROXY is set in the shell that launches Claude Code, then:
 claude
 ```
@@ -93,7 +93,7 @@ claude
 Load the bundled opencode config explicitly (no global edit):
 
 ```bash
-NO_PROXY=remote-mcp.rnd.huawei.com codeagent --mcp-config mcp-tools/huawei-w3-search/opencode.mcp.json
+NO_PROXY=remote-mcp.rnd.huawei.com codeagent --mcp-config mcps/huawei-w3-search/opencode.mcp.json
 # or strict (only this server): --strict-mcp-config
 ```
 
@@ -104,7 +104,7 @@ object from `opencode.mcp.json` into `~/.config/opencode/opencode.json`.
 
 | File | Purpose |
 |---|---|
-| `mcp-tool.json` | Manifest — single source of truth (transport, url, headers, tool args). Catalog is generated from this. |
+| `mcp-server.json` | Manifest — single source of truth (transport, url, headers, tool args). Catalog is generated from this. |
 | `w3_search.py` | Pure-stdlib (urllib + json) MCP client. Runs anywhere with Python 3; no `pip install`. |
 | `claude-code.mcp.json` | Ready-to-load config for Claude Code (`.mcp.json` format). |
 | `opencode.mcp.json` | Ready-to-load config for opencode/ngAgent/cac (`mcp` object format). |
@@ -113,7 +113,7 @@ object from `opencode.mcp.json` into `~/.config/opencode/opencode.json`.
 ## Verification
 
 ```bash
-python3 mcp-tools/huawei-w3-search/w3_search.py "b00563677" --size 3
+python3 mcps/huawei-w3-search/w3_search.py "b00563677" --size 3
 ```
 
 Expect a few W3 document hits (titles + urls). If you see a connection error,

@@ -44,18 +44,18 @@ NO_PROXY=tool.clouddevops.huawei.com
 
 ```bash
 export CLOUDDEVOPS_X_AUTH_TOKEN=<your-token>
-python3 mcp-tools/huawei-clouddevops/clouddevops.py search-domains --keyword "数字化"
-python3 mcp-tools/huawei-clouddevops/clouddevops.py query-issues-detail --issue-number BUG2025032012345
-python3 mcp-tools/huawei-clouddevops/clouddevops.py search-knowledge --search-key "盘古" --json
-python3 mcp-tools/huawei-clouddevops/clouddevops.py query-workitems-by-code --code 1 --page 1 --size 20
-python3 mcp-tools/huawei-clouddevops/clouddevops.py --list-tools
+python3 mcps/huawei-clouddevops/clouddevops.py search-domains --keyword "数字化"
+python3 mcps/huawei-clouddevops/clouddevops.py query-issues-detail --issue-number BUG2025032012345
+python3 mcps/huawei-clouddevops/clouddevops.py search-knowledge --search-key "盘古" --json
+python3 mcps/huawei-clouddevops/clouddevops.py query-workitems-by-code --code 1 --page 1 --size 20
+python3 mcps/huawei-clouddevops/clouddevops.py --list-tools
 ```
 
 ### B/C. Claude Code / opencode
 
 Edit the config to put your real `X-AUTH-TOKEN` in the headers, then:
-`cp mcp-tools/huawei-clouddevops/claude-code.mcp.json .mcp.json` (Claude Code) or
-`codeagent --mcp-config mcp-tools/huawei-clouddevops/opencode.mcp.json` (opencode).
+`cp mcps/huawei-clouddevops/claude-code.mcp.json .mcp.json` (Claude Code) or
+`codeagent --mcp-config mcps/huawei-clouddevops/opencode.mcp.json` (opencode).
 
 ## Relationship to wiki-mcp
 
@@ -76,7 +76,7 @@ vulnerabilities — not just Wiki.
 
 | File | Purpose |
 |---|---|
-| `mcp-tool.json` | Manifest (source of truth for catalog). |
+| `mcp-server.json` | Manifest (source of truth for catalog). |
 | `clouddevops.py` | Pure-stdlib MCP client (urllib + json). No `pip install`. |
 | `claude-code.mcp.json` | Claude Code config (`.mcp.json`). |
 | `opencode.mcp.json` | opencode/ngAgent/cac config. |

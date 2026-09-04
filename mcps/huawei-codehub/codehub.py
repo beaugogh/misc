@@ -46,7 +46,7 @@ try:
 except Exception:
     pass
 
-# --- config (mirrors mcp-tool.json) -----------------------------------------
+# --- config (mirrors mcp-server.json) -----------------------------------------
 # The uvx command that launches the local MCP server. The exact same args the
 # harness configs use, so the wrapper and the MCP-client path launch the same
 # server. Override the whole arg list with CODEHUB_UVX_ARGS (JSON array) if you

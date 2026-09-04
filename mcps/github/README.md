@@ -5,9 +5,9 @@ official **GitHub MCP server** (`api.githubcopilot.com/mcp/`). Covers the full
 GitHub platform: repos, commits, file contents, issues, pull requests, reviews,
 workflow runs, notifications, code search.
 
-## ⚠️ First EXTERNAL-host MCP tool in this repo
+## ⚠️ First EXTERNAL-host MCP server in this repo
 
-Unlike the other four `mcp-tools/` entries (`huawei-w3-search`,
+Unlike the other four `mcps/` entries (`huawei-w3-search`,
 `huawei-codehub`, `huawei-wiki`, `huawei-clouddevops`) which hit **Huawei
 intranet** hosts and must **bypass** the corporate proxy, GitHub is an
 **external** host that must go **through** the proxy:
@@ -60,16 +60,16 @@ key tools; `--list-tools` shows the full live list. Key tools:
 
 ```bash
 export GITHUB_TOKEN=ghp_xxxxxxxxxxxx
-python3 mcp-tools/github/github_mcp.py list-commits --owner beaugogh --repo misc --json
-python3 mcp-tools/github/github_mcp.py list-pull-requests --owner beaugogh --repo misc --state all
-python3 mcp-tools/github/github_mcp.py --list-tools
+python3 mcps/github/github_mcp.py list-commits --owner beaugogh --repo misc --json
+python3 mcps/github/github_mcp.py list-pull-requests --owner beaugogh --repo misc --state all
+python3 mcps/github/github_mcp.py --list-tools
 ```
 
 ### B/C. Claude Code / opencode
 
 Edit the config to put your real PAT in the `Authorization` header, then:
-`cp mcp-tools/github/claude-code.mcp.json .mcp.json` (Claude Code) or
-`codeagent --mcp-config mcp-tools/github/opencode.mcp.json` (opencode).
+`cp mcps/github/claude-code.mcp.json .mcp.json` (Claude Code) or
+`codeagent --mcp-config mcps/github/opencode.mcp.json` (opencode).
 
 Note: the agent's MCP client must also route through the proxy. Set
 `HTTPS_PROXY=http://proxyuk.huawei.com:8080` in the shell that launches the
@@ -86,7 +86,7 @@ this tool; for repos on CodeHub, use `huawei-codehub`.
 
 | File | Purpose |
 |---|---|
-| `mcp-tool.json` | Manifest (source of truth for catalog). |
+| `mcp-server.json` | Manifest (source of truth for catalog). |
 | `github_mcp.py` | Pure-stdlib MCP client (urllib + json + ssl). No `pip install`. |
 | `claude-code.mcp.json` | Claude Code config (`.mcp.json`). |
 | `opencode.mcp.json` | opencode/ngAgent/cac config. |

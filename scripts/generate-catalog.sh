@@ -247,24 +247,24 @@ render_plugin_section() {
 }
 
 # --- mcp-tool helper --------------------------------------------------------
-# Emit one TSV row per MCP tool: name <TAB> transport <TAB> tools-json <TAB>
-# readme-path. Mirrors emit_plugins_tsv but reads mcp-tool.json manifests.
+# Emit one TSV row per MCP server: name <TAB> transport <TAB> tools-json <TAB>
+# readme-path. Mirrors emit_plugins_tsv but reads mcp-server.json manifests.
 emit_mcptools_tsv() {
   node -e '
     const fs = require("fs");
     const path = require("path");
-    const dir = "mcp-tools";
+    const dir = "mcps";
     let entries;
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-    catch { process.exit(0); }  // no mcp-tools dir -> no rows
+    catch { process.exit(0); }  // no mcps dir -> no rows
     const rows = [];
     for (const e of entries) {
       if (!e.isDirectory()) continue;
-      const manifest = path.join(dir, e.name, "mcp-tool.json");
+      const manifest = path.join(dir, e.name, "mcp-server.json");
       if (!fs.existsSync(manifest)) continue;
       let m;
       try { m = JSON.parse(fs.readFileSync(manifest, "utf8")); }
-      catch (err) { console.error(`skip ${e.name}: invalid mcp-tool.json (${err.message})`); continue; }
+      catch (err) { console.error(`skip ${e.name}: invalid mcp-server.json (${err.message})`); continue; }
       const name = m.name || e.name;
       const transport = m.transport || "remote";
       const tools = Array.isArray(m.tools) ? m.tools.map(t => ({
@@ -322,8 +322,8 @@ render_mcptool_section() {
     count=$((count+1))
   done <<< "$tsv"
 
-  printf '### MCP tools (%d)\n\n' "$count"
-  printf '| Tool | Transport | MCP tools |\n'
+  printf '### MCP server adapters (%d)\n\n' "$count"
+  printf '| Server | Transport | Callable tools |\n'
   printf '|---|---|---|\n'
   printf '%s' "$rows"
   printf '\n'
@@ -355,13 +355,14 @@ agent must know which is which:
   logged-in Huawei session in Chrome — all human one-time setup. Portable as a
   *command*, not as pure code. See [`opencli-plugins/README.md`](./opencli-plugins/README.md)
   for prerequisites and install.
-- **MCP tool** — a remote MCP server packaged to work out of the box for any
-  agent. Load the bundled config (Claude Code `.mcp.json` / opencode
-  `--mcp-config`) to expose its MCP tool, **or** run the bundled wrapper script
+- **MCP server** — a packaged MCP-server connection (one folder per server
+  under `mcps/`; a server may expose one or many callable tools). Load the
+  bundled config (Claude Code `.mcp.json` / opencode
+  `--mcp-config`) to expose its tools, **or** run the bundled wrapper script
   via Bash + Python 3 — no MCP support required. No install step, no bundled
-  credentials. See [`mcp-tools/README.md`](./mcp-tools/README.md).
+  credentials. See [`mcps/README.md`](./mcps/README.md).
 
-Regenerate after adding/removing skills, plugins, or MCP tools: `./scripts/generate-catalog.sh`
+Regenerate after adding/removing skills, plugins, or MCP servers: `./scripts/generate-catalog.sh`
 
 ## Skills
 
@@ -396,13 +397,15 @@ PLUGHDR
 
   cat <<'MCPTHDR'
 
-## MCP tools
+## MCP servers
 
-Each tool's `mcp-tool.json` declares the transport (remote url, headers) and
-the MCP tool surface (name, args, output fields) — that manifest is the catalog
-source of truth. Each tool ships a ready-to-load config per harness plus a
+Each folder under `mcps/` packages **one MCP server**, which may expose one or
+many callable tools (`huawei-w3-search` has 1, `huawei-clouddevops` has 65).
+The folder's `mcp-server.json` declares the transport (remote url, headers) and
+the tool surface (name, args, output fields) — that manifest is the catalog
+source of truth. Each server ships a ready-to-load config per harness plus a
 pure-stdlib wrapper script, so it works with **no install** for any agent. Full
-setup and the no-MCP fallback live in each tool's `README.md`.
+setup and the no-MCP fallback live in each server folder's `README.md`.
 
 MCPTHDR
 
@@ -434,17 +437,17 @@ Install once (see `opencli-plugins/README.md`), then call as a CLI command:
 opencli <plugin> <command> [args]        # e.g. opencli huawei-jiaxian search "盘古" --limit 3
 ```
 
-## Using a picked MCP tool
+## Using a picked MCP server
 
 No install. Two ways (see the tool's `README.md` for details):
 
 ```bash
 # Any agent with Bash + Python 3 (no MCP support needed):
-python3 mcp-tools/<tool>/<wrapper>.py "<query>"           # e.g. python3 mcp-tools/huawei-w3-search/w3_search.py "盘古"
+python3 mcps/<tool>/<wrapper>.py "<query>"           # e.g. python3 mcps/huawei-w3-search/w3_search.py "盘古"
 
 # MCP-capable agent — load the bundled config:
-#   Claude Code:   cp mcp-tools/<tool>/claude-code.mcp.json .mcp.json
-#   opencode/cac:  codeagent --mcp-config mcp-tools/<tool>/opencode.mcp.json
+#   Claude Code:   cp mcps/<tool>/claude-code.mcp.json .mcp.json
+#   opencode/cac:  codeagent --mcp-config mcps/<tool>/opencode.mcp.json
 ```
 FOOTER
 } > "$OUT"

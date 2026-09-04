@@ -164,7 +164,7 @@ NO_PROXY=cmc.centralrepo.rnd.huawei.com \
   [astral-sh/uv](https://github.com/astral-sh/uv/releases)
 - Verify / 验证: `uvx --version`
 - If `uvx` is not on PATH, see
-  [`../../mcp-tools/huawei-codehub/README.md`](../../mcp-tools/huawei-codehub/README.md)
+  [`../../mcps/huawei-codehub/README.md`](../../mcps/huawei-codehub/README.md)
   to configure `CODEHUB_UVX_ARGS`.
 
 ### nga.cmd — AI dev token statistics (optional)
@@ -180,18 +180,18 @@ docs — do not hardcode a drive path.
 **Adds / 增加数据**: Intranet search results and Wiki documents for identity
 enrichment (used by skill-forge).
 **Prerequisite / 前置条件**: None — self-contained Python scripts in the
-repo's `mcp-tools/` directory, pure stdlib, no auth needed for read operations.
+repo's `mcps/` directory, pure stdlib, no auth needed for read operations.
 
 ```bash
 # W3/3MS intranet search
-python3 mcp-tools/huawei-w3-search/w3_search.py "<query>" --size 10 --json
+python3 mcps/huawei-w3-search/w3_search.py "<query>" --size 10 --json
 
 # CloudDevOps Wiki document search (read-only, no token needed)
-python3 mcp-tools/huawei-wiki/wiki_mcp.py search-wiki-documents \
+python3 mcps/huawei-wiki/wiki_mcp.py search-wiki-documents \
   --url <wiki-url> --search-range knowledge --search-key "<name>" --json
 ```
 
-If `mcp-tools/` is absent (skill installed standalone), these tools are
+If `mcps/` is absent (skill installed standalone), these tools are
 skipped — skill-forge continues without W3/Wiki enrichment.
 
 ---
@@ -259,16 +259,16 @@ CODEHUB_HOST=https://codehub-g.huawei.com/
 
 **Network / 网络**: CodeHub is an intranet host — bypass the corporate proxy
 (`NO_PROXY=*.huawei.com`). The wrapper is at
-[`../../mcp-tools/huawei-codehub/codehub.py`](../../mcp-tools/huawei-codehub/codehub.py).
+[`../../mcps/huawei-codehub/codehub.py`](../../mcps/huawei-codehub/codehub.py).
 
 **Verify readiness / 验证可用性** (after uvx + token + host are set):
 ```bash
-python3 mcp-tools/huawei-codehub/codehub.py --list-tools
+python3 mcps/huawei-codehub/codehub.py --list-tools
 ```
 This confirms the wrapper starts, the server launches via uvx, credentials
 are accepted, and tools can be enumerated — without making a real API call.
 If it fails, see
-[`../../mcp-tools/huawei-codehub/README.md`](../../mcp-tools/huawei-codehub/README.md)
+[`../../mcps/huawei-codehub/README.md`](../../mcps/huawei-codehub/README.md)
 for the three execution paths (wrapper, Claude Code MCP, opencode MCP) and
 troubleshooting.
 
@@ -279,7 +279,7 @@ uvx 拉起服务、凭据被接受且工具可枚举。失败时请查阅 CodeHu
 
 **Status / 状态**: ⚠️ **Disabled / 已禁用**
 
-The current GitHub wrapper (`mcp-tools/github/github_mcp.py`) uses
+The current GitHub wrapper (`mcps/github/github_mcp.py`) uses
 `ssl.CERT_NONE`, which disables TLS verification. Until that is independently
 fixed and validated against the corporate proxy, this skill does **not** call
 the GitHub MCP tool and does **not** ask you to create or store a

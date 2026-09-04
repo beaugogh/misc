@@ -6,7 +6,7 @@ Exposes project lookup, the full merge-request lifecycle (list / detail /
 changes / mergeable state / reviews / create / merge), issues (list / detail /
 discussions / create / update), and repo file reading.
 
-This is the **second** entry in the repo's `mcp-tools/` category. Unlike the
+This is the **second** entry in the repo's `mcps/` category. Unlike the
 first entry (`w3-search`, a *remote* MCP endpoint), this is a **local stdio
 server** launched by `uvx`. That difference changes what "self-contained" means
 here — read the prerequisites carefully.
@@ -99,14 +99,14 @@ The server exposes 17 tools. Key ones for analysis/automation:
 
 ```bash
 export CODEHUB_TOKEN=<your-token>
-python3 mcp-tools/huawei-codehub/codehub.py get-project-info \
+python3 mcps/huawei-codehub/codehub.py get-project-info \
   --git-url ssh://git@codehub-dg-g.huawei.com:2222/group/project.git
 
-python3 mcp-tools/huawei-codehub/codehub.py list-merge-requests --project-id 12345 --state all
-python3 mcp-tools/huawei-codehub/codehub.py get-merge-request-reviews --project-id 12345 --mr-iid 7 --json
+python3 mcps/huawei-codehub/codehub.py list-merge-requests --project-id 12345 --state all
+python3 mcps/huawei-codehub/codehub.py get-merge-request-reviews --project-id 12345 --mr-iid 7 --json
 
 # Verify the server starts and see its full tool surface:
-python3 mcp-tools/huawei-codehub/codehub.py --list-tools
+python3 mcps/huawei-codehub/codehub.py --list-tools
 ```
 
 Tool names on the CLI use **kebab-case** (`list-merge-requests`); the wrapper
@@ -119,9 +119,9 @@ Prints human-readable text by default; `--json` emits the raw server JSON.
 ### B. Claude Code (via `.mcp.json`)
 
 ```bash
-# Edit mcp-tools/huawei-codehub/claude-code.mcp.json to put your real CODEHUB_TOKEN
+# Edit mcps/huawei-codehub/claude-code.mcp.json to put your real CODEHUB_TOKEN
 # in the environment block, then:
-cp mcp-tools/huawei-codehub/claude-code.mcp.json .mcp.json
+cp mcps/huawei-codehub/claude-code.mcp.json .mcp.json
 # Ensure NO_PROXY is set in the shell that launches Claude Code, then:
 claude
 ```
@@ -132,10 +132,10 @@ The 17 tools appear as available MCP tools (`get_project_info`,
 ### C. opencode / ngAgent / cac (via `--mcp-config`)
 
 ```bash
-# Edit mcp-tools/huawei-codehub/opencode.mcp.json to put your real CODEHUB_TOKEN in
+# Edit mcps/huawei-codehub/opencode.mcp.json to put your real CODEHUB_TOKEN in
 # the environment block, then:
 NO_PROXY=cmc.centralrepo.rnd.huawei.com,mirrors.tools.huawei.com codeagent \
-  --mcp-config mcp-tools/huawei-codehub/opencode.mcp.json
+  --mcp-config mcps/huawei-codehub/opencode.mcp.json
 ```
 
 To install it into your global opencode config instead, merge the
@@ -146,7 +146,7 @@ To install it into your global opencode config instead, merge the
 
 | File | Purpose |
 |---|---|
-| `mcp-tool.json` | Manifest — single source of truth (transport, command, env, tool args). Catalog is generated from this. |
+| `mcp-server.json` | Manifest — single source of truth (transport, command, env, tool args). Catalog is generated from this. |
 | `codehub.py` | Pure-stdlib (subprocess + json) MCP stdio client. Launches `uvx`, speaks JSON-RPC, returns text. No `pip install` for the wrapper itself (but `uvx` fetches the server). |
 | `claude-code.mcp.json` | Ready-to-load config for Claude Code (local/stdio `.mcp.json` format). |
 | `opencode.mcp.json` | Ready-to-load config for opencode/ngAgent/cac (`mcp` object, `type: local`). |
@@ -170,7 +170,7 @@ NO_PROXY=cmc.centralrepo.rnd.huawei.com \
   https://cmc.centralrepo.rnd.huawei.com/artifactory/product_generic/mcp-server/python/gov-codehub/0.2.0/gov-codehub_0.2.0_1773145053.tar.gz
 
 CODEHUB_UVX_ARGS='["uvx","--index-url","https://mirrors.tools.huawei.com/pypi/simple","--allow-insecure-host","mirrors.tools.huawei.com","--allow-insecure-host","cmc.centralrepo.rnd.huawei.com","--with","python-dotenv","--with","mcp<2","--from","/tmp/gov-codehub.tar.gz","mcp-server-codehub"]' \
-  python3 mcp-tools/huawei-codehub/codehub.py --list-tools
+  python3 mcps/huawei-codehub/codehub.py --list-tools
 ```
 
 `CODEHUB_UVX_ARGS` is a JSON array that replaces the default uvx command line.
