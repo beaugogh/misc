@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "cloudscope": {
-      "type": "http",
-      "url": "http://100.93.18.106:18080/cloudscope/mcp",
-      "timeout": 30000
-    }
-  }
-}
