@@ -1,0 +1,994 @@
+[
+ {
+  "name": "monitor_cma_get_history_alarms",
+  "description": "根据告警流水号查询云监控历史告警详情。"
+ },
+ {
+  "name": "monitor_cma_get_current_alarms",
+  "description": "根据告警流水号查询云监控当前告警详情。"
+ },
+ {
+  "name": "monitor_cma_get_active_alarms",
+  "description": "获取活跃的紧急和重要级别的告警信息,"
+ },
+ {
+  "name": "monitor_cma_get_all_alarms_by_instanceId",
+  "description": "根据时间范围、云服务获取所有紧急和重要级别的告警信息"
+ },
+ {
+  "name": "monitor_cma_get_all_alarms_by_ips",
+  "description": "根据时间范围、区域集合和ip集合查询全量告警"
+ },
+ {
+  "name": "monitor_cma_get_static_alarms",
+  "description": "获取告警静态信息"
+ },
+ {
+  "name": "opstools_oreo_get_command_risky_static",
+  "description": "获取命令风险等级，从oreo算法服务获取执行命令的风险等级"
+ },
+ {
+  "name": "cloudservice_ups_get_step_error_messages",
+  "description": "获取目标维修单失败工步的日志"
+ },
+ {
+  "name": "resources_cmdb_query_cmdb_detail",
+  "description": "批量查询CloudCMDB主机详细信息。支持通过ID/IP/主机名精确查找，或通过Region/类别/状态进行批量筛选。\n\nArgs：\n- 查询条件 (以下参数互斥，一次调用仅能使用其中一个):\n    - id_list: 主机ID列表\n    - mgmt_ip_list: 管理IP列表\n    - hostname_list: 主机名列表\n    - agent_sn_list: Agent序列号列表\n    - cps_host_uuid_list: CPS UUID列表\n    - microservice_name_list: 微服务名称列表 (用于查找承载该服务的主机)\n    - schema_name_list: Schema名称列表 (用于查找关联该Schema的主机)\n- 筛选条件 (可与上述任一查询条件组合，或单独使用):\n    - region_code: 区域编号\n    - host_class: 主机类别 (PM/VM/CONTAINER/SDI)\n    - agent_status: Agent状态 (running/offline/deleted)\n    - business_type: 业务类型\n- 分页控制:\n    - page_size: 返回数量限制\n    - last_page_max_host_id: 翻页游标\n\nReturns：\n- 返回 JSON 字符串，包含 status_code, data (列表)。\n- data 列表中的每个对象包含：\n    - id: 主机ID\n    - hostname: 主机名\n    - mgmt_ip: 管理IP\n    - host_class: 主机类别\n    - agent_status: Agent状态\n    - region_code/region_name: 区域信息\n    - os_type: 操作系统类型\n    - uptime: 运行时间\n    - vm/pm/container: 对应类别的详细运营状态对象\n\nExample：\n    1. 精确查询：查询特定IP的主机状态\n       调用 query_hosts(mgmt_ip_list=\"192.168.1.10\")\n\n    2. 批量筛选：查询某Region下所有运行中的虚拟机\n       调用 query_hosts(region_code=\"cn-north-1\", host_class=\"VM\", agent_status=\"running\")\n\n    3. 关联查询：查询承载 \"nginx\" 微服务的主机\n       调用 query_hosts(microservice_name_list=\"nginx\")\n\n    4. 分页查询：获取下一页数据\n       调用 query_hosts(region_code=\"cn-north-1\", last_page_max_host_id=\"host_id_12345\")"
+ },
+ {
+  "name": "monitor_smarttopo_get_efs_topology",
+  "description": "根据EFS集群ID查询拓扑结构"
+ },
+ {
+  "name": "monitor_smarttopo_get_relation_view",
+  "description": "获取资源拓扑关系，从SmartTopo服务获取指定区域和集群的资源拓扑信息"
+ },
+ {
+  "name": "monitor_mnet_get_ai_task_topo",
+  "description": "获取mnet A3拓扑信息"
+ },
+ {
+  "name": "monitor_mnet_get_syslog",
+  "description": "调用 MNet syslog 接口获取日志数据\nArgs:\n    task_id: 诊断任务id。\n    from_time: 查询起始时间。\n    to_time: 查询结束时间。\n    ips: 查询ip列表。\n    ip_url: 查询ip列表保存的OBS桶路径\n\nReturns:\n    一个 JSON 字符串，包含 code, data (dict)。\n    如果出错，返回包含 error 字段的 JSON。\n\nExample:\n    调用 get_syslog(\"e060a1c6-fe8f-4275-b2f3-74bd2be4a136\",\"1771957574000\",\"1772000714000\",[\"11.172.213.34\",\"11.172.213.33\"])\n    获取mnet日志信息。"
+ },
+ {
+  "name": "monitor_mnet_create_ai_diagnosis",
+  "description": "创建AI诊断任务"
+ },
+ {
+  "name": "monitor_mnet_query_analysis_task",
+  "description": "查询诊断任务状态"
+ },
+ {
+  "name": "monitor_mnet_get_ai_root_cause",
+  "description": "获取故障根因推荐，从mnet灵衢大脑服务获取故障根因推荐"
+ },
+ {
+  "name": "monitor_mnet_get_network_alarms",
+  "description": "查询网络设备告警信息"
+ },
+ {
+  "name": "monitor_mnet_get_kpiw_for_ai",
+  "description": "获取KPI数据用于AI分析"
+ },
+ {
+  "name": "monitor_mnet_netv_query_target_list",
+  "description": "查询云网络对象列表"
+ },
+ {
+  "name": "monitor_mnet_netv_query_target_count",
+  "description": "查询云网络对象计数"
+ },
+ {
+  "name": "monitor_mnet_netv_query_metrics_series",
+  "description": "查询云网络对象监控指标"
+ },
+ {
+  "name": "monitor_mnet_netv_query_metrics_serieset",
+  "description": "虚拟网络对象实例topN指标查询"
+ },
+ {
+  "name": "monitor_mnet_cnb_query_path_analysis_topo",
+  "description": "查询路径分析诊断拓扑结果"
+ },
+ {
+  "name": "resources_cc_evs_query_capacity",
+  "description": "根据不同条件查询EVS存储容量信息。"
+ },
+ {
+  "name": "resources_cc_ecs_query_vm_capacity",
+  "description": "根据不同条件查询ECS虚拟机容量信息。"
+ },
+ {
+  "name": "monitor_cmc_get_tenant_metric_data",
+  "description": "查询租户指标基础数据\n\n注意：由于CDC限制，单次最多查询20000条数据，最长可查询3天前的数据，请注意控制时间范围和查询条件。\n注意：instance_id最多支持10个实例，超过限制会返回ValidationError。"
+ },
+ {
+  "name": "monitor_cmc_get_basic_metric_data",
+  "description": "查询通用指标基础数据\n\n注意：由于CDC限制，单次最多查询20000条数据，请注意控制时间范围和查询条件。"
+ },
+ {
+  "name": "monitor_cmc_get_aggregation_metric_data",
+  "description": "查询聚合指标数据\n\n注意：由于CDC限制，单次最多查询20000条数据，请注意控制时间范围和查询条件。"
+ },
+ {
+  "name": "monitor_muse_query_widget_metrics_data",
+  "description": "调用 muse metric data接口获取视图指标数据\nArgs:\n    widget_id: 视图id。\n    from_time: 查询起始时间。\n    to_time: 查询结束时间。\n    custom_variables: 自定义变量列表。\n\nReturns:\n    一个 JSON 字符串，包含 code, data (dict)。\n    如果出错，返回包含 error 字段的 JSON。\n\nExample:\n    调用 query_widget_metrics_dat(\"e060a1c6-fe8f-4275-b2f3-74bd2be4a136\",\"1771957574000\",\"1772000714000\",null)\n    获取获取视图指标数据。"
+ },
+ {
+  "name": "ommgmt_cim_get_incident_list",
+  "description": "获取满足过滤条件的事件单号"
+ },
+ {
+  "name": "ommgmt_cim_get_incident_data_detail",
+  "description": "获取满足过滤条件的事件单号"
+ },
+ {
+  "name": "change_cac_get_script",
+  "description": "查询脚本列表。"
+ },
+ {
+  "name": "change_cac_execute_script",
+  "description": "执行脚本（目前只支持在一台主机上执行）。"
+ },
+ {
+  "name": "change_cac_get_script_order",
+  "description": "查询脚本执行工单及批次信息。"
+ },
+ {
+  "name": "monitor_cls_query_log",
+  "description": "调用 cls log 接口获取日志数据\nArgs:\n    region_code: regioncode。\n    begin_time: 开始时间，UTC，毫秒(13位时间戳)。\n    end_time: 结束时间，UTC，毫秒(13位时间戳)。\n    cloud_service: 云服务。\n    service: 微服务组(微服务的集合)。\n    component: 微服务。\n    ip: ip。\n    source_path: 日志采集路径。\n    key_words: 过滤条件搜索表达式。\n    search_scene: 查询场景,host 主机日志;container 云原生服务日志。\n    order: 排序, asc或desc,默认desc。\n    count: 查询总条数，如未设置则按total值分页查询，None表示不限制。\n\nReturns:\n    一个 JSON 字符串，包含 code, data (dict)。\n    如果出错，返回包含 error 字段的 JSON。\nNotice:\n    接口限制\n        查询时长:1h\n        查询总量:10w\n        每页大小:2000\n        分页查询:是\n        限流:全局120次/min,单用户20次/min (平均值,注意)\n        接口查询最大支持10w条,超过则会提示\nExample:\n    调用 query_cls_log(\"cn-north-7\",\"1771957574000\",\"1772000714000\",\"cls\",\"cls-console\",\"\",\"\",\"\",\"\",\"\")\n    获取cls日志信息。"
+ },
+ {
+  "name": "opstools_tros_dlf_get_dlf_default_workspace",
+  "description": "根据工作空间名称查询工作空间ID"
+ },
+ {
+  "name": "opstools_tros_dlf_get_dlf_job_info",
+  "description": "获取dlf作业信息，返回作业失败原因及基础信息"
+ },
+ {
+  "name": "opstools_tros_dlf_get_dlf_job_dependencies",
+  "description": "获取dlf上下游作业列表"
+ },
+ {
+  "name": "opstools_tros_dlf_get_dlf_mrs_job_info",
+  "description": "获取dlf下游作业列表"
+ },
+ {
+  "name": "opstools_dlf_get_dlf_tenant_info",
+  "description": "查询客户信息"
+ },
+ {
+  "name": "opstools_tros_dws_get_diagnose_items",
+  "description": "获取诊断项列表"
+ },
+ {
+  "name": "opstools_tros_dws_get_diagnose_result",
+  "description": "获取诊断结果信息"
+ },
+ {
+  "name": "opstools_tros_dws_execute_diagnose",
+  "description": "获取集群节点信息"
+ },
+ {
+  "name": "opstools_tros_dws_get_instance_info",
+  "description": "获取集群节点信息"
+ },
+ {
+  "name": "resources_cmdb_host_list",
+  "description": "根据主机信息查询主机详情。"
+ },
+ {
+  "name": "resources_cmdb_pm_detail",
+  "description": "根据物理机信息查询pm物理机详情。\n\nArgs:\n    ids, 7选1, 主机的id列表，数量不超过100个\n    bmc_ips, 7选1, 物理机bmc_ip，数量不超过100个\n    bmc_ipv6s, 7选1, 物理机bmc_ipv6，数量不超过100个\n    serial_numbers, 7选1, 物理机序列号，数量不超过100个\n    kvm_uuids, 7选1, KVM宿主机标识，数量不超过100个\n    xen_neutron_uuids, 7选1, Xen平台生成的neutron uuid，数量不超过100个\n    super_pod_names, 7选1, 超节点名称，数量不超过100个\n\nReturns:\n    一个 JSON 字符串，包含 status_code, data (list)。\n    如果出错，返回包含 error 字段的 JSON。\n\nExample:\n    调用 resources_cmdb_pm_detail(ids=[xxxx, xxxx], bmc_ips=[xxxx, xxxx], bmc_ipv6s=[xxxx, xxxx],\n    serial_numbers=[xxxx, xxxx], kvm_uuids=[xxxx, xxxx], xen_neutron_uuids=[xxxx, xxxx],\n    super_pod_names=[xxxx, xxxx])\n    获取指定pm物理机详情。"
+ },
+ {
+  "name": "resources_cmdb_get_host_detail",
+  "description": "根据主机信息整合查询主机信息。\nArgs:\n    host_names, 选填, 主机名列表，数量不超过5个\n    bmc_ips, 选填, BMC IP列表，暂不支持BMC IP6，数量不超过5个\nReturns:\n    一个 JSON 字符串，包含 status_code, data (list)。\n    如果出错，返回包含 error 字段的 JSON。\nExample:\n    调用 resources_cmdb_get_host_detail(host_names=[xxxx, xxxx], bmc_ips=[xxxx, xxxx])\n    获取整合主机信息。"
+ },
+ {
+  "name": "resources_cslm_repair_task_infos",
+  "description": "根据主机信息查询设备任务详情。\n\nArgs:\n    bmc_ips, 和serial_numbers 2选1, BMC IP列表，建量不超过1000个\n    serial_numbers, 和bmc_ips 2选1, 主机序列号列表，数量不超过1000个\n\nReturns:\n    一个 JSON 字符串，包含 status_code, data (list)。\n    如果出错，返回包含 error 字段的 JSON。\n\nExample:\n    调用 resources_cslm_repair_task_infos(bmc_ips=[xxxx, xxxx], serial_numbers=[xxxx, xxxx])\n    获取指定设备任务详情。"
+ },
+ {
+  "name": "resources_cslm_repair_device_fault_infos",
+  "description": "根据物理机信息查询故障信息。"
+ },
+ {
+  "name": "resources_cslm_repair_all_info",
+  "description": "根据维修流程单号查询故障设备所有维修数据。\n\nArgs:\n    maintenance_id, 维修流程单号\n\nReturns:\n    一个 JSON 字符串，包含 status_code, data (list)。\n    如果出错，返回包含 error 字段的 JSON。\n\nExample:\n    调用 resources_cslm_repair_all_info(maintenance_id=xxxx)\n    获取指定设备任务详情。"
+ },
+ {
+  "name": "ommgmt_gocm_list_tickets",
+  "description": "调用 gocm list_tickets 接口获取工单数据\nArgs:\n    cloud_services: 云服务列表(name)。\n    region_code: 区域编码。\n    node_type: 查询类型:运维活动(OM)、云服务(CloudService)。\n    count: 查询总条数。\n    start_time: 查询起始时间。\n    end_time: 查询结束时间。\n\nReturns:\n    一个 JSON 字符串，包含 code, data (dict)。\n    如果出错，返回包含 error 字段的 JSON。\n\nExample:\n    调用 gocm_list_tickets([\"CDC\",\"CMC\"],[\"cn-north-3\"],\"CloudService\",\"300\",\"1772000714000\",\"1772000724000\")\n    获取gocm工单数据。"
+ },
+ {
+  "name": "ommgmt_gocm_sop_ticket_detail",
+  "description": "调用 gocm sop-ticket/detail 接口获取SOP电子流详情"
+ },
+ {
+  "name": "ommgmt_gocm_sop_write_check_result",
+  "description": "根据ai_check_id写入SOP的检查结果"
+ },
+ {
+  "name": "opstools_tros_get_node_detail_by_bmc_ip",
+  "description": "根据BMC IP地址查询节点详情信息"
+ },
+ {
+  "name": "opstools_tros_get_node_detail_by_ecs_id",
+  "description": "根据ECS ID查询节点详情信息"
+ },
+ {
+  "name": "opstools_tros_diagnose_ma_node",
+  "description": "对指定节点进行诊断查询"
+ },
+ {
+  "name": "opstools_ascendbrain_diagnose_ma_node",
+  "description": "对指定Ascend Brain节点进行诊断查询"
+ },
+ {
+  "name": "opstools_ascendbrain_get_diagnode_job_result",
+  "description": "根据任务ID查询Ascend Brain节点诊断任务完成后的汇总结果"
+ },
+ {
+  "name": "opstools_ascendbrain_get_diagnode_job_status",
+  "description": "根据任务ID查询Ascend Brain节点诊断任务的状态"
+ },
+ {
+  "name": "resources_query_service_knowledge_search",
+  "description": "调用 云战地助手 进行知识问答\n\n通过 云战地助手 平台查询知识库，获取智能回答。"
+ },
+ {
+  "name": "opstools_dbsops_get_instance_info_from_iaas_id",
+  "description": "根据外部IaaS ID查询数据库实例及其客户信息。"
+ },
+ {
+  "name": "cmw_redis_cob_show_extraction_command_job",
+  "description": "查询SOP文本中解析出的命令1"
+ },
+ {
+  "name": "cmw_redis_cob_create_extraction_command_job",
+  "description": "提取SOP文本命令，异步任务，先创建任务，在使用get接口查询结果"
+ },
+ {
+  "name": "cmw_redis_cob_delete_sop_model",
+  "description": "根据model id 删除 SOP操作一致性判定模型"
+ },
+ {
+  "name": "cmw_redis_cob_create_sop_model",
+  "description": "创建SOP操作一致性判定模型"
+ },
+ {
+  "name": "tros_list_nodes",
+  "description": "获取对应实例的nodes信息"
+ },
+ {
+  "name": "tros_create_action_task",
+  "description": "执行action操作"
+ },
+ {
+  "name": "gom_api_get_sop_detail",
+  "description": "通过sop_unique_id获取GOCM中的SOP详细信息"
+ },
+ {
+  "name": "cloud_secure_mgmt_get_channel_cmd",
+  "description": "通过时间范围获取命令日志列表"
+ },
+ {
+  "name": "cloud_monitor_alarm_get_workorder_info",
+  "description": "通过时间范围和多条件查询工单信息"
+ },
+ {
+  "name": "tros_get_task_info",
+  "description": "Executes GET /v2/tros/{serviceName}/tasks/{task_id}"
+ },
+ {
+  "name": "ecs_show_oreo_model_status",
+  "description": "oreo命令风控算法模型状态查询接口"
+ },
+ {
+  "name": "gom_query_tickets",
+  "description": " 根据条件搜索条件查询工单数据。 Args: page: 当前页，最小值1，最大值100000，必填。 size：一页展示的数量，大于0，小于120，必填。 start_time：增量的开始时间，13位时间戳格式，必填。  end_time：增量的结束时间，13位时间戳格式，必填。 ticket_ids：工单号，数组格式，选填。  region_codes：RegionCode，数组格式，选填。 change_type：变更类型（数值）：常规，紧急，1：常规，2：紧急，选填。 change_level：变更级别（数值）：1：A，2：B，3：C，4：D，选填。 executor：实施人(9位工号)，字符串，选填。  current_handler：当前责任人(9位工号)，字符串，选填。 results：实施结果result（数组格式）：success:成功，cancelChange:取消变更，failed:失败，abort中止，选填。 ticket_source：工单来源，数组格式，选填。 expected_start_time：计划变更的开始时间，13位时间戳格式，选填。 "
+ },
+ {
+  "name": "query_physical_machines",
+  "description": "Query physical machines"
+ },
+ {
+  "name": "query_pod_list",
+  "description": "查询CloudCMDB POD管理列表，获取POD的SN、超节点ID、逻辑框ID等AI设备关联数据"
+ },
+ {
+  "name": "cloud_data_compass_search_universal_database",
+  "description": "典型场景：对外提供统一结构化查询能力，使用json化对象完成不同数据库查询统一，满足监控场景下屏蔽底层数据库差异诉求。\n接口功能：提供通用三种时序分析场景下结构化查询能力，业务可以根据自身诉求，分别从\"点查\"、\"时序聚合\"、\"分组聚合\"维度提供能力。业务依照API，通过约定的建表结构，使用中完全不感知底层数据库差异。\n接口约束：\n1.用户需要感知建表结构（即表列属性，建表策略），从而完成请求体装载。\n2.目前该API屏蔽数据库为Druid、GeminiDB。API算子及场景支持能力为这两款数据库算子能力之内。\n3.结构化API灵活度有限，不支持复杂嵌套及关联查询场景。"
+ },
+ {
+  "name": "model_arts_list_os_pools",
+  "description": "list objects of kind Pool"
+ },
+ {
+  "name": "cloud_ops_auth_list_audit_logs",
+  "description": "根据指定时间戳查询COA审计日志列表。\nArgs: st: 开始时间，毫秒级时间戳，必填 et：结束时间，毫秒级时间戳，必填 1.\t开始时间不能大于结束时间 2.\t开始时间和结束时间不能超过30分钟，每次最多查询30分钟的数据 3.\t开始时间和结束时间不能跨月\nReturns: 一个 JSON 字符串，包含 status_code, data (dict)。 如果出错，返回包含 error 字段的 JSON。\nExample: 调用 cloud_ops_auth_list_audit_logs(st=1760251382999&et=1760337782999) 获取指定时间戳的COA审计日志列表。 "
+ },
+ {
+  "name": "model_arts_get_pool_detail",
+  "description": "get detail of a specific resource pool"
+ },
+ {
+  "name": "model_arts_list_pool_nodes",
+  "description": "list nodes of a specific resource pool"
+ },
+ {
+  "name": "model_arts_list_pool_workloads",
+  "description": "list workloads of a specific resource pool"
+ },
+ {
+  "name": "model_arts_list_pool_events",
+  "description": "list events of a specific resource pool"
+ },
+ {
+  "name": "model_arts_get_cluster_detail",
+  "description": "get CCE cluster detail by pool name"
+ },
+ {
+  "name": "model_arts_list_operation_history",
+  "description": "list web terminal operation history of a resource pool"
+ },
+ {
+  "name": "model_arts_list_training_jobs",
+  "description": "查询训练作业列表，支持按名称/ID/资源池/状态/用户/时间等多维度过滤"
+ },
+ {
+  "name": "model_arts_get_training_job_detail",
+  "description": "根据训练作业ID查询作业详情，获取状态、算法、规格、资源池等信息"
+ },
+ {
+  "name": "model_arts_get_training_job_events",
+  "description": "查询训练作业事件列表，支持时间范围过滤和分页"
+ },
+ {
+  "name": "model_arts_get_training_job_failure_diagnose",
+  "description": "查询训练作业故障诊断结果，获取作业失败原因分析"
+ },
+ {
+  "name": "model_arts_get_training_job_log_preview",
+  "description": "查询训练作业指定任务的日志预览内容"
+ },
+ {
+  "name": "model_arts_list_infer_services",
+  "description": "查询推理服务列表，支持分页"
+ },
+ {
+  "name": "model_arts_get_infer_service_detail",
+  "description": "根据服务ID查询推理服务详情，获取状态、调用方式、部署模式等信息"
+ },
+ {
+  "name": "model_arts_list_infer_deployments",
+  "description": "查询推理服务的部署列表，支持按状态过滤和分页"
+ },
+ {
+  "name": "model_arts_list_infer_instances",
+  "description": "查询推理服务指定部署的实例列表，支持按状态过滤和分页"
+ },
+ {
+  "name": "model_arts_list_infer_pods",
+  "description": "查询推理服务指定实例的Pod列表，支持按状态过滤和分页"
+ },
+ {
+  "name": "model_arts_list_infer_service_events",
+  "description": "查询推理服务事件列表，支持分页"
+ },
+ {
+  "name": "model_arts_get_infer_pod_events",
+  "description": "查询推理服务指定Pod的事件列表"
+ },
+ {
+  "name": "model_arts_get_infer_log_configs",
+  "description": "查询推理服务的日志配置信息"
+ },
+ {
+  "name": "ecs_create_user",
+  "description": "创建用户，支持 body 中的 JSON 数据，同时可附加查询参数和请求头222"
+ },
+ {
+  "name": "ecs_get_user_by_id",
+  "description": "通过用户 ID 获取用户信息，支持多种查询参数筛选"
+ },
+ {
+  "name": "model_arts_get_node_detail",
+  "description": "根据节点名称查询节点的完整CR详情，作为节点列表接口的兜底。当列表接口未返回SN号时，可通过此接口获取metadata.labels中的SN号(os.modelarts.node/series.number)和BMC IP(os.modelarts.node/bmc.ip)等信息"
+ },
+ {
+  "name": "dlc_show_extraction_command_job",
+  "description": "查询SOP文本中解析出的命令"
+ },
+ {
+  "name": "dlc_create_extraction_command_job",
+  "description": "提取SOP文本命令，异步任务，先创建任务，在使用get接口查询结果"
+ },
+ {
+  "name": "dlc_batch_create_oreo_predict",
+  "description": "oreo命令风控算法批量预测接口"
+ },
+ {
+  "name": "dlc_delete_sop_model",
+  "description": "根据model id 删除 SOP操作一致性判定模型"
+ },
+ {
+  "name": "dlc_create_sop_model",
+  "description": "创建SOP操作一致性判定模型"
+ },
+ {
+  "name": "dlc_create_oreo_predict",
+  "description": "oreo命令风控算法预测接口"
+ },
+ {
+  "name": "cloud_auto_remediation_push_event",
+  "description": "##典型场景## 事件推送。\n##接口功能## 事件推送。\n##接口约束## 仅支持机机账号鉴权调用。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_awake_tree",
+  "description": "##典型场景## 外部唤醒诊断树。\n##接口功能## 外部唤醒诊断树。\n##接口约束## 仅支持机机账号鉴权调用。必选参数包括 cloud_service(外部云服务), trigger_id(触发诊断树执行的告警csn号或事件单号)。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_list_affected_tenants",
+  "description": "##典型场景## 查询受影响租户列表。\n##接口功能## 查询受影响租户列表。\n##接口约束## 仅支持机机账号鉴权调用。必选参数包括 page(页码), page_size(每页大小), start_time(查询开始时间), end_time(查询结束时间)。其中页码需为正整数，每页大小介于1-100之间，查询开始时间和查询结束时间需为时间戳。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_list_event_analysis_results",
+  "description": "##典型场景## 查询受影响租户列表-仅包含流程IT系列Region，流程IT专用。\n##接口功能## 查询受影响租户列表-仅包含流程IT系列Region，流程IT专用。\n##接口约束## 仅支持机机账号鉴权调用。必选参数包括 page(页码), page_size(每页大小), start_time(查询开始时间), end_time(查询结束时间)。其中页码需为正整数，每页大小介于1-100之间，查询开始时间和查询结束时间需为时间戳。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_list_affect_area_events",
+  "description": "##典型场景## 查询故障影响面分析任务列表。\n##接口功能## 查询故障影响面分析任务列表。\n##接口约束## 仅支持机机账号鉴权调用。必选参数包括 page(页码), page_size(每页大小), start_time(查询开始时间), end_time(查询结束时间)。其中页码需为正整数，每页大小介于1-100之间，查询开始时间和查询结束时间需为时间戳。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_list_action_tag",
+  "description": "##典型场景## 查询Tag列表。\n##接口功能## 查询Tag列表。\n##接口约束## 仅支持机机账号鉴权调用。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_list_scene_info",
+  "description": "##典型场景## 批量查询诊断树参数列表。\n##接口功能## 批量查询诊断树参数列表。\n##接口约束## 仅支持机机账号鉴权调用。必选参数包括 start(页码), limit(每页大小)。其中页码需为正整数, 每页大小需介于1-100。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_list_diagnose_tree_info",
+  "description": "##典型场景## 根据诊断树ID查询诊断树列表。\n##接口功能## 根据诊断树ID查询诊断树列表。\n##接口约束## 仅支持机机账号鉴权调用。必选参数包括 tag(tagID), start(页码), limit(每页大小)。其中tagID最长为12, 页码需为正整数, 每页大小需介于1-100。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_list_trigger_param",
+  "description": "##典型场景## 根据诊断树ID查询诊断树参数列表。\n##接口功能## 根据诊断树ID查询诊断树参数列表。\n##接口约束## 仅支持机机账号鉴权调用。必选参数包括 scene(诊断树ID)。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_start_diagnose_tree_task",
+  "description": "##典型场景## 触发某个诊断树执行。\n##接口功能## 触发某个诊断树执行。\n##接口约束## 仅支持机机账号鉴权调用。接口参数中必选参数包括 scene_id(诊断树ID), user_info(用户信息); 其余参数为非必选参数。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_show_diagnose_trace",
+  "description": "##典型场景## 根据JobId列表查询诊断树执行结果。\n##接口功能## 根据JobId列表查询诊断树执行结果。\n##接口约束## 仅支持机机账号鉴权调用。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_show_diagnose_tree_job_details",
+  "description": "##典型场景## 根据JobId列表查询诊断树执行结果。\n##接口功能## 根据JobId列表查询诊断树执行结果。\n##接口约束## 仅支持机机账号鉴权调用。JobId列表不能为空且大小不超过100个。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_list_diagnose_trees",
+  "description": "##典型场景## 根据诊断树ID列表查询多个诊断树的简要信息。\n##接口功能## 根据诊断树ID列表查询多个诊断树的简要信息。\n##接口约束## 仅支持机机账号鉴权调用。诊断树ID列表不能为空且大小不超过5个。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_show_diagnose_tree_by_name",
+  "description": "##典型场景## 根据诊断树名称查询诊断树简要信息。\n##接口功能## 根据诊断树名称查询诊断树简要信息。\n##接口约束## 仅支持机机账号鉴权调用。诊断树名称不能为空且长度不能超过256。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_list_diagnose_tree_execute_record",
+  "description": "##典型场景## 根据告警流水号查询诊断树执行记录。\n##接口功能## 根据告警流水号查询诊断树执行记录。\n##接口约束## 仅支持机机账号鉴权调用。查询参数均不能为空，页码为正整数，且每页大小介于1-100之间。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_start_diagnose_tree_job_by_job_id",
+  "description": "##典型场景## 重新执行某个已有的诊断树执行记录。\n##接口功能## 重新执行某个已有的诊断树执行记录。\n##接口约束## 仅支持机机账号鉴权调用。传递参数必须是已存在的job_id。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_list_check_items",
+  "description": "##典型场景## 查询检查项列表——TSC专属功能。\n##接口功能## 查询检查项列表——TSC专属功能。\n##接口约束## 仅支持机机账号鉴权调用。每页大小介于1-100之间。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_check_server_health",
+  "description": "##典型场景## 没有特殊操作场景的要求。\n##接口功能## GSLB 心跳健康检查接口。\n##接口约束## 仅支持机机账号鉴权调用。\n"
+ },
+ {
+  "name": "cloud_auto_remediation_list_schema_data_test",
+  "description": "查询schema数据表数据测试。"
+ },
+ {
+  "name": "cloud_auto_remediation_list_schema_data",
+  "description": "查询schema数据表数据。"
+ },
+ {
+  "name": "obs_get_accesslog_filter_result",
+  "description": "根据步骤1返回的request_id获取日志查询结果"
+ },
+ {
+  "name": "obs_submit_accesslog_filter",
+  "description": "提交accesslog查询任务，返回request_id用于后续获取结果"
+ },
+ {
+  "name": "obs_query_tenant_qos",
+  "description": "查询租户Qos"
+ },
+ {
+  "name": "obs_query_bucket_qos",
+  "description": "查询桶Qos"
+ },
+ {
+  "name": "obs_run_cac_script",
+  "description": "支持执行的脚本详见附2"
+ },
+ {
+  "name": "obs_custom_db_query",
+  "description": "通用数据库查询接口，通过tableId指定查询的表。已支持查询的表详见附录（vpcep_strategy、iam_strategy等）"
+ },
+ {
+  "name": "rds_list_drs_instances",
+  "description": "分页查询DRS任务实例信息"
+ },
+ {
+  "name": "rds_list_alarm_simple_info",
+  "description": "根据 regionCode、实例ID列表分页查询告警简单信息"
+ },
+ {
+  "name": "rds_query_drs_task_log",
+  "description": "分页查询指定DRS任务的日志列表"
+ },
+ {
+  "name": "rds_query_drs_jobs",
+  "description": "根据 regionCode 和 instanceId 查询该实例下的 DRS 任务列表"
+ },
+ {
+  "name": "obs_query_iam_strategy",
+  "description": "通过domain_id和user_id查询IAM策略"
+ },
+ {
+  "name": "obs_query_vpcep_strategy",
+  "description": "通过region_code和marker_id查询VPCEP(VPC终端节点)策略"
+ },
+ {
+  "name": "obs_query_bucket_policy_and_acl",
+  "description": "查询桶策略(bucket_policy)和桶访问控制策略(bucket_acl)"
+ },
+ {
+  "name": "obs_query_access_log_result",
+  "description": "根据task_id查询访问日志结果，支持轮询直到任务完成（finish=true时返回数据）（步骤2）"
+ },
+ {
+  "name": "obs_submit_access_log_task_by_request_id",
+  "description": "通过桶名和requestId提交访问日志查询任务，返回task_id用于后续查询结果（步骤1）"
+ },
+ {
+  "name": "obs_get_bucket_location",
+  "description": "根据桶名查询其region_code、lz等信息（步骤1）。桶名支持英文逗号分割，最多10个"
+ },
+ {
+  "name": "obs_get_bucket_owi",
+  "description": "在查询桶region的基础上，进一步获取桶所属租户信息（步骤2）。请求体传入上一步返回的ToolboxBucketInfo列表"
+ },
+ {
+  "name": "zzz_list_om_alarm_diagnosis_job_alarms",
+  "description": "查询全栈诊断告警任务的告警信息123"
+ },
+ {
+  "name": "tros_list_instances",
+  "description": "获取对应服务下面的实例信息"
+ },
+ {
+  "name": "tros_list_instance_trace",
+  "description": "查询指定实例在指定时间范围内的操作记录（trace）"
+ },
+ {
+  "name": "tros_create_diagnosis_task",
+  "description": "创建TROS诊断任务，对指定实例和节点执行故障诊断"
+ },
+ {
+  "name": "tros_get_diagnosis_result",
+  "description": "根据诊断任务ID查询诊断结果详情，获取诊断摘要、风险等级、修复建议等信息。需先通过创建诊断任务接口获取task_id"
+ },
+ {
+  "name": "tros_list_diagnosis_items",
+  "description": "获取诊断项列表"
+ },
+ {
+  "name": "apigw_preview_panel",
+  "description": "根据传入的 SQL 语句和参数，执行查询并返回面板数据。\nSQL 内容可动态变化（例如 `select cloudservice, count(*) as total from ...`），\n返回的 `panel_data` 数组结构也随之动态变化。\n"
+ },
+ {
+  "name": "monitor_cmc_get_tenant_metric_detail",
+  "description": " 查询租户指标详细数据，支持consumer-group粒度的实例ID格式（instanceId|consumerGroup|topic|partition）。与monitor_cmc_get_tenant_metric_data不同，此工具通过body传递instanceIds，支持管道符分隔的复合实例ID，可查询Kafka消费组级别的指标数据。"
+ },
+ {
+  "name": "rds_query_node_page",
+  "description": "根据区域、可用区、节点状态、实例状态、外部计算IaaS ID、ELB ID/IP、节点角色等条件\n分页查询节点信息。响应以 text/plain(CSV) 形式返回，每一行代表一条节点记录。\n"
+ },
+ {
+  "name": "ecs_show_extraction_command_job",
+  "description": "查询SOP文本中解析出的命令"
+ },
+ {
+  "name": "query_cmd_risky3",
+  "description": "查询命令风险等级"
+ },
+ {
+  "name": "query_cmd_risky4",
+  "description": "查询命令风险等级"
+ },
+ {
+  "name": "data_zion_oreo_algo_service_create_extraction_command_jo",
+  "description": "提取SOP文本命令，异步任务，先创建任务，在使用get接口查询结果"
+ },
+ {
+  "name": "data_zion_oreo_algo_service_delete_sop_model",
+  "description": "根据model id 删除 SOP操作一致性判定模型"
+ },
+ {
+  "name": "data_zion_oreo_algo_service_create_oreo_predict",
+  "description": "oreo命令风控算法预测接口"
+ },
+ {
+  "name": "tros_get_agent_task_result",
+  "description": "获取AI Agent任务执行结果"
+ },
+ {
+  "name": "tros_execute_agent",
+  "description": "执行AI Agent任务"
+ },
+ {
+  "name": "decision_x_copilot_list_customer_alarm_report",
+  "description": "查询客户告警"
+ },
+ {
+  "name": "monitor_service_status",
+  "description": "monitor_service_status"
+ },
+ {
+  "name": "gom_api_query_warrrom_list",
+  "description": "warroom查询"
+ },
+ {
+  "name": "dws_service_autopilot_metric_data",
+  "description": "查询指定指标采集数据"
+ },
+ {
+  "name": "dws_service_autopilot_host_overview",
+  "description": "获取DWS主机概览列表"
+ },
+ {
+  "name": "dws_service_autopilot_get_clusters",
+  "description": "获取集群列表信息"
+ },
+ {
+  "name": "rds_query_regions",
+  "description": "查询所有可用的Region列表信息"
+ },
+ {
+  "name": "zjc_test",
+  "description": "ceshi"
+ },
+ {
+  "name": "tros_modelarts_resource_search",
+  "description": "资源池信息检索，支持不同检索方式：资源id、节点名称、xpodid"
+ },
+ {
+  "name": "knowledge_base_query_metadata",
+  "description": "查询知识库元数据信息"
+ },
+ {
+  "name": "tros_get_mrs_cluster_hosts_roles",
+  "description": "返回指定的MRS集群的全部节点的主机信息和拓扑信息(部署的组件)。\n返回每台主机的信息包含：规格（CPU/内存/磁盘类型）、状态、节点类型（Master/Core/Task）、节点组、部署角色\n（如 hdfs:datanode,yarn:nodemanager）、实时资源使用率（CPU/内存/磁盘/网络）以及 OMS 类型(node_oms_type)。\n"
+ },
+ {
+  "name": "tros_search_mrs_component_log",
+  "description": "本接口支持通过 SSH 登录到指定的 MRS 集群节点，并使用 zgrep 命令根据关键字查询日志文件。支持查询普通文本日志和.gz压缩日志。\n结果限制：本接口最多输出 1000 行 (tail -1000)。\n返回结果包含命令的标准输出（output）和标准错误输出（error）\n"
+ },
+ {
+  "name": "tros_list_mrs_directory",
+  "description": "本接口支持通过 SSH 登录到指定的 MRS 集群节点，执行 ls -lrth 命令列出指定目录下的文件和子目录。\n输出包含文件权限、链接数、所有者、所属组、大小、修改时间和文件名等信息，便于定位日志文件。\n返回结果包含命令的标准输出（output）和标准错误输出（error）。\n"
+ },
+ {
+  "name": "tros_mrs_head_file",
+  "description": "本接口支持通过 SSH 登录到指定的 MRS 集群节点，并使用 gzip -cdf | head -1000 命令读取指定文件的前 1000 行内容。\n同时支持普通文本文件和 gzip 压缩文件（.gz），适用于查看日志文件的格式、列头或头部信息，以决定后续检索策略。\n返回结果包含命令的标准输出（output）和标准错误输出（error）。\n"
+ },
+ {
+  "name": "tros_get_kafka_topology",
+  "description": "查询Kafka实例Topic消费组拓扑(分区分布/消费者/堆积)"
+ },
+ {
+  "name": "tros_query_msgblock_singleview",
+  "description": "查询DMS实例消息堆积单视图指标(消费速率/剩余消息数)"
+ },
+ {
+  "name": "tros_query_msgblock_multiview",
+  "description": "查询DMS实例消息堆积多视图指标(按分区维度的消费速率/剩余消息数)"
+ },
+ {
+  "name": "tros_get_region_app_bind_api",
+  "description": "查询管理侧网关APIGW的Region级(区域级)授权，APP是否绑定了API（API是否授权APP访问）"
+ },
+ {
+  "name": "tros_get_global_app_bind_api",
+  "description": "查询管理侧网关APIGW的全局授权（APIHUB），APP是否绑定了API（API是否授权APP访问）"
+ },
+ {
+  "name": "modelarts_get_training_task_log_url",
+  "description": "获取 ModelArts 训练作业指定任务的日志下载 URL（OBS 临时访问链接）"
+ },
+ {
+  "name": "tros_get_rabbitmq_topology",
+  "description": "查询RabbitMQ实例队列拓扑(队列状态/交换器路由/消费者列表)"
+ },
+ {
+  "name": "modelarts_get_train_worker_metrics",
+  "description": "查询 ModelArts 训练作业指定任务的监控指标数据，返回 CPU 使用率、内存使用率、NPU 显存使用率及 NPU 利用率等多项指标的分钟级时序监控数据，用于训练作业资源监控与故障诊断。"
+ },
+ {
+  "name": "ecs_knowledge_search",
+  "description": "调用云战地助手平台进行知识问答搜索。\n\n**鉴权方式**: HIS 网关鉴权，请求头需携带 `x-hw-appkey` 和 `x-hw-id`，\n凭证来源 `conf/template_conf/his_connector.json`（密文存储，运行时解密）。\n\n**调用方**: MCP 硬编码工具 `resources_query_service_knowledge_search`，\n位于 `src/cloudscope_tools/resources/knowledge_query/query_service.py`。\n"
+ },
+ {
+  "name": "dli_get_dli_job_info",
+  "description": "根据查询条件获取 DLI 作业信息，支持按作业ID、作业类型、状态、队列名、时间范围等过滤。\n权限要求: TROS_READONLY / VIEW_ACTION\n"
+ },
+ {
+  "name": "cob_start_conversation",
+  "description": "WEB端启动一个新对话"
+ },
+ {
+  "name": "cob_check_server_health",
+  "description": "查看服务端健康状态"
+ },
+ {
+  "name": "cob_list_customer_alarm_global",
+  "description": "查询客户告警"
+ },
+ {
+  "name": "cob_autopilot_metric_data",
+  "description": "查询指定指标采集数据"
+ },
+ {
+  "name": "cob_list_om_alarm_diagnosis_job_alarms",
+  "description": "list_om_alarm_diagnosis_job_alarms"
+ },
+ {
+  "name": "cob_list_customer_alarm_region",
+  "description": "查询客户告警"
+ },
+ {
+  "name": "cdn_configuration_cdn_aiops_api_info",
+  "description": "CDN_查询接口调用记录_内网组"
+ },
+ {
+  "name": "decision_x_copilot_list_om_network_diagnosis_job_root_ca",
+  "description": "查询网络大脑诊断作业根因"
+ },
+ {
+  "name": "decision_x_copilot_list_om_network_diagnosis_job_active",
+  "description": "查询网络大脑诊断作业活跃告警信息"
+ },
+ {
+  "name": "decision_x_copilot_list_om_network_diagnosis_job_alarm",
+  "description": "查询网络大脑诊断作业告警信息"
+ },
+ {
+  "name": "decision_x_copilot_list_om_network_diagnosis_job_logs",
+  "description": "查询网络大脑诊断作业日志信息"
+ },
+ {
+  "name": "decision_x_copilot_show_om_log_diagnosis_ascend_result",
+  "description": "日志诊断昇腾诊断结果"
+ },
+ {
+  "name": "decision_x_copilot_show_om_log_diagnosis_job",
+  "description": "查询日志诊断作业详情"
+ },
+ {
+  "name": "decision_x_copilot_show_om_diagnosis_task_conclusion",
+  "description": "获取诊断任务结果概览"
+ },
+ {
+  "name": "decision_x_copilot_show_om_diagnosis_task",
+  "description": "获取诊断任务详情"
+ },
+ {
+  "name": "decision_x_copilot_list_om_diagnosis_task",
+  "description": "查询诊断任务列表"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_node_devices",
+  "description": "获取CDN节点设备列表"
+ },
+ {
+  "name": "query_ecs_tenant_relation1",
+  "description": "通过物理机host_id查询该物理机上运行的ECS实例与租户的关联关系，返回resource_id（ECS资源ID）和domain_id（租户ID）"
+ },
+ {
+  "name": "query_cloud_resource1",
+  "description": "通过cloud_resource_id列表查询云资源详情，支持ECS和BMS实例。provider_id=ecs&type=cloudservers查ECS，provider_id=bms&type=baremetalservers查BMS。返回实例名称、租户名称、租户ID、项目ID等信息"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_risk_region_aggr_r",
+  "description": "获取CDN风险情况区域汇聚的结果"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_node_time_range_ri",
+  "description": "获取CDN单节点某个时间范围风控系统指标数据"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_pop_carrier_info",
+  "description": "获取国内点播边缘运营商节点明细"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_nodes",
+  "description": "获取CDN节点信息"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_illegal_domains",
+  "description": "获取CDN违规域名信息"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_edge_site_risk_inf",
+  "description": "获取CDN边缘站点风险列表"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_bandwidth_and_bgp",
+  "description": "获取CDN静态带宽+BGP详情"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_top_tenant_info",
+  "description": "获取TOP租户重保巡检列表"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_d_change_ticket_detail",
+  "description": "获取D类变更单详情"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_node_archive_profi",
+  "description": "获取CDN节点档案信息"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_edge_indicator_tas",
+  "description": "获取CDN边缘狙击任务"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_trust_commands",
+  "description": "获取CDN可信命令列表"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_component_inspecti",
+  "description": "获取CDN组件版本巡检结果"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_node_cnq_alarm_mes",
+  "description": "获取节点CNQ网络告警数据"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_customer_quality_d",
+  "description": "获取CDN客户质量日报数据"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_large_customer_qua",
+  "description": "获取CDN大客户仪表盘巡检详情"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_faulty_equipment_c",
+  "description": "获取CDN故障设备统计值"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_edge_log_search_ta",
+  "description": "获取边缘日志检索任务结果"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_create_cdn_edge_log_search",
+  "description": "创建CDN节点日志检索任务"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_apply_online_nodes",
+  "description": "获取CDN申请上线节点列表"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_oa_c_offline_fault",
+  "description": "获取CDN通过OAC故障挂起节点"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_node_cutover_list",
+  "description": "获取CDN割接节点列表"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_node_transformatio",
+  "description": "获取CDN改造节点列表"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_node_inspection_re",
+  "description": "获取CDN站点健康巡检结果"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_inspection_pecode",
+  "description": "获取CDN边缘巡检脚本详情"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_device_fault_notes",
+  "description": "获取CDN硬件故障笔记"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_d_change_tickets",
+  "description": "获取D类变更单列表"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_device_basic_info",
+  "description": "获取CDN设备档案设备信息"
+ },
+ {
+  "name": "c_cdn_ae_service_digital_ops_show_cdn_node_risk_metric",
+  "description": "获取CDN节点风控系统指标数据"
+ },
+ {
+  "name": "tros_get_mrs_process_info",
+  "description": "本接口通过 SSH 登录到指定的 MRS 集群节点，执行 ps 命令查询匹配过滤关键字的进程信息。\n返回结果包含进程的 UID、PID、PPID、线程数(NLWP)、CPU 占用率、内存占用率、进程状态和启动命令。\n返回结果包含命令的标准输出（output）和标准错误输出（error）。\n"
+ },
+ {
+  "name": "tros_get_mrs_directory_usage",
+  "description": "本接口通过 SSH 登录到指定的 MRS 集群节点，执行 du -sh 命令查询指定目录占用的存储空间大小。\n返回结果包含命令的标准输出（output）和标准错误输出（error）。\n"
+ },
+ {
+  "name": "tros_get_mrs_host_resources",
+  "description": "本接口通过 SSH 登录到指定的 MRS 集群节点，并发采集四类主机资源快照：\n- 磁盘使用（df -h）\n- 内存使用（cat /proc/meminfo）\n- CPU和内存 进程排行（top -bn1 -o %CPU && top -bn1 -o %MEM）\n- 磁盘 IO（iostat -x -t 1 10 用户定性 + pidstat -d -h 1 10 用户定位进程）\n每类资源返回独立的 CommandResultResp（output + error），某一项失败不影响其他项返回。\n"
+ },
+ {
+  "name": "ai_func2_d4e5f6g7",
+  "description": "AI functional test with optional fields"
+ },
+ {
+  "name": "ai_func2_0901c",
+  "description": "AI functional test with optional fields"
+ },
+ {
+  "name": "ai_func2_0901e",
+  "description": "AI functional test with optional fields"
+ },
+ {
+  "name": "ai_mfwd_0901e",
+  "description": "AI mandatory fields only test"
+ },
+ {
+  "name": "ai_idem_0901e",
+  "description": "AI idempotent test second - overwritten"
+ },
+ {
+  "name": "tros_get_action_metadata",
+  "description": "获取对应服务下支持操作的action元数据信息"
+ },
+ {
+  "name": "cor_list_canvas_node_attribute_external",
+  "description": "根据 FRU 架构 ID 以及节点类型查询节点信息"
+ },
+ {
+  "name": "cor_list_fru_architectures_external",
+  "description": "根据云服务查询 FRU 架构信息列表"
+ },
+ {
+  "name": "cor_show_task_result",
+  "description": "给CIM的查任务影响面结果"
+ },
+ {
+  "name": "cor_show_summary_status",
+  "description": "warroom影响面分析的状态"
+ },
+ {
+  "name": "cor_show_service_summary",
+  "description": "warroom影响面分析的云服务summary"
+ },
+ {
+  "name": "cor_show_task_status_info",
+  "description": "查任务状态"
+ },
+ {
+  "name": "cor_list_security_attack_exception_resource",
+  "description": "查询异常资源的清单"
+ }
+]

@@ -267,6 +267,7 @@ emit_mcptools_tsv() {
       catch (err) { console.error(`skip ${e.name}: invalid mcp-server.json (${err.message})`); continue; }
       const name = m.name || e.name;
       const transport = m.transport || "remote";
+      const toolCount = m.tool_count || (Array.isArray(m.tools) ? m.tools.length : 0);
       const tools = Array.isArray(m.tools) ? m.tools.map(t => ({
         name: t.name || "",
         description: t.description || "",
@@ -280,7 +281,7 @@ emit_mcptools_tsv() {
       })) : [];
       const readme = path.join(dir, e.name, "README.md");
       const hasReadme = fs.existsSync(readme) ? `./${readme.split(path.sep).join("/")}` : "";
-      rows.push([name, transport, JSON.stringify(tools), hasReadme].join("\t"));
+      rows.push([name, transport, JSON.stringify(tools), String(toolCount), hasReadme].join("\t"));
     }
     process.stdout.write(rows.join("\n") + "\n");
   '
@@ -291,7 +292,7 @@ render_mcptool_section() {
   local rows=""
   local tsv
   tsv="$(emit_mcptools_tsv)"
-  while IFS=$'\t' read -r name transport tools_json readme; do
+  while IFS=$'\t' read -r name transport tools_json tool_count readme; do
     [ -z "$name" ] && continue
     local tools_md=""
     if [ -n "$tools_json" ] && [ "$tools_json" != "[]" ]; then
@@ -318,7 +319,17 @@ render_mcptool_section() {
     else
       name_cell='[`'"$name"'`]'
     fi
-    rows+="| $name_cell | $transport | $(md_cell_multiline "$tools_md") |"$'\n'
+    # A manifest may either embed its tools[] (rendered as cells below) or,
+    # for very large surfaces, omit it and declare tool_count only.
+    local count_cell
+    if [ -n "$tools_md" ]; then
+      count_cell="$(md_cell_multiline "$tools_md")"
+    elif [ -n "$tool_count" ] && [ "$tool_count" != "0" ]; then
+      count_cell="${tool_count} tools — see the manifest's \`tools_summary\` and the dated snapshot in the server folder"
+    else
+      count_cell="—"
+    fi
+    rows+="| $name_cell | $transport | $count_cell |"$'\n'
     count=$((count+1))
   done <<< "$tsv"
 
