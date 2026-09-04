@@ -389,17 +389,29 @@ def extract_all(zips_dir: Path, skills_dir: Path, manifest: dict) -> int:
             continue
         try:
             with zipfile.ZipFile(zip_path) as zf:
-                # Zip contains a single top-level folder named after the skill
+                # Extract into a folder keyed by the SKILL NAME (from the zip
+                # filename), not the zip's internal top-level folder. The
+                # platform names some zips' root folder after a shared prefix
+                # (e.g. every ldz-self-test-* skill's zip roots at
+                # "ldz-self-test"), which silently overwrote one folder per
+                # prefix. The zip filename is unique per skill.
+                skill_name = re.sub(r"-[\d.]+\.zip$", "", zip_path.name)
+                dest = skills_dir / skill_name
                 names = zf.namelist()
-                top = {n.split("/")[0] for n in names if n and not n.endswith("/")}
-                if len(top) == 1:
-                    dest = skills_dir / next(iter(top))
-                else:
-                    dest = skills_dir / zip_path.stem
                 if dest.exists():
                     shutil.rmtree(dest)
                 dest.mkdir(parents=True, exist_ok=True)
-                zf.extractall(skills_dir)
+                top = {n.split("/")[0] for n in names if n and not n.endswith("/")}
+                if len(top) == 1:
+                    # single root folder inside the zip: move its contents up
+                    zf.extractall(skills_dir)
+                    inner = skills_dir / next(iter(top))
+                    if inner != dest:
+                        for e in os.listdir(inner):
+                            shutil.move(str(inner / e), str(dest / e))
+                        shutil.rmtree(inner)
+                else:
+                    zf.extractall(dest)
                 entry["extracted_to"] = str(dest)
                 entry["file_count"] = len([n for n in names if not n.endswith("/")])
                 count += 1
@@ -542,7 +554,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Index written: {index_path}")
         return 0
 
-    todo = [s for s in merged if s.get("download_status") != "downloaded"]
+    # A skill is stale if never downloaded, or if the zip on disk predates the
+    # version the manifest now reports (published/current changed since the
+    # last crawl). The merge step above intentionally preserves bookkeeping,
+    # so the version comparison happens here.
+    def _is_stale(s: dict) -> bool:
+        if s.get("download_status") != "downloaded":
+            return True
+        zip_path = s.get("zip")
+        if not zip_path or not os.path.exists(zip_path):
+            return True
+        base = os.path.basename(zip_path)
+        m = re.search(r"-([\d.]+)\.zip$", base)
+        if not m:
+            return True
+        cur = str(s.get("published_version")
+                  or s.get("current_version") or "")
+        return bool(cur) and m.group(1) != cur
+
+    todo = [s for s in merged if _is_stale(s)]
     if args.limit:
         todo = todo[:args.limit]
     print(f"\nDownloading {len(todo)} skill(s)...")
