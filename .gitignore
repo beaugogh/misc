@@ -248,3 +248,6 @@ skills/harvest-ai-papers/output/
 
 # Lingshu skills crawl output — crawled skill archives, gitignored
 skills/huawei-lingshu-skills-crawl/output/
+
+# duoyuanx-model-prices: cached price snapshots (JSON + Markdown)
+skills/duoyuanx-model-prices/output/
