@@ -1,5 +1,5 @@
 ---
-name: meeting-recording-analysis
+name: huawei-meeting-analysis
 description: Analyzes meeting recordings (video + audio) — transcribes speech to a timestamped transcript and extracts key frames from screen-share video, then summarizes / pulls action items / answers questions about the meeting. Built for WeLink recordings (a directory with meeting_1.mp4 + meeting_1.m4a + audio.pcm) but works on any video file. Use when the user wants to know what happened in a recorded meeting, get a summary or action items, extract something shown on the shared screen (slides, code, a diagram), or search what was said by timestamp. Requires the Python venv with openai-whisper + imageio-ffmpeg (see Setup).
 ---
 
