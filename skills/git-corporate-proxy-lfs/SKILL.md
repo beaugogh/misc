@@ -1,19 +1,21 @@
 ---
 name: git-corporate-proxy-lfs
-description: Diagnoses and fixes `git clone`/`git pull` failures behind a strict corporate proxy on Windows — the "Failed to connect to github.com:443" timeout, the schannel revocation-check hang (CRYPT_E_NO_REVOCATION_CHECK / 0x80092012), and Git LFS pulling at single-digit KB/s. Use when git over HTTPS stalls or times out on a corporate/VPN network, when regular git works but LFS crawls, when a clone dies mid-checkout leaving files as LFS pointers, or when the proxy injects a 407 Proxy Authentication Required partway through a transfer. Also covers partial (`blob:none`/promisor) clones that can't finish a checkout (`could not fetch ... from promisor remote`) and phantom `git status` deletions caused by the LFS smudge filter.
+description: Diagnoses and fixes `git clone`/`git pull` failures behind a strict corporate proxy on Windows and macOS — the "Failed to connect to github.com:443" timeout (Windows), the "Error in the HTTP2 framing layer" failure (macOS, git bypassing the system/local proxy), the schannel revocation-check hang (CRYPT_E_NO_REVOCATION_CHECK / 0x80092012, Windows), and Git LFS pulling at single-digit KB/s. Use when git over HTTPS stalls, times out, or dies with HTTP/2 framing errors on a corporate/VPN/proxied network, when regular git works but LFS crawls, when a clone dies mid-checkout leaving files as LFS pointers, or when the proxy injects a 407 Proxy Authentication Required partway through a transfer. Also covers partial (`blob:none`/promisor) clones that can't finish a checkout (`could not fetch ... from promisor remote`) and phantom `git status` deletions caused by the LFS smudge filter.
 ---
 
-# Git behind a corporate proxy, with LFS (Windows / Git Bash Edition)
+# Git behind a corporate proxy, with LFS (Windows + macOS)
 
 ## Context
-Locked-down corporate networks (e.g. Huawei `proxyuk.huawei.com:8080`) break git
-in a stack of compounding layers. Each layer has a different symptom and a
-different fix — you usually hit several at once:
+Locked-down corporate networks (e.g. Huawei `proxyuk.huawei.com:8080`) — and,
+on macOS, local proxy clients (Clash/Surge/V2Ray listening on
+`127.0.0.1:<port>`) — break git in a stack of compounding layers. Each layer
+has a different symptom and a different fix — you usually hit several at once:
 
-- **Direct outbound HTTPS is blocked.** Every external host times out on port
-  443 (and SSH port 22): `github.com`, `google.com`, `bing.com`, `ssh.github.com`.
-  The browser works only because Windows has the proxy set in the IE/registry
-  settings — but `git`/`curl` in Git Bash **do not read that registry value**.
+- **Direct outbound HTTPS is blocked or mangled.** Every external host times
+  out on port 443 (and SSH port 22): `github.com`, `google.com`, `bing.com`,
+  `ssh.github.com`. The browser works only because the OS has the proxy set
+  (Windows: IE/registry settings; macOS: System Settings, visible via
+  `scutil --proxy`) — but `git`/`curl` **do not read those OS settings**.
   They need the proxy told to them explicitly. **Fix:** set `http.proxy` /
   `https.proxy` in git config (or `HTTP_PROXY`/`HTTPS_PROXY` env vars).
 
@@ -22,7 +24,10 @@ different fix — you usually hit several at once:
   endpoints that the interceptor mangles — the check **hangs for the full
   timeout** (the 20s / 2min stall). curl reports
   `CRYPT_E_NO_REVOCATION_CHECK (0x80092012)`. **Fix:** set
-  `http.sslBackend=schannel` + `http.schannelCheckRevoke=false`.
+  `http.sslBackend=schannel` + `http.schannelCheckRevoke=false` (Windows only —
+  macOS git uses OpenSSL/LibreSSL and has no revocation-check hang, but a
+  mangled *direct* connection there surfaces as `Error in the HTTP2 framing
+  layer` instead of a clean timeout).
 
 - **LFS uses its own HTTP client** that does **not** read git's `http.proxy`.
   If you fix git's proxy but not LFS's, regular `git clone` works yet
@@ -69,68 +74,102 @@ different fix — you usually hit several at once:
   missing files. Re-enable smudge with `git lfs install --force` before
   checking out LFS-tracked files.
 
+### Platform differences
+Both platforms share the root cause — **git does not read the OS proxy
+settings the browser uses** — but the surface symptoms and discovery commands
+differ:
+
+| | Windows (Git Bash) | macOS |
+|---|---|---|
+| Where the browser's proxy lives | IE/registry: `reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" //v ProxyServer` | System Settings → Network → Proxies, readable via `scutil --proxy` |
+| Symptom when git goes direct | `Failed to connect to github.com:443 after Ns` (clean timeout) | `Error in the HTTP2 framing layer` (connection mangled by the firewall/middlebox, not just blocked) |
+| TLS backend | schannel → revocation-check hang, `CRYPT_E_NO_REVOCATION_CHECK` — needs `http.schannelCheckRevoke=false` | OpenSSL/LibreSSL → no revocation hang; **skip the schannel steps entirely** |
+| Typical proxy | Corporate host:port | Often a local client (Clash/Surge/V2Ray) on `127.0.0.1:<port>` |
+| Credential helper | Git Credential Manager (bundled with Git for Windows) | `gh` CLI (`gh auth login` + `gh auth setup-git`, token in Keychain) or GCM for macOS |
+| LFS install | `winget install GitHub.GitLFS` | `brew install git-lfs` |
+
 ## Prerequisites
-- **Git for Windows** (provides Git Bash, `git`, and schannel). Check `git --version`.
+- **Git** — Git for Windows (Git Bash, schannel) or macOS git (Xcode CLT or
+  Homebrew). Check `git --version`.
 - **Git LFS** installed. Check `git lfs version`; install with
-  `winget install GitHub.GitLFS` if missing.
-- **Git Credential Manager (GCM)** for private-repo auth without pasting tokens
-  into config. Git for Windows bundles it; check `git credential-manager --version`.
-- A working **proxy URL** for your corporate network (host:port), e.g.
-  `http://proxy.example.com:8080`.
+  `winget install GitHub.GitLFS` (Windows) or `brew install git-lfs` (macOS)
+  if missing.
+- **A credential helper for private repos** — Git Credential Manager
+  (bundled with Git for Windows; `brew install --cask git-credential-manager`
+  on macOS) or the `gh` CLI (`brew install gh`). Check with
+  `git credential-manager --version` / `gh --version`.
+- A working **proxy URL** for your network (host:port), e.g.
+  `http://proxy.example.com:8080` — see the discovery commands above.
 
 ## Required inputs — confirm or ask the user before running
-1. **Proxy URL** — host:port of the corporate HTTP proxy, e.g.
-   `http://proxyuk.huawei.com:8080`. If unknown, check Windows:
-   `reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" //v ProxyServer`.
+1. **Proxy URL** — host:port of the HTTP proxy. The bundled script
+   auto-detects it from system settings. Manually:
+   - Windows: `reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" //v ProxyServer`
+   - macOS: `scutil --proxy` — read `HTTPProxy`/`HTTPPort` when
+     `HTTPEnable : 1` (or `SOCKSProxy`/`SOCKSPort` when `SOCKSEnable : 1`;
+     git accepts `socks5://host:port` as a proxy URL too).
 2. Whether the target repo is **private** (needs auth) and whether it uses
    **Git LFS** (look for `filter=lfs` lines in its `.gitattributes`).
-
-The bundled script has `http://proxyuk.huawei.com:8080` as a placeholder —
-replace it before running.
 
 ## How to run
 
 ### Option A — run the bundled script (fastest)
 1. Read `setup.sh` in this skill directory.
-2. Edit the **CONFIG** block at the top with the user's proxy URL. Use the
-   Edit tool — don't hand-type the whole script.
-3. Run it in Git Bash:
+2. Run it:
    ```bash
    bash setup.sh
    ```
-   It applies the global git config (proxy + schannel revocation off),
-   configures LFS for the proxy, sets a high transfer concurrency, and enables
-   Git Credential Manager. It is idempotent and safe to re-run.
+   It detects the platform (Git Bash vs macOS), auto-detects the proxy from
+   system settings (Windows registry / `scutil --proxy`), and applies the
+   right config for that platform — proxy, schannel revocation off (Windows
+   only), LFS proxy + high transfer concurrency, and a credential helper
+   (GCM on Windows, `gh` on macOS). Override detection with
+   `PROXY=http://proxy.example.com:8080 bash setup.sh` — needed when the
+   registry value is in multi-protocol form (`http=...;https=...`) or
+   detection otherwise fails. It is idempotent and safe to re-run.
 
 ### Option B — run the steps manually
-In Git Bash, replace `PROXY` with the corporate proxy URL:
+Find `PROXY` with the discovery commands above, then:
 
+**Both platforms:**
 ```bash
-PROXY="http://proxyuk.huawei.com:8080"
+PROXY="http://proxy.example.com:8080"
 
-# 1. Route git through the proxy (git/curl in Bash ignore the Windows registry proxy)
+# 1. Route git through the proxy (git/curl ignore the OS proxy settings)
 git config --global http.proxy  "$PROXY"
 git config --global https.proxy "$PROXY"
 
-# 2. Disable schannel's revocation check — it hangs on the TLS-intercepting proxy
-git config --global http.sslBackend schannel
-git config --global http.schannelCheckRevoke false
-
-# 3. Point LFS at the proxy too (LFS has its own HTTP client, ignores git's http.proxy)
+# 2. Point LFS at the proxy too (LFS has its own HTTP client, ignores git's http.proxy)
 git config --global lfs.proxy "$PROXY"
 git config --global lfs.https://github.com.proxy "$PROXY"
 
-# 4. Raise LFS concurrency from the default 3 -> 20 (kills the single-digit-KB/s crawl)
+# 3. Raise LFS concurrency from the default 3 -> 20 (kills the single-digit-KB/s crawl)
 git config --global lfs.concurrenttransfers 20
+```
 
-# 5. Private repos: use Git Credential Manager (encrypted in Windows Credential Manager,
-#    browser-based OAuth) instead of pasting tokens into config files
+**Windows only** — disable schannel's revocation check, which hangs on the
+TLS-intercepting proxy (macOS git uses OpenSSL/LibreSSL; skip this):
+```bash
+git config --global http.sslBackend schannel
+git config --global http.schannelCheckRevoke false
+```
+
+**Windows — private repos: Git Credential Manager** (encrypted in Windows
+Credential Manager, browser-based OAuth):
+```bash
 git config --global credential.helper manager
 git config --global credential.https://github.com.helper "!git-credential-manager"
 git config --global credential.github.com.oauthmethod web
 ```
 
-Then clone normally — GCM pops a browser window for GitHub login on the first
+**macOS — private repos: gh CLI** (token in Keychain; GCM for macOS also
+works):
+```bash
+gh auth login        # browser-based, once
+gh auth setup-git    # wires gh into git's credential helper for github.com
+```
+
+Then clone normally — GCM pops a browser window / gh prompts on the first
 private-repo operation:
 ```bash
 git clone https://github.com/owner/repo.git
@@ -138,14 +177,23 @@ git clone https://github.com/owner/repo.git
 
 ## Verify
 ```bash
-# Proxy + revocation settings applied
-git config --global --get http.proxy            # -> http://proxy...:8080
-git config --global --get http.schannelCheckRevoke  # -> false
-git config --global --get lfs.proxy             # -> http://proxy...:8080  (MUST be set; LFS ignores http.proxy)
-git config --global --get lfs.concurrenttransfers   # -> 20
+# Proxy + LFS settings applied (both platforms)
+git config --global --get http.proxy               # -> http://proxy...:8080
+git config --global --get lfs.proxy                # -> http://proxy...:8080  (MUST be set; LFS ignores http.proxy)
+git config --global --get lfs.concurrenttransfers  # -> 20
 
-# Can git reach GitHub through the proxy? (--ssl-no-revoke mirrors the git setting)
+# Windows only — revocation settings
+git config --global --get http.schannelCheckRevoke # -> false
+
+# Can git reach GitHub through the proxy? (one ref line = success)
+git ls-remote https://github.com/git-fixtures/basic.git
+
+# Raw HTTP check:
+#   Windows (--ssl-no-revoke mirrors the git schannel setting):
 curl -sS -m 20 -x "$PROXY" --ssl-no-revoke -o /dev/null \
+  -w "github -> HTTP %{http_code}\n" https://github.com
+#   macOS (stock curl has no --ssl-no-revoke flag; not needed without schannel):
+curl -sS -m 20 -x "$PROXY" -o /dev/null \
   -w "github -> HTTP %{http_code}\n" https://github.com
 
 # Clone a tiny public repo as a smoke test
@@ -230,19 +278,22 @@ rather than letting the reset's smudge stage fight the proxy.
 | Symptom | Cause | Fix |
 |---|---|---|
 | `Failed to connect to github.com:443 after Ns` | Direct outbound blocked; git not told the proxy | `git config --global http.proxy "$PROXY"` (+ `https.proxy`) |
-| Connects but hangs ~20s/2min, then times out | schannel revocation check stalled on TLS-intercepting proxy | `git config --global http.sslBackend schannel` + `http.schannelCheckRevoke false` |
-| `CRYPT_E_NO_REVOCATION_CHECK (0x80092012)` (curl) | Same TLS interception | `curl --ssl-no-revoke` / set schannel revocation off in git |
+| `Error in the HTTP2 framing layer` | Direct connection mangled by the firewall/middlebox — git bypassed the OS proxy (typical on macOS, where outbound isn't cleanly blocked) | Set `http.proxy`/`https.proxy` as above. If it persists *with* the proxy configured, force HTTP/1.1: `git config --global http.version HTTP/1.1` |
+| Don't know the proxy URL (macOS) | macOS keeps it in System Settings, not in env vars | `scutil --proxy` — read `HTTPProxy`/`HTTPPort` when `HTTPEnable : 1` (SOCKS fallback: `SOCKSProxy`/`SOCKSPort`, prefix `socks5://`) |
+| Connects but hangs ~20s/2min, then times out | schannel revocation check stalled on TLS-intercepting proxy (Windows) | `git config --global http.sslBackend schannel` + `http.schannelCheckRevoke false` |
+| `CRYPT_E_NO_REVOCATION_CHECK (0x80092012)` (curl) | Same TLS interception | `curl --ssl-no-revoke` / set schannel revocation off in git (Windows curl only; macOS curl has no such flag or hang) |
 | Regular git works, `git lfs pull` can't reach host | LFS ignores git's `http.proxy` | `git config --global lfs.proxy "$PROXY"` (+ per-host) |
 | LFS pulling at ~5 KB/s | Default 3 concurrent transfers through a latent proxy | `git config --global lfs.concurrenttransfers 20` |
 | `destination path already exists and is not empty` | A prior (interrupted) clone left a partial dir | Inspect it first — likely salvageable; see "Recovering" above. Only `rm -rf` if it's a true empty stub |
 | `git status` shows every file as `D` (deleted) | Clone killed mid-checkout; index out of sync | `rm -f .git/index.lock; git reset --mixed HEAD; git lfs pull` |
-| `401 Unauthorized` on clone | Repo is private, no creds yet | GCM prompts in-browser on first op; or use a PAT at github.com/settings/tokens (`repo` scope) |
+| `401 Unauthorized` on clone | Repo is private, no creds yet | GCM prompts in-browser on first op; on macOS `gh auth login`; or use a PAT at github.com/settings/tokens (`repo` scope) |
 | `407 Proxy Authentication Required` mid-LFS | Transient proxy auth challenge (quota/credential rotation) | Re-run `git lfs pull` — resumes from LFS cache, usually clears |
 | `could not fetch <oid> from promisor remote` on `reset`/`checkout` | Partial (`blob:none`) clone; checkout lazy-fetches thousands of blobs at once and the proxy kills it | Fetch missing blobs in chunks: `git fetch origin <oid>...`; see **Partial / promisor clones** above. Don't trust `cat-file -e` for presence under a promisor remote |
 | `upload-pack: not our ref <sha>` rejects an entire OID chunk | A submodule gitlink (mode `160000 commit`) SHA got into the blob list | Rebuild the list filtering to blobs only: `git ls-tree -r HEAD \| awk '$2=="blob"{print $3}'`; see **Partial / promisor clones** above |
 | `git status` shows every LFS-pattern file as `D` (deleted) but the files are on disk | LFS clean/smudge filter re-hashing real content matched by `filter=lfs` — hash mismatch, not a real deletion | `git lfs install --skip-smudge; git read-tree HEAD` to collapse to the true missing set, then `git lfs install --force` before checking out LFS files |
-| `index.lock: File exists` | A git/LFS process was killed mid-write | Confirm no `git`/`git-lfs` process is running (`tasklist \| grep -i git`), then `rm -f .git/index.lock` |
+| `index.lock: File exists` | A git/LFS process was killed mid-write | Confirm no `git`/`git-lfs` process is running (`tasklist \| grep -i git` on Windows, `pgrep -fl git` on macOS), then `rm -f .git/index.lock` |
 | `403`/block page from `Invoke-WebRequest`/installers | Proxy returns HTML block page for some clients | Use NPM/git (honor proxy) rather than PowerShell web cmdlets |
+| macOS: proxy worked yesterday, git fails today | Local proxy client (Clash/Surge/V2Ray) changed port or quit | Re-check `scutil --proxy`; if the port changed, re-run setup.sh or re-set the configs; if the app quit, unset the proxy config (see Notes) |
 
 ## Notes
 - These are **global** settings (`--global`); they apply to all repos. That's
@@ -256,14 +307,24 @@ rather than letting the reset's smudge stage fight the proxy.
   git config --global http.proxy  "$PROXY"
   git config --global https.proxy "$PROXY"
   ```
-- GCM stores credentials in **Windows Credential Manager** (encrypted, tied to
-  the Windows account) — never in plaintext config. Browser-based OAuth is the
-  most reliable flow through a corporate proxy; GCM falls back to device-code
-  if the browser can't reach github.com.
+- On macOS the "corporate proxy" is often a **local client** (Clash/Surge/
+  V2Ray) bound to `127.0.0.1:<port>`. Two consequences: the port can change
+  between restarts (re-check `scutil --proxy`, re-run `setup.sh`), and when
+  the app quits, git breaks exactly as if you'd left the corporate network —
+  unset the proxy config until it's running again.
+- GCM stores credentials in **Windows Credential Manager** (encrypted, tied
+  to the Windows account) — never in plaintext config. Browser-based OAuth is
+  the most reliable flow through a corporate proxy; GCM falls back to
+  device-code if the browser can't reach github.com. On macOS, `gh auth login`
+  stores the token in **Keychain** the same way.
 - LFS caches downloaded objects under `.git/lfs/`. A killed `git lfs pull`
   loses nothing already cached — re-running resumes from there.
-- The proxy URL in the registry is the authoritative one the browser uses:
-  `reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" //v ProxyServer`.
-  `netsh winhttp show proxy` is a *separate* WinHTTP setting and often reads
-  "direct access" even when the IE/registry proxy is set — don't trust it as
-  the source of truth.
+- The proxy URL the browser uses is the authoritative one:
+  - Windows: `reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" //v ProxyServer`.
+    `netsh winhttp show proxy` is a *separate* WinHTTP setting and often reads
+    "direct access" even when the IE/registry proxy is set — don't trust it as
+    the source of truth.
+  - macOS: `scutil --proxy` (System Settings → Network → Proxies is its GUI).
+    `HTTP_PROXY`/`HTTPS_PROXY` env vars in a shell are a *separate* setting —
+    git honors them if set, but the browser doesn't, so `scutil --proxy` is
+    the source of truth for what actually reaches the network.
