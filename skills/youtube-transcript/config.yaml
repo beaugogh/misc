@@ -1,0 +1,4 @@
+# youtube-transcript skill configuration
+# Output directory for generated .md/.json transcripts.
+# Relative paths resolve against this skill's directory.
+output_dir: output

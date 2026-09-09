@@ -251,3 +251,6 @@ skills/huawei-lingshu-skills-crawl/output/
 
 # duoyuanx-model-prices: cached price snapshots (JSON + Markdown)
 skills/duoyuanx-model-prices/output/
+
+# youtube-transcript: extracted transcripts (Markdown + JSON)
+skills/youtube-transcript/output/
