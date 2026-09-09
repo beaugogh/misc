@@ -3,16 +3,16 @@
 
 Two backends, same output:
 
-  opencli (default) — `opencli youtube transcript` drives your logged-in
+  yt-dlp (default) — headless, no Chrome required. Downloads caption tracks
+      only (`--skip-download`). YouTube's timedtext endpoint rate-limits
+      (HTTP 429) aggressively, so the script paces requests and retries with
+      backoff. Auto-detects a proxy from env / git config — direct
+      connections to youtube.com time out on some networks.
+
+  opencli (backup) — `opencli youtube transcript` drives your logged-in
       Chrome via the OpenCLI Browser Bridge. No rate limits (YouTube sees a
       normal browser), handles PO tokens, offers grouped mode (paragraphs,
       chapters, speaker detection).
-
-  yt-dlp — headless, no Chrome required. Downloads caption tracks only
-      (`--skip-download`). Slower for batches: YouTube's timedtext endpoint
-      rate-limits (HTTP 429) aggressively, so the script paces requests and
-      retries with backoff. Auto-detects a proxy from env / git config —
-      direct connections to youtube.com time out on some networks.
 
 Python 3.9+ stdlib only.
 """
@@ -75,51 +75,263 @@ def fmt_ts(seconds):
     return f'{h}:{m:02d}:{s:02d}' if h else f'{m}:{s:02d}'
 
 
-# --------------------------------------------------------------------------
-# backend: opencli
-
 def run(cmd, timeout=300):
-    """Run a subprocess, return CompletedProcess (stderr captured separately)."""
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    """Run a subprocess; a hang becomes a clean SystemExit, not a traceback."""
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise SystemExit(f'error: command timed out after {timeout}s: {" ".join(cmd[:6])} …')
+    except FileNotFoundError:
+        raise SystemExit(f'error: command not found: {cmd[0]}')
 
 
-def extract_json_array(stdout):
-    """opencli -f json stdout can carry trailing non-JSON junk (update notices).
-    Find the outermost JSON array and parse exactly that."""
-    start = stdout.find('[')
-    if start == -1:
-        return None
-    # walk to the matching close bracket, tolerating strings
-    depth = 0
-    in_str = False
-    esc = False
-    for i in range(start, len(stdout)):
-        c = stdout[i]
-        if in_str:
-            if esc:
-                esc = False
-            elif c == '\\':
-                esc = True
-            elif c == '"':
-                in_str = False
-        elif c == '"':
-            in_str = True
-        elif c == '[':
-            depth += 1
-        elif c == ']':
-            depth -= 1
-            if depth == 0:
-                try:
-                    return json.loads(stdout[start:i + 1])
-                except json.JSONDecodeError:
-                    continue
+# --------------------------------------------------------------------------
+# backend: yt-dlp
+
+# yt-dlp metadata fields can't contain \x1f (unit separator), so it's a safe
+# --print delimiter. Named (not inline) so editors can see it.
+YT_SEP = '\x1f'
+YT_PRINT_TMPL = YT_SEP.join(('%(title)s', '%(channel)s', '%(duration)s',
+                             '%(id)s', '%(is_live)s'))
+
+
+def detect_ytdlp():
+    """Locate yt-dlp, or exit with install instructions."""
+    path = shutil.which('yt-dlp')
+    if path:
+        return [path]
+    raise SystemExit(
+        'error: yt-dlp not found on PATH.\n'
+        'Install it first, e.g.:\n'
+        '  brew install yt-dlp        (macOS)\n'
+        '  pip install yt-dlp\n'
+        '  or download the standalone binary from https://github.com/yt-dlp/yt-dlp/releases\n'
+        'Then rerun, or use --backend opencli to extract through your browser instead.'
+    )
+
+
+def detect_proxy():
+    """Direct youtube.com connections time out on some networks (this is
+    common behind corporate proxies). Resolution order mirrors git's own:
+    env vars, then git config http.proxy."""
+    for var in ('https_proxy', 'HTTPS_PROXY', 'http_proxy', 'HTTP_PROXY'):
+        val = os.environ.get(var)
+        if val:
+            return val
+    try:
+        proc = run(['git', 'config', '--get', 'http.proxy'], timeout=10)
+        if proc.returncode == 0 and proc.stdout.strip():
+            return proc.stdout.strip()
+    except SystemExit:
+        pass
     return None
 
 
-def opencli_backend(video_id, lang, mode):
-    """Returns (metadata dict, segments list). Segments: [{start, end, text}]."""
-    url = f'https://www.youtube.com/watch?v={video_id}'
+def ytdlp_detect_language(base_cmd, url):
+    """Detect the video's language for auto caption selection. %(language)s
+    is populated when YouTube declares it (reliably for music, patchily for
+    talks); returns None when 'NA'. Note --list-subs can NOT be used for
+    this: its language list is alphabetical, not original-first."""
+    proc = run(base_cmd + ['--skip-download', '--print', '%(language)s',
+                           '--socket-timeout', '15', url])
+    if proc.returncode != 0:
+        return None
+    lang = proc.stdout.strip().splitlines()[-1].strip() if proc.stdout.strip() else 'NA'
+    return lang if lang and lang != 'NA' else None
 
+
+def ytdlp_backend(video_id, lang, mode):
+    """Returns (metadata dict, segments list).
+    Raw mode: segments are [{start, end, text}] (seconds, float).
+    Grouped mode: [{timestamp, speaker, text, is_chapter}]."""
+    ytdlp = detect_ytdlp()
+    url = f'https://www.youtube.com/watch?v={video_id}'
+    proxy = detect_proxy()
+
+    import tempfile
+    workdir = tempfile.mkdtemp(prefix='yt-transcript-')
+
+    def base_cmd():
+        cmd = list(ytdlp)
+        if proxy:
+            cmd += ['--proxy', proxy]
+        return cmd
+
+    # Language selection: --lang flag wins; otherwise %(language)s when
+    # YouTube declares it (one cheap pre-pass, no subtitle requests);
+    # final fallback English.
+    if lang:
+        sub_langs = lang
+    else:
+        sub_langs = ytdlp_detect_language(base_cmd(), url) or 'en'
+
+    # Single extraction call: metadata printed AND captions downloaded in one
+    # pass (separate calls would multiply request volume — and 429s).
+    # NB: --print implies --simulate, which ALSO swallows subtitle download
+    # errors (exit 0, no files) — --no-simulate is required for real writes.
+    out_tmpl = os.path.join(workdir, '%(id)s.%(ext)s')
+    attempts = 0
+    while True:
+        attempts += 1
+        dl = run(base_cmd() + [
+            '--skip-download', '--write-auto-subs', '--write-subs',
+            '--sub-langs', sub_langs, '--sub-format', 'json3/vtt',
+            '--sleep-subtitles', '5',   # pace timedtext requests: 429s are the #1 failure mode
+            '--socket-timeout', '15',
+            '--print', YT_PRINT_TMPL, '--no-simulate',
+            '-o', out_tmpl, url,
+        ])
+        combined = (dl.stdout or '') + (dl.stderr or '')
+        files = [f for f in os.listdir(workdir) if f.endswith(('.json3', '.vtt', '.srt'))]
+        if files:
+            break
+        if '429' in (dl.stderr or '') and attempts <= 3:
+            wait = 90 * attempts  # 429s on the timedtext endpoint outlast short cooldowns
+            print(f'rate-limited (HTTP 429); waiting {wait}s before retry...', file=sys.stderr)
+            time.sleep(wait)
+            continue
+        if 'no subtitles' in combined.lower() or 'There is no subtitle' in combined:
+            raise SystemExit(
+                f'error: yt-dlp found no caption track for language {sub_langs!r}.\n'
+                'Run yt-dlp --list-subs on the video to see what exists.'
+            )
+        if '429' in combined:
+            raise SystemExit(
+                f'error: YouTube rate-limited (HTTP 429) caption downloads for '
+                f'language {sub_langs!r} and retries are exhausted.\n'
+                'The timedtext limit is per-language and lasts ~10+ minutes. '
+                'Try again later, pick another --lang, or use --backend opencli '
+                '(extracts through your browser, no rate limit).'
+            )
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise SystemExit('error: yt-dlp caption download failed:\n' + (dl.stderr or dl.stdout)[-500:])
+
+    # metadata line: first stdout line carrying the separator
+    meta_line = next((ln for ln in dl.stdout.splitlines() if YT_SEP in ln), None)
+    if not meta_line:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise SystemExit('error: yt-dlp metadata output missing:\n' + (dl.stderr or dl.stdout)[-500:])
+    title, channel, duration, vid, is_live = (meta_line.split(YT_SEP) + [''] * 5)[:5]
+    if is_live.lower() == 'true':
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise SystemExit('error: this is a live stream — transcripts only exist for finished videos')
+    metadata = {
+        'title': title,
+        'channel': channel,
+        # duration is 'NA' for unknown/upcoming — don't write 'NAs' garbage
+        'duration': f'{duration}s' if re.match(r'^[\d.]+$', duration) else 'unknown',
+        'videoId': vid,
+    }
+
+    sub_path = os.path.join(workdir, files[0])
+    try:
+        segments = parse_json3(sub_path) if sub_path.endswith('.json3') else parse_vtt(sub_path)
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+    if mode == 'raw':
+        return metadata, segments
+    grouped = []
+    for seg in segments:
+        grouped.append({
+            'timestamp': fmt_ts(seg['start']),
+            'speaker': '',
+            'text': seg['text'],
+            'is_chapter': False,
+        })
+    return metadata, grouped
+
+
+def parse_json3(path):
+    data = json.load(open(path, encoding='utf-8'))
+    rows = []
+    for event in data.get('events', []):
+        segs = event.get('segs') or []
+        # YouTube's json3 line breaks appear either as real newlines (from
+        # \n escapes) or literal backslash-n sequences — flatten both to spaces
+        text = ''.join(s.get('utf8', '') for s in segs)
+        text = text.replace('\\n', ' ').replace('\n', ' ').strip()
+        if not text:
+            continue
+        start = int(event.get('tStartMs', 0)) / 1000
+        dur = int(event.get('dDurationMs', 0)) / 1000
+        rows.append({'start': start, 'end': start + dur, 'text': text})
+    return rows
+
+
+def parse_vtt(path):
+    """Minimal WebVTT parser: cue timestamps + text.
+    Handles auto-caption rolling duplicates (each cue repeats the previous
+    cue's line) by dropping leading lines already emitted."""
+    content = open(path, encoding='utf-8').read()  # noqa: SIM115 — small temp file
+    rows = []
+    seen_cues = set()
+    prev_lines = []
+    for m in re.finditer(
+            r'(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})[^\n]*\n'
+            r'((?:[^\n]+\n)*[^\n]*)(?:\n|$)',
+            content):
+        h1, m1, s1, ms1, h2, m2, s2, ms2 = (int(g) for g in m.groups()[:8])
+        start = h1 * 3600 + m1 * 60 + s1 + ms1 / 1000
+        end = h2 * 3600 + m2 * 60 + s2 + ms2 / 1000
+        cue_lines = [re.sub(r'<[^>]+>', '', ln).strip() for ln in m.group(9).splitlines()]
+        cue_lines = [ln for ln in cue_lines if ln]
+        while cue_lines and cue_lines[0] in prev_lines:
+            cue_lines.pop(0)
+        prev_lines = cue_lines
+        if not cue_lines:
+            continue
+        # flatten wrapped cue lines into one text line (json3 does the same)
+        text = ' '.join(cue_lines)
+        key = text.lower()
+        if key in seen_cues:
+            continue
+        seen_cues.add(key)
+        rows.append({'start': start, 'end': end, 'text': text})
+    return rows
+
+
+# --------------------------------------------------------------------------
+# backend: opencli
+
+def extract_json_array(stdout):
+    """opencli -f json stdout can carry non-JSON junk (update notices).
+    Find a JSON array anywhere in the text and parse exactly that."""
+    origin = 0
+    while True:
+        start = stdout.find('[', origin)
+        if start == -1:
+            return None
+        depth = 0
+        in_str = False
+        esc = False
+        for i in range(start, len(stdout)):
+            c = stdout[i]
+            if in_str:
+                if esc:
+                    esc = False
+                elif c == '\\':
+                    esc = True
+                elif c == '"':
+                    in_str = False
+            elif c == '"':
+                in_str = True
+            elif c == '[':
+                depth += 1
+            elif c == ']':
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(stdout[start:i + 1])
+                    except json.JSONDecodeError:
+                        break  # malformed candidate — re-seek from the next '['
+        origin = start + 1
+
+
+def opencli_backend(video_id, lang, mode):
+    """Returns (metadata dict, segments list).
+    Raw mode: segments are [{start, end, text}] (seconds, float).
+    Grouped mode: [{timestamp, speaker, text, is_chapter}]."""
     meta_proc = run(['opencli', 'youtube', 'video', video_id, '-f', 'json'])
     if meta_proc.returncode != 0:
         raise SystemExit('error: opencli youtube video failed:\n' + (meta_proc.stderr or meta_proc.stdout)[-500:])
@@ -139,14 +351,14 @@ def opencli_backend(video_id, lang, mode):
     for attempt in range(2):
         proc = run(cmd)
         combined = (proc.stdout or '') + (proc.stderr or '')
+        last_err = combined[-500:]
         rows = extract_json_array(proc.stdout or '')
         if rows:
             break
-        # language fallback hint from opencli is informational, not fatal,
-        # but a hard error (ok: false) means no usable transcript
+        # language fallback hint from opencli is informational, not fatal —
+        # the retry picks up whatever fallback opencli selected
         if 'not found. Using' in combined and rows is None:
             continue
-        last_err = combined[-500:]
         time.sleep(3)
     else:
         raise SystemExit('error: opencli youtube transcript failed:\n' + last_err)
@@ -181,180 +393,13 @@ def parse_opencli_seconds(val):
 
 
 # --------------------------------------------------------------------------
-# backend: yt-dlp
-
-def detect_ytdlp():
-    """Locate yt-dlp, or exit with install instructions."""
-    path = shutil.which('yt-dlp')
-    if path:
-        return [path]
-    raise SystemExit(
-        'error: yt-dlp not found on PATH.\n'
-        'Install it first, e.g.:\n'
-        '  brew install yt-dlp        (macOS)\n'
-        '  pip install yt-dlp\n'
-        '  or download the standalone binary from https://github.com/yt-dlp/yt-dlp/releases\n'
-        'Then rerun with --backend yt-dlp, or omit --backend to use opencli instead.'
-    )
-
-
-def detect_proxy():
-    """Direct youtube.com connections time out on some networks (this is
-    common behind corporate proxies). Resolution order mirrors git's own:
-    env vars, then git config http.proxy."""
-    for var in ('https_proxy', 'HTTPS_PROXY', 'http_proxy', 'HTTP_PROXY'):
-        val = os.environ.get(var)
-        if val:
-            return val
-    try:
-        proc = run(['git', 'config', '--get', 'http.proxy'], timeout=10)
-        if proc.returncode == 0 and proc.stdout.strip():
-            return proc.stdout.strip()
-    except Exception:
-        pass
-    return None
-
-
-def ytdlp_backend(video_id, lang, mode):
-    """Returns (metadata dict, segments list). Segments normalized to the
-    grouped schema (timestamp/text) — yt-dlp has no speaker/chapter info."""
-    ytdlp = detect_ytdlp()
-    url = f'https://www.youtube.com/watch?v={video_id}'
-    env = dict(os.environ)
-    proxy = detect_proxy()
-    if proxy:
-        # NO_PROXY would bypass the proxy for matched hosts; youtube.com must
-        # go through it on proxied networks.
-        env.pop('NO_PROXY', None)
-        env.pop('no_proxy', None)
-        env['https_proxy'] = proxy
-        env['http_proxy'] = proxy
-
-    import tempfile
-    workdir = tempfile.mkdtemp(prefix='yt-transcript-')
-
-    def base_cmd():
-        cmd = list(ytdlp)
-        if proxy:
-            cmd += ['--proxy', proxy]
-        return cmd
-
-    # metadata
-    meta_proc = run(base_cmd() + [
-        '--skip-download', '--print', '%(title)s%(channel)s%(duration)s%(id)s',
-        '--socket-timeout', '15', url,
-    ])
-    if meta_proc.returncode != 0 or '' not in meta_proc.stdout:
-        raise SystemExit('error: yt-dlp metadata fetch failed:\n' + (meta_proc.stderr or meta_proc.stdout)[-500:])
-    title, channel, duration, vid = meta_proc.stdout.strip().split('')[:4]
-    metadata = {'title': title, 'channel': channel, 'duration': f'{duration}s', 'videoId': vid}
-
-    # captions: json3 preferred (clean segment boundaries); vtt fallback
-    # (--list-subs first avoids a wasted format-resolve round trip and gives
-    # a precise error when no tracks exist)
-    langs = run(base_cmd() + ['--list-subs', '--socket-timeout', '15', '--print', '%(id)s', url])
-    listing = langs.stdout + langs.stderr
-    if 'no subtitles' in listing.lower() and 'no automatic captions' in listing.lower():
-        raise SystemExit(
-            'error: this video has no caption tracks (manual or auto-generated).\n'
-            'yt-dlp cannot extract a transcript; use --backend opencli to confirm, or the video simply has no captions.'
-        )
-
-    sub_langs = lang or 'en'
-    fmt = 'json3/vtt'
-    out_tmpl = os.path.join(workdir, '%(id)s.%(ext)s')
-    attempts = 0
-    while True:
-        attempts += 1
-        dl = run(base_cmd() + [
-            '--skip-download', '--write-auto-subs', '--write-subs',
-            '--sub-langs', sub_langs, '--sub-format', fmt,
-            '--sleep-subtitles', '5',   # pace timedtext requests: 429s are the #1 failure mode
-            '--socket-timeout', '15',
-            '-o', out_tmpl, url,
-        ])
-        files = [f for f in os.listdir(workdir) if f.endswith(('.json3', '.vtt', '.srt'))]
-        if files:
-            break
-        if '429' in (dl.stderr or '') and attempts <= 3:
-            wait = 90 * attempts  # 429s on the timedtext endpoint outlast short cooldowns
-            print(f'rate-limited (HTTP 429); waiting {wait}s before retry...', file=sys.stderr)
-            time.sleep(wait)
-            continue
-        if 'no subtitles' in (dl.stdout + dl.stderr).lower():
-            raise SystemExit(
-                f'error: yt-dlp found no caption track for language {sub_langs!r}.\n'
-                'Run yt-dlp --list-subs on the video to see what exists.'
-            )
-        raise SystemExit('error: yt-dlp caption download failed:\n' + (dl.stderr or dl.stdout)[-500:])
-
-    sub_path = os.path.join(workdir, files[0])
-    try:
-        if sub_path.endswith('.json3'):
-            segments = parse_json3(sub_path)
-        else:
-            segments = parse_vtt(sub_path)
-    finally:
-        shutil.rmtree(workdir, ignore_errors=True)
-
-    # normalize to grouped schema
-    grouped = []
-    for seg in segments:
-        grouped.append({
-            'timestamp': fmt_ts(seg['start']),
-            'speaker': '',
-            'text': seg['text'],
-            'is_chapter': False,
-        })
-    return metadata, grouped
-
-
-def parse_json3(path):
-    data = json.load(open(path, encoding='utf-8'))
-    rows = []
-    for event in data.get('events', []):
-        segs = event.get('segs') or []
-        text = ''.join(s.get('utf8', '') for s in segs).strip()
-        if not text:
-            continue
-        start = int(event.get('tStartMs', 0)) / 1000
-        dur = int(event.get('dDurationMs', 0)) / 1000
-        rows.append({'start': start, 'end': start + dur, 'text': text})
-    return rows
-
-
-def parse_vtt(path):
-    """Minimal WebVTT parser: cue timestamps + text, deduped.
-    Auto-caption vtt often carries rolling duplicates; the regex below keeps
-    the common case readable without a full parser."""
-    content = open(path, encoding='utf-8').read()
-    rows = []
-    seen = set()
-    for m in re.finditer(
-            r'(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3}).*?\n((?:.*?\n)*?)\n',
-            content):
-        h1, m1, s1, ms1, h2, m2, s2, ms2 = (int(g) for g in m.groups()[:8])
-        start = h1 * 3600 + m1 * 60 + s1 + ms1 / 1000
-        end = h2 * 3600 + m2 * 60 + s2 + ms2 / 1000
-        text = ' '.join(line.strip() for line in m.group(9).splitlines() if line.strip())
-        # strip vtt inline tags and drop duplicate lines (rolling captions)
-        text = re.sub(r'<[^>]+>', '', text)
-        lines = [ln for ln in text.split() ]
-        key = ' '.join(lines).lower()
-        if not text or key in seen:
-            continue
-        seen.add(key)
-        rows.append({'start': start, 'end': end, 'text': text})
-    return rows
-
-
-# --------------------------------------------------------------------------
 # output rendering
 
 def render_markdown(metadata, segments, mode, backend, lang, video_id, coverage_pct):
     lines = []
     def fm(key, val):
-        lines.append(f'{key}: {val}')
+        # JSON string = valid YAML double-quoted scalar; titles often contain ': '
+        lines.append(f'{key}: {json.dumps(str(val), ensure_ascii=False)}')
     lines.append('---')
     fm('title', metadata.get('title', 'unknown'))
     fm('channel', metadata.get('channel', ''))
@@ -371,9 +416,9 @@ def render_markdown(metadata, segments, mode, backend, lang, video_id, coverage_
     fm('date_extracted', datetime.date.today().isoformat())
     lines.append('---')
     lines.append('')
-    if metadata.get('description'):
-        desc = metadata['description'].strip().splitlines()[0][:300]
-        lines.append(f'> {desc}')
+    desc_lines = (metadata.get('description') or '').strip().splitlines()
+    if desc_lines:
+        lines.append(f'> {desc_lines[0][:300]}')
         lines.append('')
     for seg in segments:
         if seg.get('is_chapter'):
@@ -396,9 +441,9 @@ def render_markdown(metadata, segments, mode, backend, lang, video_id, coverage_
 def main():
     ap = argparse.ArgumentParser(description='Extract a YouTube video transcript to Markdown + JSON')
     ap.add_argument('video', help='YouTube URL or 11-char video ID')
-    ap.add_argument('--backend', choices=['opencli', 'yt-dlp'], default='opencli',
-                    help='extraction backend (default: opencli)')
-    ap.add_argument('--lang', default='', help='language code, e.g. en, zh-CN (default: auto)')
+    ap.add_argument('--backend', choices=['yt-dlp', 'opencli'], default='yt-dlp',
+                    help='extraction backend (default: yt-dlp; opencli extracts through your browser)')
+    ap.add_argument('--lang', default='', help='language code, e.g. en, zh-CN (default: auto — original caption track)')
     ap.add_argument('--mode', choices=['grouped', 'raw'], default='grouped',
                     help='grouped: readable paragraphs + chapters; raw: every caption segment')
     ap.add_argument('--output-dir', default=None, help='output directory (default: skill output/ or config)')
@@ -425,7 +470,7 @@ def main():
             last_end = max((s.get('end', 0) for s in segments), default=0)
             coverage_pct = min(last_end / duration * 100, 100)
         elif duration > 0:
-            # grouped rows carry mm:ss timestamps
+            # grouped rows carry m:ss / h:mm:ss timestamps
             last_ts = segments[-1].get('timestamp', '0:00')
             parts = [float(p) for p in last_ts.split(':')]
             last_secs = sum(p * 60 ** i for i, p in enumerate(reversed(parts)))
@@ -449,8 +494,10 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     slug = slugify(metadata.get('title', 'video'))
-    md_path = args.md or os.path.join(output_dir, f'{slug}__{video_id}.md')
-    json_path = args.json_out or os.path.join(output_dir, f'{slug}__{video_id}.json')
+    # tag the language so the same video in two languages doesn't overwrite
+    lang_tag = f'.{args.lang}' if args.lang else ''
+    md_path = args.md or os.path.join(output_dir, f'{slug}__{video_id}{lang_tag}.md')
+    json_path = args.json_out or os.path.join(output_dir, f'{slug}__{video_id}{lang_tag}.json')
 
     md = render_markdown(metadata, segments, args.mode, args.backend, args.lang, video_id, coverage_pct)
     with open(md_path, 'w', encoding='utf-8') as f:
