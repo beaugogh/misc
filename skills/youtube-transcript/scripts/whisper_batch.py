@@ -262,6 +262,10 @@ def main():
     ap.add_argument('--device', default='cuda', help="faster engine device (default cuda)")
     ap.add_argument('--out-dir', default=None,
                     help='transcript output dir (default depends on engine: whisper/ or whisper-large-v3/)')
+    ap.add_argument('--no-download', action='store_true',
+                    help='never fetch audio; transcribe only what is already in output/audio/ '
+                         '(use when a separate process owns downloads, to avoid two yt-dlp '
+                         'processes writing the same file)')
     args = ap.parse_args()
 
     if args.engine == 'faster':
@@ -301,6 +305,9 @@ def main():
             existing_audio = audio_path_for(vid)
             if existing_audio:
                 audio_file = existing_audio
+            elif args.no_download:
+                eprint(f'[{i+1}/{len(picked)}] {vid} no local audio (--no-download), skipping')
+                continue
             else:
                 audio_dest = os.path.join(AUDIO_DIR, f'{base_name}.webm')
                 eprint(f'[{i+1}/{len(picked)}] {vid} downloading audio...')
