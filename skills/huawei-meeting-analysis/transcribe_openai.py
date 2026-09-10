@@ -61,6 +61,8 @@ def main():
     ap.add_argument("--out", help="output dir (default: <source>/_analysis)")
     ap.add_argument("--model", default="tiny",
                     help="whisper model: tiny/base/small/medium/large (default tiny)")
+    ap.add_argument("--model-dir", default=None,
+                    help="directory containing Whisper model files (default: ~/.cache/whisper)")
     ap.add_argument("--language", default=None, help="language code e.g. zh, en (default: auto-detect)")
     args = ap.parse_args()
 
@@ -105,7 +107,7 @@ def main():
     import whisper
     import torch
     print(f"  torch {torch.__version__}", flush=True)
-    model = whisper.load_model(args.model)
+    model = whisper.load_model(args.model, download_root=args.model_dir)
 
     print(f"transcribing: {audio}", flush=True)
     # fp16=False required for CPU

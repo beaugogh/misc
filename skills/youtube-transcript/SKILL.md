@@ -1,6 +1,6 @@
 ---
 name: youtube-transcript
-description: Extracts the full transcript of a YouTube video into a timestamped Markdown file plus a machine-readable JSON sidecar. Uses YouTube's existing caption tracks (manual or auto-generated) — no transcription needed, so it's free and fast. Two backends yt-dlp (default, headless, no browser needed) and opencli (backup, drives your logged-in Chrome — no rate limits, richer output). Use when asked to get/fetch/extract the transcript, subtitles, captions, or full text of a YouTube video, or when a task needs to read what was said in a video. Caption-less videos and live streams fail with a clear error — audio transcription (whisper) is out of scope.
+description: Extracts the full transcript of a YouTube video into a timestamped Markdown file plus a machine-readable JSON sidecar. Uses YouTube's existing caption tracks (manual or auto-generated) — no transcription needed, so it's free and fast. Two backends yt-dlp (default, headless, no browser needed) and opencli (backup, drives your logged-in Chrome — no rate limits, richer output). For Chinese transcripts, prefer Simplified Chinese (`zh-CN`) unless the user explicitly requests another variant. Use when asked to get/fetch/extract the transcript, subtitles, captions, or full text of a YouTube video, or when a task needs to read what was said in a video. Caption-less videos and live streams fail with a clear error — audio transcription (whisper) is out of scope.
 ---
 
 # YouTube transcript
@@ -26,6 +26,23 @@ python3 skills/youtube-transcript/scripts/youtube_transcript.py "<url>" --mode r
 python3 skills/youtube-transcript/scripts/youtube_transcript.py "<url>" --backend opencli  # through your browser
 python3 skills/youtube-transcript/scripts/youtube_transcript.py "<url>" --output-dir <dir> --md <path> --json-out <path>
 ```
+
+## Chinese language preference
+
+**Simplified Chinese is the default and preferred Chinese output.** When the
+video is Chinese or the user asks for a Chinese transcript without specifying
+a script variant, pass `--lang zh-CN`. Prefer tracks in this order:
+
+1. `zh-CN` / Simplified Chinese
+2. a generic Chinese track (`zh`) when it is known to be Simplified
+3. the original Chinese track when no Simplified track exists
+
+Do not select `zh-Hant`, `zh-TW`, or another Traditional Chinese track when a
+Simplified track is available. If only Traditional Chinese captions exist,
+preserve their actual language label and tell the user that the source is
+Traditional; do not silently label it as Simplified. Convert it to Simplified
+only when a trustworthy conversion step is available, and disclose that the
+text was converted rather than supplied directly by YouTube.
 
 ## Backends
 
@@ -111,9 +128,10 @@ wrong language track was selected.
 - **yt-dlp without a JS runtime warns** "No supported JavaScript runtime" —
   extraction still works for captions; some format listings degrade. Install
   deno to silence it.
-- **Language codes**: use `zh-CN` not `zh-Hans` for auto-translated Chinese
-  tracks (opencli's available-list uses YouTube's codes); `--lang en` works
-  everywhere English captions exist.
+- **Language codes**: for Chinese, default to `zh-CN` (Simplified Chinese), not
+  `zh-Hans`; opencli's available-list uses YouTube's codes. Do not fall back to
+  `zh-Hant` / `zh-TW` without explicitly reporting that the available source is
+  Traditional Chinese. `--lang en` works everywhere English captions exist.
 
 ## Troubleshooting
 
