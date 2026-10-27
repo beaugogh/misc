@@ -190,7 +190,7 @@ def main():
     with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
     print(f"manifest -> {os.path.join(out_dir, 'manifest.json')}")
-    print("\nNext: transcribe.py to get the transcript, then analyze.")
+    print("\nNext: transcribe_openai.py for the transcript; analyze_frames.py optional (frame descriptions).")
 
 
 if __name__ == "__main__":

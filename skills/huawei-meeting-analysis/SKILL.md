@@ -1,6 +1,6 @@
 ---
 name: huawei-meeting-analysis
-description: Analyzes meeting recordings (video + audio) — transcribes speech to a timestamped transcript and extracts key frames from screen-share video, then summarizes / pulls action items / answers questions about the meeting. Built for WeLink recordings (a directory with meeting_1.mp4 + meeting_1.m4a + audio.pcm) but works on any video file. Use when the user wants to know what happened in a recorded meeting, get a summary or action items, extract something shown on the shared screen (slides, code, a diagram), or search what was said by timestamp. Requires the Python venv with openai-whisper + imageio-ffmpeg (see Setup).
+description: Analyzes meeting recordings (video + audio) — transcribes speech to a timestamped transcript and extracts key frames from screen-share video, then summarizes / pulls action items / answers questions about the meeting. Built for WeLink recordings (a directory with meeting_1.mp4 + meeting_1.m4a + audio.pcm) but works on any video file. Optional multi-modal mode sends every frame to a vision model (glm-5.3-flash) and writes per-frame text descriptions. Use when the user wants to know what happened in a recorded meeting, get a summary or action items, extract something shown on the shared screen (slides, code, a diagram), or search what was said by timestamp. Requires the Python venv with openai-whisper + imageio-ffmpeg (see Setup).
 ---
 
 # Meeting recording analysis (video + audio)
@@ -88,19 +88,19 @@ but Windows needs the full path. The bundled `imageio-ffmpeg` binary is named
 
 ### Step 1 — extract frames + audio
 ```bash
-python skills/meeting-recording-analysis/extract.py "<recording-dir-or-file>"
+python skills/huawei-meeting-analysis/extract.py "<recording-dir-or-file>"
 ```
 Default: scene-change detection → key frames. Outputs to `<recording>/_analysis/`:
 - `frames/frame_HHMMSS.png` — key frames, named by their time in the video
 - `audio.wav` — 16 kHz mono, exactly what Whisper wants
 - `manifest.json` — source, duration, frame list (file + timestamp)
 
-Options: `--mode interval --interval 60`, `--threshold 0.20`, `--max-frames 80`.
+Options: `--mode interval --interval 60`, `--threshold 0.30`, `--max-frames 80`.
 
 ### Step 2 — transcribe (use transcribe_openai.py, NOT transcribe.py)
 ```bash
 # Set PYTHONIOENCODING to avoid GBK console crash on zh-CN Windows
-PYTHONIOENCODING=utf-8 python skills/meeting-recording-analysis/transcribe_openai.py \
+PYTHONIOENCODING=utf-8 python skills/huawei-meeting-analysis/transcribe_openai.py \
   "<recording-dir-or-file>" --model base --language zh
 ```
 Outputs `<recording>/_analysis/transcript.{txt,json,srt}`.
@@ -118,12 +118,31 @@ the ffmpeg monkeypatch. Use `transcribe_openai.py` on this machine.
   Windows console. The script uses `verbose=False` to avoid this, but set the
   env var too as a belt-and-suspenders fix.
 
+### Step 2b — frame descriptions (optional multi-modal mode)
+```bash
+# Vision model writes a text description of every frame (resumable, cached)
+PYTHONIOENCODING=utf-8 python skills/huawei-meeting-analysis/analyze_frames.py \
+  "<recording-dir-or-file>"
+```
+Outputs `<recording>/_analysis/frames_analysis.{json,md}` — one description
+per frame (layout, title, verbatim bullet text, chart/table/code content).
+
+Uses the rnd gateway's **glm-5.3-flash** by default (proven vision-capable;
+verified 2026-10-27). Pure stdlib urllib, proxy handlers stripped for the
+intranet gateway, 4 parallel workers, retried 4×, resumable cache (re-run
+retries only failed/missing frames; `--force` redoes all). Do NOT add
+thinking/reasoning params — the gateway rejects them for GLM models.
+
+When to use: many frames, agent context is tight, or you want the frame
+content greppable as text. The agent can still read PNGs directly anytime.
+
 ### Step 3 — analyze (the agent does this; no script)
 Once you have the transcript + frames:
 - **Read** `_analysis/transcript.txt` for the full text.
 - **Read** `_analysis/manifest.json` to get the frame list + timestamps.
-- **Read** the frames (`_analysis/frames/frame_HHMMSS.png`) as images when
-  the user asks about something visual, or to enrich the summary.
+- **Read** `_analysis/frames_analysis.md` first if it exists (Step 2b) — frame
+  content as text. Read the PNGs (`_analysis/frames/frame_HHMMSS.png`) as
+  images only for detail re-checks or if Step 2b wasn't run.
 - **Synthesize**: summary, action items, decisions, topic search, or answer
   the specific question. Cite timestamps from the transcript.
 - **Write** the analysis to `_analysis/analysis.md` (in the user's language,
@@ -140,7 +159,7 @@ python -c "import torch; print(torch.__version__)"
 python -c "import whisper; m = whisper.load_model('tiny'); print('OK')"
 
 # Probe the recording
-python skills/meeting-recording-analysis/extract.py "<recording-dir>" --max-frames 5
+python skills/huawei-meeting-analysis/extract.py "<recording-dir>" --max-frames 5
 ```
 
 ## Troubleshooting
@@ -161,7 +180,8 @@ python skills/meeting-recording-analysis/extract.py "<recording-dir>" --max-fram
   create. If you'd rather not write there, pass `--out <path>`.
 - `_analysis/` and its contents are **not** committed (user data, not repo).
   The full `_analysis/` output is: `frames/`, `audio.wav`, `manifest.json`,
-  `transcript.{txt,json,srt}`, and `analysis.md`.
+  `transcript.{txt,json,srt}`, `frames_analysis.{json,md}` (Step 2b), and
+  `analysis.md`.
 - The `.m4a` and `audio.pcm` are redundant once `meeting_1.mp4` exists.
 - Timestamps in frame filenames align with transcript segment times, so "the
   slide shown at 00:14:30" maps directly to both.
