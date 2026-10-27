@@ -79,7 +79,9 @@ but Windows needs the full path. The bundled `imageio-ffmpeg` binary is named
 2. **What they want**: full transcript? summary? action items? a specific
    slide/screenshot? This decides whether you need transcription or just frames.
 3. **Language** if known (speeds up transcription): `zh`, `en`, etc.
-4. **Model size** if they care about speed vs accuracy:
+4. **Model size** — the script defaults to `large-v3` (best quality, ~1.5 GB
+   download on first run, multi-hour CPU transcription for long meetings).
+   Only downgrade if the user explicitly wants speed over accuracy:
    - `tiny` (~75 MB) — fast (~5 min for 87 min audio on CPU), rough quality
    - `base` (~145 MB) — good balance, ~30-40 min for 87 min on CPU
    - `small` / `medium` / `large` — higher accuracy, much longer CPU runs
@@ -101,9 +103,11 @@ Options: `--mode interval --interval 60`, `--threshold 0.30`, `--max-frames 80`.
 ```bash
 # Set PYTHONIOENCODING to avoid GBK console crash on zh-CN Windows
 PYTHONIOENCODING=utf-8 python skills/huawei-meeting-analysis/transcribe_openai.py \
-  "<recording-dir-or-file>" --model base --language zh
+  "<recording-dir-or-file>" --language zh
 ```
 Outputs `<recording>/_analysis/transcript.{txt,json,srt}`.
+Default model is `large-v3` (best quality). Add `--model base` (or tiny)
+only for a quick skim.
 
 **Why `transcribe_openai.py` and not `transcribe.py`?** The original
 `transcribe.py` uses `faster-whisper`, which segfaults on Meteor Lake.
@@ -111,7 +115,8 @@ Outputs `<recording>/_analysis/transcript.{txt,json,srt}`.
 the ffmpeg monkeypatch. Use `transcribe_openai.py` on this machine.
 
 **Critical flags:**
-- `--model tiny` for a quick skim (~5 min), `--model base` for accuracy (~30 min)
+- `--model large-v3` is the default (best accuracy, slow on CPU);
+  `--model tiny`/`base` only for quick skims (~5 min / ~30 min per 87 min audio)
 - `--language zh` to pin the language (faster than auto-detect)
 - `PYTHONIOENCODING=utf-8` env var — without it, `whisper.transcribe(verbose=True)`
   crashes with `UnicodeEncodeError: 'gbk' codec can't encode` on a zh-CN

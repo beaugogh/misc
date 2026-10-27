@@ -59,8 +59,9 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("source", help="recording dir, video file, or audio.wav")
     ap.add_argument("--out", help="output dir (default: <source>/_analysis)")
-    ap.add_argument("--model", default="tiny",
-                    help="whisper model: tiny/base/small/medium/large (default tiny)")
+    ap.add_argument("--model", default="large-v3",
+                    help="whisper model: tiny/base/small/medium/large/large-v3 "
+                         "(default large-v3 — best quality; pass tiny/base for quick skims)")
     ap.add_argument("--model-dir", default=None,
                     help="directory containing Whisper model files (default: ~/.cache/whisper)")
     ap.add_argument("--language", default=None, help="language code e.g. zh, en (default: auto-detect)")
