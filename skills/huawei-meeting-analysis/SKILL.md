@@ -1,20 +1,56 @@
 ---
 name: huawei-meeting-analysis
-description: Analyzes meeting recordings (video + audio) — transcribes speech to a timestamped transcript and extracts key frames from screen-share video, then summarizes / pulls action items / answers questions about the meeting. Built for WeLink recordings (a directory with meeting_1.mp4 + meeting_1.m4a + audio.pcm) but works on any video file. Optional multi-modal mode sends every frame to a vision model (glm-5.3-flash) and writes per-frame text descriptions. Use when the user wants to know what happened in a recorded meeting, get a summary or action items, extract something shown on the shared screen (slides, code, a diagram), or search what was said by timestamp. Requires the Python venv with openai-whisper + imageio-ffmpeg (see Setup).
+description: Works with meeting recordings — can extract/download the recording video from a Huawei eMeeting (w3.huawei.com/emeeting) URL, transcribe speech to a timestamped transcript, extract key frames from screen-share video, then summarize / pull action items / answer questions about the meeting. Built for WeLink recordings (a directory with meeting_1.mp4 + meeting_1.m4a + audio.pcm) but works on any video file. Optional multi-modal mode sends every frame to a vision model (glm-5.3-flash) and writes per-frame text descriptions; the agent itself reads frame PNGs directly as images (primary evidence path). Use when the user wants to download an eMeeting recording, know what happened in a recorded meeting, get a summary or action items, extract something shown on the shared screen (slides, code, a diagram), or search what was said by timestamp. Video extraction needs an opencli browser session; transcription needs the Python venv with openai-whisper + imageio-ffmpeg (see Setup).
 ---
 
 # Meeting recording analysis (video + audio)
 
 ## What this skill does
 Turn a meeting recording into something you can read and reason about:
+0. **Extract the video** — download a Huawei eMeeting recording from its
+   `w3.huawei.com/emeeting/#/aiSummary/...` URL (highest quality available).
+   Standalone: no whisper/venv needed, just an opencli browser session.
 1. **Transcribe** the audio → timestamped transcript (`.txt` / `.json` / `.srt`).
 2. **Extract key frames** from the video → PNGs at slide/screen changes.
 3. **Analyze** — summarize, pull action items, find decisions, answer
    "what was said about X", or read a specific shared screen (slide/code).
 
-The agent reads the transcript as text and the frames as images, then
-synthesizes the answer. Both are produced once and cached, so follow-up
-questions are cheap.
+The agent reads the transcript as text and **the frame PNGs directly as
+images** (the model is multimodal — that is the primary evidence path), using
+the per-frame text descriptions (Step 2b, if generated) only to locate frames
+cheaply. Both caches are produced once, so follow-up questions are cheap.
+
+## Step 0 — extract (download) an eMeeting recording video
+For a meeting whose recording lives on **w3.huawei.com/emeeting** (the
+AI-summary page link). Validated 2026-10-28 on a 3-hour SPEAKER_SHARE_VIDEO
+recording (Extreme tier, AES-128 HLS).
+
+```bash
+# 1. open a browser session on the meeting page (cookies required)
+opencli browser emeeting open "<emeeting-url>" --window background
+
+# 2. run the extractor (downloads + decrypts + merges to mp4)
+python <path-to>/huawei-meeting-analysis/extract_video.py emeeting "<url>" "<out-dir>"
+```
+
+How it works: `getCloudRecord/<32-hex-id>` API (record id = the aiSummary URL
+segment) → quality tiers (`Extreme > High > Medium > Low > Audio`, m3u8 each)
+→ AES-128 encrypted HLS segments fetched as base64 through `opencli eval`
+(session cookies; **measured ~10 s/segment — a 3 h meeting ≈ 3.5-4 h at best
+tier; run it in the background and report ETA, or `--quality High` for ~2-3×
+faster download when 1080p isn't needed**)
+→ key fetch → openssl `-aes-128-cbc -d -nopad` (IV from the playlist tag;
+TS sync 0x47 verified) → ffmpeg concat/remux to mp4, verified by ffprobe
+duration vs the record metadata.
+
+- Resumable: encrypted segments are kept in `<out-dir>/segs/`; re-run fetches
+  only the missing ones (transient network failures just need a re-run).
+- `--quality High` etc. to take a lower tier; default is the best available.
+- Multi-part meetings: `--record-index N` picks among `record_meta.json`
+  entries (a meeting can have several recordings, e.g. speaker view + share view).
+- After it lands, the mp4 feeds the normal pipeline below (frames/transcript).
+- Grep `record_meta.json` for duration/fileSize/recordType before downloading
+  if you want to confirm you have the right recording.
 
 ## WeLink recording layout (the common case here)
 A WeLink local recording is a **directory** named like
@@ -89,6 +125,8 @@ but Windows needs the full path. The bundled `imageio-ffmpeg` binary is named
 ## The pipeline — run these in order
 
 ### Step 1 — extract frames + audio
+(Skip Step 0 if the mp4 already exists — e.g. from Step 0 or a WeLink dir.
+Step 1 itself still runs on that mp4 to produce audio.wav + frames.)
 ```bash
 python skills/huawei-meeting-analysis/extract.py "<recording-dir-or-file>"
 ```
@@ -138,22 +176,42 @@ intranet gateway, 4 parallel workers, retried 4×, resumable cache (re-run
 retries only failed/missing frames; `--force` redoes all). Do NOT add
 thinking/reasoning params — the gateway rejects them for GLM models.
 
-When to use: many frames, agent context is tight, or you want the frame
-content greppable as text. The agent can still read PNGs directly anytime.
+When to use: many frames and tight agent context, or when you want frame
+content greppable as text. **It is an auxiliary cache, not the primary
+evidence** — the underlying model (e.g. glm-5.3-flash) is multimodal and can
+read the PNGs directly, which is higher-fidelity than any text description.
+Use the descriptions to locate relevant frames cheaply, then read those PNGs
+as images for the actual content.
 
 ### Step 3 — analyze (the agent does this; no script)
+The underlying model is **multimodal — read the frame PNGs directly as
+images**. That is the primary evidence path; text caches are for locating
+frames cheaply.
+
 Once you have the transcript + frames:
 - **Read** `_analysis/transcript.txt` for the full text.
 - **Read** `_analysis/manifest.json` to get the frame list + timestamps.
-- **Read** `_analysis/frames_analysis.md` first if it exists (Step 2b) — frame
-  content as text. Read the PNGs (`_analysis/frames/frame_HHMMSS.png`) as
-  images only for detail re-checks or if Step 2b wasn't run.
+- **Locate** the frames that matter:
+  - if `_analysis/frames_analysis.md` exists (Step 2b), grep/skim it to pick
+    the frames worth reading — descriptions are cheaper to scan than images;
+  - otherwise pick by timestamp gaps from `manifest.json`.
+- **Read the selected PNGs (`_analysis/frames/frame_HHMMSS.png`) as images.**
+  Don't write analysis.md from the descriptions alone — verify every load-
+  bearing claim (UI text, numbers, tables, error codes) against the actual
+  image. The vision model's per-frame text is OCR-prone, especially dense
+  tables, small log text, and CJK glyphs.
+- **Budget the reads**: for an 80-frame meeting, spot-checking 5-10 key
+  frames is usually enough; read exhaustively only when the user asks for
+  screen-level detail.
 - **Synthesize**: summary, action items, decisions, topic search, or answer
   the specific question. Cite timestamps from the transcript.
 - **Write** the analysis to `_analysis/analysis.md` (in the user's language,
   e.g. Chinese for a Chinese meeting) with: meeting summary, key topics with
   timestamps, action items, key concepts glossary, and conclusions. See the
   existing `_analysis/analysis.md` from the 2026-07-09 meeting as a template.
+- **State the evidence basis** in analysis.md (e.g. "frame content verified
+  by direct image reads on N frames; transcript covers mm:ss–mm:ss"). This
+  lets the user judge how much was seen firsthand vs mediated.
 
 ## Verify (quick smoke test)
 ```bash
