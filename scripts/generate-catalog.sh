@@ -99,7 +99,7 @@ render_skill_section() {
     # below, so don't double-count. (Only relevant for base="skills".)
     if [ "$base" = "skills" ]; then
       case "$f" in
-        skills/anthropic-skills/*|skills/mattpocock-skills/*|skills/superpowers/*) continue ;;
+        skills/anthropic-skills/*|skills/mattpocock-skills/*|skills/superpowers/*|skills/i-have-adhd/*) continue ;;
       esac
     fi
     local skilldir
@@ -346,7 +346,7 @@ render_mcptool_section() {
 # Catalog
 
 A machine- and human-readable index of **every agent-facing artifact** in this
-repo — skills (own + three external collections), OpenCLI plugins, and MCP
+repo — skills (own + four external collections), OpenCLI plugins, and MCP
 tools — so an external agent can survey what's available in one place.
 
 ## How an agent should use this
@@ -393,6 +393,7 @@ MID
   render_skill_section "Anthropic skills (skills/anthropic-skills/skills/)" "skills/anthropic-skills/skills" "./skills/anthropic-skills/skills"
   render_skill_section "Superpowers (skills/superpowers/skills/)" "skills/superpowers/skills" "./skills/superpowers/skills"
   render_skill_section "Mattpocock skills (skills/mattpocock-skills/skills/)" "skills/mattpocock-skills/skills" "./skills/mattpocock-skills/skills"
+  render_skill_section "I-have-adhd (skills/i-have-adhd/skills/)" "skills/i-have-adhd/skills" "./skills/i-have-adhd/skills"
 
   cat <<'PLUGHDR'
 

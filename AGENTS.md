@@ -18,6 +18,7 @@ scripts/             — Repo-level tooling (catalog generation)
 anthropic-skills/    — Git submodule (at skills/anthropic-skills): Anthropic's official skills (read-only)
 superpowers/         — Git submodule (at skills/superpowers): obra's methodology skills (read-only)
 mattpocock-skills/   — Git submodule (at skills/mattpocock-skills): Matt Pocock's engineering skills (read-only)
+i-have-adhd/         — Git submodule (at skills/i-have-adhd): ayghri's ADHD output-style skill (read-only)
 .venv/               — Python venv (torch, whisper, imageio-ffmpeg) for ML-heavy skills
 .env                 — Per-provider API credentials (gitignored, never commit)
 CATALOG.md           — Auto-generated catalog of ALL skills + OpenCLI plugins + MCP servers
@@ -46,7 +47,7 @@ Bundled scripts/templates live alongside the `SKILL.md` and are referenced by re
 
 # Update all submodules to latest upstream main
 git submodule update --remote
-git add skills/anthropic-skills skills/superpowers skills/mattpocock-skills
+git add skills/anthropic-skills skills/superpowers skills/mattpocock-skills skills/i-have-adhd
 git commit -m "Bump submodules to latest upstream main"
 
 # Clone with submodules
@@ -91,7 +92,7 @@ source .venv/Scripts/activate
 
 ## Key conventions
 
-- **Submodules are read-only.** Never edit files inside `skills/anthropic-skills/`, `skills/superpowers/`, or `skills/mattpocock-skills/` directly.
+- **Submodules are read-only.** Never edit files inside `skills/anthropic-skills/`, `skills/superpowers/`, `skills/mattpocock-skills/`, or `skills/i-have-adhd/` directly.
 - **Line endings:** All text files normalized to LF (`.gitattributes`). Shell scripts are `text eol=lf`, PowerShell is `text eol=crlf`.
 - **LFS:** Harvested paper outputs under `skills/harvest-ai-papers/output/harvested/**` are tracked with Git LFS.
 - **Credentials:** `.env` at repo root holds API keys (gitignored). Skills that need credentials use per-skill `.env` files (also gitignored). Use `.env.example` as a template.
