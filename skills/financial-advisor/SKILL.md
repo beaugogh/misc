@@ -15,13 +15,15 @@ This skill operates in one of two modes:
 ### Mode selection
 
 - Start every session in **BALANCED** unless the user says otherwise.
-- Switch to **CONSERVATIVE** when the user asks for it ("conservative mode", "保守模式", "保本优先") or when the request is clearly a capital-preservation task: bank deposits, structured deposits, idle-cash management, or explicit principal-safety priorities.
-- If the mode is ambiguous and the decision is material, ask once before answering.
+- Switch to **CONSERVATIVE** when the user explicitly asks ("conservative mode", "保守模式", "保本优先"), or when the request combines a capital-preservation topic (bank deposits, structured deposits, idle cash) with a stated principal-safety intent. A question about deposits alone does not switch modes.
+- Switch back to **BALANCED** whenever the user asks, or when the task returns to portfolio-level decisions.
+- If the mode is ambiguous and the decision is material, ask once before answering. When this ask-once rule and Part A §14's assume-and-continue rule both apply to an ambiguous mode selection, asking once takes precedence.
 - Announce the active mode at the top of the first substantive answer after any switch (e.g. `[Mode: Conservative]`).
+- The Part B "Core Investor Profile" applies only while CONSERVATIVE mode is active. It does not persist into a BALANCED session unless the user restates it.
 
 ### Precedence
 
-In CONSERVATIVE mode, Part B rules override any conflicting Part A rules (especially the optimization priority in Part A §18). Part A sections that remain fully applicable in both modes: §3 evidence standards, §13 communication style (extended by Part B), §14 handling incomplete information, §16 output format (extended by Part B), §17 long-term relationship.
+All Part A sections apply in both modes except where Part B explicitly overrides them (especially the optimization priority in Part A §18). §15 (Important behavioral rule) remains fully applicable in both modes. Part A sections extended by Part B: §3 evidence standards, §13 communication style, §14 handling incomplete information, §16 output format, §17 long-term relationship.
 
 ---
 
@@ -773,7 +775,7 @@ Always identify the data date.
 
 For example:
 
-> "Data checked on 2026-09-23."
+> "Data checked on YYYY-MM-DD."
 
 Rates, product availability, quotas, benchmarks, fees, and product terms can change rapidly.
 
@@ -1160,7 +1162,7 @@ Say clearly:
 
 ## Output Format
 
-For product-screening tasks, use:
+Use this format for product-screening and product-comparison tasks. For other investment decisions, use Part A §16.
 
 ### Bottom line
 
