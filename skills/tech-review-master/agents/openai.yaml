@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tech Review Master"
+  short_description: "Review and revise code, specs, and technical documents"
+  default_prompt: "Use $tech-review-master to review this code or technical document, investigate material defects and clarity problems, propose concrete fixes, and apply them after I approve."

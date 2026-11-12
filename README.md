@@ -69,7 +69,7 @@ skills; see the catalog for the complete, up-to-date list.
 | Skill | Purpose |
 |---|---|
 | [`huawei-auto-pal`](./skills/huawei-auto-pal) | Personal AI work companion. Two-phase pipeline: **retro-scope** diagnoses where time goes (time sinks, recurring time consumption from AI sessions, git, browser, WeLink, email, meetings, file edits); **skill-forge** creates/modifies skills and memories so those problems are easier to solve next time. |
-| [`adversarial-review`](./skills/adversarial-review) | Production-grade falsify-first review of any artifact (code, prompt, skill, config, spec, docs) as if you are the senior engineer and final approver. Structured findings by severity, approval decision, and corrected artifact. |
+| [`tech-review-master`](./skills/tech-review-master) | Review and revise code, configurations, prompts, specifications, and Chinese or English technical documents. Evidence-backed findings, review depth matched to risk, and fixes applied after approval. |
 | [`super-code-review`](./skills/super-code-review) | Multi-axis code review — three parallel sub-agents (Spec & Intent, Standards & Craft, Adversarial & Robustness) review in isolated context, then a synthesis pass dedups and assigns severity. Final gate before merge or ship. |
 | [`webpage-to-markdown`](./skills/webpage-to-markdown) | Parse, extract, archive, or transform a web page URL into a complete, agent-friendly Markdown file — metadata, headings, links, tables, code blocks, images, visual fallbacks, and provenance. |
 | [`install-claude-code-windows`](./skills/install-claude-code-windows) | Install Claude Code + Claude Code Router (CCR v1.x) on Windows behind a corporate firewall/VPN, routed to internal OpenAI-compatible endpoints. |
